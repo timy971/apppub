@@ -83,13 +83,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AppPublisher — Publiez vos applications sans commande" },
+      { title: "AppPublisher — Publiez vos applications simplement" },
       {
         name: "description",
         content:
           "Assistant de publication d'applications Android. Guidé, en français, sans jargon.",
       },
-      { property: "og:title", content: "AppPublisher" },
+      { property: "og:title", content: "AppPublisher — Publiez vos applications simplement" },
       {
         property: "og:description",
         content:
@@ -97,6 +97,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "AppPublisher — Publiez vos applications simplement" },
+      { name: "description", content: "AppRelease Assistant simplifies Android app publishing for non-technical users, automating complex steps." },
+      { property: "og:description", content: "AppRelease Assistant simplifies Android app publishing for non-technical users, automating complex steps." },
+      { name: "twitter:description", content: "AppRelease Assistant simplifies Android app publishing for non-technical users, automating complex steps." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a23dd8cb-b21c-4a0c-aa2e-9c39d8f75961/id-preview-d5a40ca3--b53dabf7-8bb0-47a8-beb8-676f291e5d87.lovable.app-1782951819256.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a23dd8cb-b21c-4a0c-aa2e-9c39d8f75961/id-preview-d5a40ca3--b53dabf7-8bb0-47a8-beb8-676f291e5d87.lovable.app-1782951819256.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
