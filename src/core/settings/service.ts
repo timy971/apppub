@@ -4,10 +4,11 @@ import { storage, STORAGE_KEYS } from "@/core/storage";
 export const DEFAULT_SETTINGS: Settings = {
   userName: "",
   theme: "system",
-  mode: "assistant",
+  mode: "discovery",
   language: "fr",
   onboardingCompleted: false,
   contextualHelpEnabled: true,
+  autoBackupEnabled: true,
 };
 
 export const SettingsService = {

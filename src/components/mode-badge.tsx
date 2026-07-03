@@ -1,14 +1,21 @@
 import { useSettings, AppStore } from "@/core/store/app-store";
 import { cn } from "@/lib/utils";
+import type { ExperienceMode } from "@/core/types";
 
 /**
- * Badge de bascule Mode Assistant / Mode Expert.
- * En Assistant : tout est guidé étape par étape, jargon masqué.
- * En Expert : détails techniques additionnels affichés dans les écrans avancés.
+ * Bascule Mode Découverte / Assistant / Expert.
+ * - Découverte : explications systématiques, actions pédagogiques.
+ * - Assistant : guidé, jargon masqué (défaut Phase 1).
+ * - Expert : détails techniques additionnels affichés.
  */
+const MODES: { value: ExperienceMode; label: string }[] = [
+  { value: "discovery", label: "Découverte" },
+  { value: "assistant", label: "Assistant" },
+  { value: "expert", label: "Expert" },
+];
+
 export function ModeBadge({ className }: { className?: string }) {
   const settings = useSettings();
-  const isAssistant = settings.mode === "assistant";
   return (
     <div
       className={cn(
@@ -18,26 +25,21 @@ export function ModeBadge({ className }: { className?: string }) {
       role="group"
       aria-label="Mode d'utilisation"
     >
-      <button
-        type="button"
-        onClick={() => AppStore.updateSettings({ mode: "assistant" })}
-        className={cn(
-          "rounded-full px-3 py-1 transition-colors",
-          isAssistant ? "bg-background shadow-sm" : "text-muted-foreground",
-        )}
-      >
-        Assistant
-      </button>
-      <button
-        type="button"
-        onClick={() => AppStore.updateSettings({ mode: "expert" })}
-        className={cn(
-          "rounded-full px-3 py-1 transition-colors",
-          !isAssistant ? "bg-background shadow-sm" : "text-muted-foreground",
-        )}
-      >
-        Expert
-      </button>
+      {MODES.map((m) => (
+        <button
+          key={m.value}
+          type="button"
+          onClick={() => AppStore.updateSettings({ mode: m.value })}
+          className={cn(
+            "rounded-full px-3 py-1 transition-colors",
+            settings.mode === m.value
+              ? "bg-background shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {m.label}
+        </button>
+      ))}
     </div>
   );
 }

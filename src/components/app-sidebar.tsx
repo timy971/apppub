@@ -8,6 +8,7 @@ import {
   History,
   Settings as SettingsIcon,
   Rocket,
+  LifeBuoy,
 } from "lucide-react";
 import {
   Sidebar,
@@ -21,6 +22,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { ProjectSwitcher } from "./project-switcher";
 
 const primary = [
   { title: "Tableau de bord", url: "/", icon: LayoutDashboard },
@@ -30,7 +32,7 @@ const primary = [
 const publication = [
   { title: "Modifier la version", url: "/version", icon: GitBranch },
   { title: "Construire Android", url: "/build", icon: Hammer },
-  { title: "Publier sur Google", url: "/publish", icon: Rocket },
+  { title: "Préparer la publication", url: "/publish", icon: Rocket },
 ];
 
 const utils = [
@@ -38,6 +40,8 @@ const utils = [
   { title: "Historique", url: "/history", icon: History },
   { title: "Paramètres", url: "/settings", icon: SettingsIcon },
 ];
+
+const support = [{ title: "Support", url: "/journal", icon: LifeBuoy }];
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -47,24 +51,26 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="px-4 py-5">
-        <Link to="/" className="flex items-center gap-2">
+      <SidebarHeader className="px-3 py-4">
+        <Link to="/" className="mb-3 flex items-center gap-2 px-1">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
             A
           </div>
           {!collapsed && (
             <div className="leading-tight">
               <div className="text-sm font-semibold">AppPublisher</div>
-              <div className="text-[11px] text-muted-foreground">Publication guidée</div>
+              <div className="text-[11px] text-muted-foreground">Copilote de publication</div>
             </div>
           )}
         </Link>
+        <ProjectSwitcher compact={collapsed} />
       </SidebarHeader>
 
       <SidebarContent>
         <Section label="Général" items={primary} isActive={isActive} collapsed={collapsed} />
         <Section label="Publication" items={publication} isActive={isActive} collapsed={collapsed} />
         <Section label="Outils" items={utils} isActive={isActive} collapsed={collapsed} />
+        <Section label="Assistance" items={support} isActive={isActive} collapsed={collapsed} />
       </SidebarContent>
     </Sidebar>
   );
