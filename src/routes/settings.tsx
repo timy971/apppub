@@ -14,7 +14,9 @@ import {
 } from "@/components/ui/select";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import { toast } from "sonner";
-import type { ThemePreference } from "@/core/types";
+import type { ExperienceMode, ThemePreference } from "@/core/types";
+import { ModeBadge } from "@/components/mode-badge";
+import { isElectron } from "@/core/bridge";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -23,6 +25,7 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const settings = useSettings();
   const navigate = useNavigate();
+  const electron = isElectron();
 
   return (
     <div>
@@ -49,6 +52,15 @@ function SettingsPage() {
         </Card>
 
         <Card className="p-6 shadow-soft">
+          <Row
+            label="Mode d'utilisation"
+            hint="Découverte pour apprendre, Assistant au quotidien, Expert pour plus de détails techniques."
+          >
+            <ModeBadge />
+          </Row>
+        </Card>
+
+        <Card className="p-6 shadow-soft">
           <Row label="Apparence" hint="AppPublisher s'adapte à votre système par défaut.">
             <Select
               value={settings.theme}
@@ -63,6 +75,18 @@ function SettingsPage() {
                 <SelectItem value="dark">Sombre</SelectItem>
               </SelectContent>
             </Select>
+          </Row>
+        </Card>
+
+        <Card className="p-6 shadow-soft">
+          <Row
+            label="Sauvegarde automatique"
+            hint="Une sauvegarde légère est créée avant chaque opération sensible (version, build, publication)."
+          >
+            <Switch
+              checked={settings.autoBackupEnabled ?? true}
+              onCheckedChange={(v) => AppStore.updateSettings({ autoBackupEnabled: v })}
+            />
           </Row>
         </Card>
 
@@ -95,6 +119,21 @@ function SettingsPage() {
         </Card>
 
         <Card className="p-6 shadow-soft">
+          <Row
+            label="Mode d'exécution"
+            hint={
+              electron
+                ? "AppPublisher tourne comme une véritable application Desktop."
+                : "AppPublisher tourne dans le navigateur : les opérations système sont simulées. Téléchargez la version Desktop pour piloter vos vrais projets."
+            }
+          >
+            <span className="rounded-full border bg-muted/60 px-3 py-1 text-xs">
+              {electron ? "Desktop (Electron)" : "Aperçu Web (simulé)"}
+            </span>
+          </Row>
+        </Card>
+
+        <Card className="p-6 shadow-soft">
           <Row label="Assistance avancée" hint="Uniquement pour le support technique.">
             <Button variant="outline" asChild>
               <Link to="/journal">Ouvrir le journal</Link>
@@ -110,7 +149,7 @@ function SettingsPage() {
             <Button
               variant="outline"
               onClick={() => {
-                AppStore.updateSettings({ onboardingCompleted: false });
+                AppStore.updateSettings({ onboardingCompleted: false, mode: "discovery" as ExperienceMode });
                 toast.success("Configuration réinitialisée");
                 navigate({ to: "/setup" });
               }}

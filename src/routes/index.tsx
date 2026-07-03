@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   GitBranch,
   Hammer,
@@ -10,9 +10,20 @@ import {
   FolderPlus,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { useSettings, useActiveProject, useProjects } from "@/core/store/app-store";
+import {
+  useSettings,
+  useActiveProject,
+  useProjects,
+} from "@/core/store/app-store";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CopilotCard } from "@/components/copilot-card";
+import { HealthScoreCard } from "@/components/health-score-card";
+import { DiagnosticService } from "@/core/diagnostic/service";
+import { HealthScoreService } from "@/core/health/service";
+import { CopilotService } from "@/core/copilot/service";
+import { HistoryService } from "@/core/history/service";
+import type { CopilotSuggestion, HealthCheck, HealthScore } from "@/core/types";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -24,54 +35,83 @@ function Dashboard() {
   const projects = useProjects();
   const navigate = useNavigate();
 
-  // Premier lancement → assistant de configuration
+  const [checks, setChecks] = useState<HealthCheck[]>([]);
+  const [scoreState, setScoreState] = useState<HealthScore | null>(null);
+  const [suggestion, setSuggestion] = useState<CopilotSuggestion | null>(null);
+  const [etaMinutes, setEtaMinutes] = useState<number | undefined>();
+
   useEffect(() => {
     if (!settings.onboardingCompleted) {
       navigate({ to: "/setup" });
     }
   }, [settings.onboardingCompleted, navigate]);
 
-  if (!settings.onboardingCompleted) return null;
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const c = await DiagnosticService.run(activeProject);
+      if (cancelled) return;
+      const s = HealthScoreService.from(c);
+      const history = HistoryService.list();
+      const sug = CopilotService.suggest({ project: activeProject, checks: c, history });
+      setChecks(c);
+      setScoreState(s);
+      setSuggestion(sug);
+      setEtaMinutes(CopilotService.estimatePublishMinutes(c));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProject?.id]);
 
-  const firstName = settings.userName || "vous";
+  const greeting = useMemo(() => hello(settings.userName), [settings.userName]);
+
+  if (!settings.onboardingCompleted) return null;
 
   return (
     <div>
       <PageHeader
-        title={`Bienvenue ${firstName}`}
-        subtitle="Choisissez ce que vous souhaitez faire. Chaque action vous guide pas à pas."
+        title={greeting}
+        subtitle="Voici l'état de votre projet et la prochaine action à effectuer."
         help={{
           title: "À propos du tableau de bord",
           content: (
             <>
-              C'est votre point de départ. Le projet affiché ici est celui sur lequel
-              toutes les actions s'appliqueront. Vous pouvez en changer depuis la
-              page <strong>Projets</strong>.
+              Le copilote analyse en permanence votre projet et vous propose la
+              prochaine action pertinente. Vous restez maître à bord : rien
+              n'est effectué sans votre validation.
             </>
           ),
         }}
       />
 
       {activeProject ? (
-        <Card className="mb-8 p-6 shadow-soft">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-2xl">
-                {activeProject.logoEmoji ?? "📱"}
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Projet actuel
+        <>
+          <Card className="mb-6 p-6 shadow-soft">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-3xl">
+                  {activeProject.logoEmoji ?? "📱"}
                 </div>
-                <div className="text-xl font-semibold truncate">{activeProject.name}</div>
+                <div className="min-w-0">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Projet actuel
+                  </div>
+                  <div className="text-2xl font-semibold truncate">{activeProject.name}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-8 pr-2">
+                <Stat label="Version" value={activeProject.currentVersion} />
+                <Stat label="Build" value={String(activeProject.currentBuild)} />
               </div>
             </div>
-            <div className="flex items-center gap-8 pr-2">
-              <Stat label="Version" value={activeProject.currentVersion} />
-              <Stat label="Build" value={String(activeProject.currentBuild)} />
-            </div>
+          </Card>
+
+          <div className="mb-6 grid gap-4 lg:grid-cols-2">
+            {suggestion && <CopilotCard suggestion={suggestion} etaMinutes={etaMinutes} />}
+            {scoreState && <HealthScoreCard score={scoreState} />}
           </div>
-        </Card>
+        </>
       ) : (
         <Card className="mb-8 p-6 shadow-soft">
           <div className="flex items-center justify-between gap-4">
@@ -93,26 +133,33 @@ function Dashboard() {
         </Card>
       )}
 
-      <div className="mb-3 text-sm font-medium text-muted-foreground">
-        Que voulez-vous faire ?
-      </div>
+      <div className="mb-3 text-sm font-medium text-muted-foreground">Actions rapides</div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ActionCard to="/version" icon={GitBranch} title="Modifier la version" desc="Correction, nouveauté ou grande version." />
         <ActionCard to="/build" icon={Hammer} title="Construire Android" desc="Fabriquer le fichier prêt à publier." />
-        <ActionCard to="/publish" icon={Rocket} title="Publier sur Google" desc="Envoyer votre application aux utilisateurs." />
+        <ActionCard to="/publish" icon={Rocket} title="Préparer la publication" desc="Enchaîner toutes les vérifications." />
         <ActionCard to="/diagnostic" icon={HeartPulse} title="Vérifier le projet" desc="Contrôler que tout est bien configuré." />
         <ActionCard to="/history" icon={HistoryIcon} title="Historique" desc="Retrouver toutes vos publications." />
-        <ActionCard to="/settings" icon={SettingsIcon} title="Paramètres" desc="Nom, thème, préférences." />
+        <ActionCard to="/settings" icon={SettingsIcon} title="Paramètres" desc="Nom, thème, mode, préférences." />
       </div>
     </div>
   );
+}
+
+function hello(name: string): string {
+  const first = name || "vous";
+  const hour = new Date().getHours();
+  if (hour < 6) return `Bonne nuit ${first}`;
+  if (hour < 12) return `Bonjour ${first}`;
+  if (hour < 18) return `Bon après-midi ${first}`;
+  return `Bonsoir ${first}`;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="text-right">
       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-lg font-semibold tabular-nums">{value}</div>
+      <div className="text-xl font-semibold tabular-nums">{value}</div>
     </div>
   );
 }

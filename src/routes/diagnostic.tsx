@@ -6,22 +6,35 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusDot } from "@/components/status-dot";
 import { DiagnosticService } from "@/core/diagnostic/service";
-import type { HealthCheck } from "@/core/types";
-import { useActiveProject } from "@/core/store/app-store";
+import { HealthScoreService } from "@/core/health/service";
+import { HealthScoreCard } from "@/components/health-score-card";
+import { WhyButton } from "@/components/why-button";
+import type { HealthCheck, HealthScore } from "@/core/types";
+import { useActiveProject, useSettings } from "@/core/store/app-store";
 
 export const Route = createFileRoute("/diagnostic")({
   component: DiagnosticPage,
 });
 
+const GROUPS: { id: HealthCheck["category"]; label: string }[] = [
+  { id: "environment", label: "Votre ordinateur" },
+  { id: "project", label: "Votre projet" },
+  { id: "network", label: "Réseau" },
+];
+
 function DiagnosticPage() {
   const project = useActiveProject();
+  const settings = useSettings();
   const [checks, setChecks] = useState<HealthCheck[]>([]);
+  const [score, setScore] = useState<HealthScore | null>(null);
   const [running, setRunning] = useState(false);
 
   async function refresh() {
     setRunning(true);
     try {
-      setChecks(await DiagnosticService.run(project));
+      const c = await DiagnosticService.run(project);
+      setChecks(c);
+      setScore(HealthScoreService.from(c));
     } finally {
       setRunning(false);
     }
@@ -31,8 +44,6 @@ function DiagnosticPage() {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
-
-  const okCount = checks.filter((c) => c.status === "ok").length;
 
   return (
     <div>
@@ -48,8 +59,7 @@ function DiagnosticPage() {
           content: (
             <>
               🟢 Tout va bien · 🟠 Attention, action recommandée · 🔴 Problème
-              bloquant. Nous ne montrons jamais de message technique — chaque
-              alerte est accompagnée d'une explication en français.
+              bloquant. Chaque alerte est accompagnée d'une explication en français.
             </>
           ),
         }}
@@ -61,26 +71,42 @@ function DiagnosticPage() {
         }
       />
 
-      {checks.length > 0 && (
-        <div className="mb-4 text-sm text-muted-foreground">
-          {okCount} sur {checks.length} vérifications au vert.
+      {score && (
+        <div className="mb-6">
+          <HealthScoreCard score={score} />
         </div>
       )}
 
-      <div className="grid gap-3">
-        {checks.map((c) => (
-          <Card key={c.id} className="p-4 shadow-soft">
-            <div className="flex items-start gap-4">
-              <StatusDot status={c.status} className="mt-1.5" />
-              <div className="min-w-0 flex-1">
-                <div className="font-medium">{c.label}</div>
-                {c.detail && (
-                  <div className="mt-1 text-sm text-muted-foreground">{c.detail}</div>
-                )}
+      <div className="space-y-6">
+        {GROUPS.map((g) => {
+          const items = checks.filter((c) => (c.category ?? "environment") === g.id);
+          if (items.length === 0) return null;
+          return (
+            <section key={g.id}>
+              <div className="mb-2 text-sm font-medium text-muted-foreground">{g.label}</div>
+              <div className="grid gap-3">
+                {items.map((c) => (
+                  <Card key={c.id} className="p-4 shadow-soft">
+                    <div className="flex items-start gap-4">
+                      <StatusDot status={c.status} className="mt-1.5" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium">{c.label}</div>
+                        {c.detail && (
+                          <div className="mt-1 text-sm text-muted-foreground">{c.detail}</div>
+                        )}
+                        {(settings.mode === "discovery" || settings.mode === "expert") && c.why && (
+                          <div className="mt-2">
+                            <WhyButton title={c.label}>{c.why}</WhyButton>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
               </div>
-            </div>
-          </Card>
-        ))}
+            </section>
+          );
+        })}
       </div>
     </div>
   );
