@@ -137,8 +137,8 @@ function VersionAssistant() {
         return;
       }
 
-      const finalVersion = applied?.version ?? preview.to;
-      const finalBuild = applied?.build ?? preview.newBuild;
+      const finalVersion = appliedRef.current?.version ?? preview.to;
+      const finalBuild = appliedRef.current?.build ?? preview.newBuild;
 
       if (choice !== "readonly") {
         ProjectsService.update(project.id, {
