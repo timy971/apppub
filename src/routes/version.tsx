@@ -111,7 +111,7 @@ function VersionAssistant() {
             title: "Application de la nouvelle version",
             run: async () => {
               try {
-                setApplied(await VersionService.apply(project, choice!));
+                appliedRef.current = await VersionService.apply(project, choice!);
                 return { status: "success" };
               } catch (e) {
                 return {
