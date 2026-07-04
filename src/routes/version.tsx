@@ -93,6 +93,9 @@ function VersionAssistant() {
       }
 
       let applied: { version: string; build: number } | null = null;
+      const setApplied = (v: { version: string; build: number }) => {
+        applied = v;
+      };
 
       const wf = await runWorkflow({
         id: "version",
