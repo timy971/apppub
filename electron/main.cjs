@@ -3,6 +3,16 @@
  * AppPublisher — Electron main process.
  * Fenêtre unique, sandbox actif, aucune API Node exposée au renderer.
  * Toute la communication passe par le preload et le canal IPC typé.
+ *
+ * Durcissement sécurité :
+ *  - `exec:run` restreint à une allowlist de commandes (node, npm, npx, git,
+ *    java, gradlew) avec validation stricte des arguments et refus des
+ *    variables d'environnement fournies par le renderer.
+ *  - Tous les accès `fs:*` et `shell:*` sont confinés à un ensemble de
+ *    racines projet explicitement approuvées par l'utilisateur via le
+ *    sélecteur natif (`projects:chooseFolder`) ou implicitement par un
+ *    scan (`projects:scan`). Les chemins sont canonicalisés avant toute
+ *    opération et rejetés s'ils sortent de ces racines.
  */
 const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
@@ -12,6 +22,86 @@ const os = require("os");
 const https = require("https");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
+
+/* ---------- Sécurité : racines projet approuvées ---------- */
+
+/** Ensemble des chemins réels autorisés à la lecture / listing / ouverture. */
+const allowedRoots = new Set();
+
+function registerAllowedRoot(p) {
+  try {
+    if (!p || typeof p !== "string") return null;
+    const real = fs.realpathSync(p);
+    const st = fs.statSync(real);
+    if (!st.isDirectory()) return null;
+    allowedRoots.add(real);
+    return real;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Vérifie qu'un chemin fourni par le renderer est bien contenu dans l'une
+ * des racines approuvées. Renvoie le chemin canonicalisé si valide, sinon
+ * `null`. Le fichier n'a pas besoin d'exister : on canonicalise alors le
+ * parent.
+ */
+function resolveWithinAllowed(inputPath) {
+  if (!inputPath || typeof inputPath !== "string") return null;
+  if (allowedRoots.size === 0) return null;
+
+  let candidate;
+  try {
+    candidate = fs.realpathSync(inputPath);
+  } catch {
+    // Fichier inexistant : on canonicalise le parent et on recompose.
+    try {
+      const parent = fs.realpathSync(path.dirname(inputPath));
+      candidate = path.join(parent, path.basename(inputPath));
+    } catch {
+      return null;
+    }
+  }
+
+  for (const root of allowedRoots) {
+    const rel = path.relative(root, candidate);
+    if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+/* ---------- Sécurité : allowlist commandes ---------- */
+
+const COMMAND_ALLOWLIST = new Set([
+  "node",
+  "npm",
+  "npm.cmd",
+  "npx",
+  "npx.cmd",
+  "git",
+  "java",
+  "gradlew",
+  "gradlew.bat",
+  "./gradlew",
+]);
+
+// Métacaractères shell susceptibles d'introduire une injection.
+const ARG_FORBIDDEN = /[;&|`$><\n\r\\]/;
+
+function isSafeArg(a) {
+  if (typeof a !== "string") return false;
+  if (a.length > 2048) return false;
+  return !ARG_FORBIDDEN.test(a);
+}
+
+function isAllowedCommand(cmd) {
+  if (typeof cmd !== "string") return false;
+  const base = path.basename(cmd);
+  return COMMAND_ALLOWLIST.has(base) || COMMAND_ALLOWLIST.has(cmd);
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -59,7 +149,9 @@ function runCapture(cmd, args, timeoutMs = 4000) {
     let err = "";
     let done = false;
     try {
-      const p = spawn(cmd, args, { shell: process.platform === "win32" });
+      // Commandes de détection : gérées uniquement en interne, jamais depuis
+      // le renderer. `shell:false` pour éviter toute interprétation.
+      const p = spawn(cmd, args, { shell: false });
       const t = setTimeout(() => {
         if (!done) {
           p.kill();
@@ -87,7 +179,7 @@ function runCapture(cmd, args, timeoutMs = 4000) {
 async function detectSystem() {
   const platform = process.platform;
   const [node, npm, git, java] = await Promise.all([
-    runCapture(process.execPath === process.argv[0] ? "node" : "node", ["-v"]),
+    runCapture("node", ["-v"]),
     runCapture(process.platform === "win32" ? "npm.cmd" : "npm", ["-v"]),
     runCapture("git", ["--version"]),
     runCapture("java", ["-version"]),
@@ -207,16 +299,24 @@ function detectProjectFiles(projectPath) {
   };
 }
 
-ipcMain.handle("projects:detect", (_e, projectPath) => detectProjectFiles(projectPath));
+ipcMain.handle("projects:detect", (_e, projectPath) => {
+  const safe = resolveWithinAllowed(projectPath);
+  if (!safe) return null;
+  return detectProjectFiles(safe);
+});
 
 ipcMain.handle("projects:scan", (_e, rootPath) => {
+  const safe = resolveWithinAllowed(rootPath);
+  if (!safe) return [];
   try {
     const dirs = fs
-      .readdirSync(rootPath, { withFileTypes: true })
+      .readdirSync(safe, { withFileTypes: true })
       .filter((d) => d.isDirectory() && !d.name.startsWith("."));
     const results = [];
     for (const d of dirs) {
-      const p = path.join(rootPath, d.name);
+      const p = path.join(safe, d.name);
+      // Chaque projet détecté devient une racine autorisée.
+      registerAllowedRoot(p);
       const detected = detectProjectFiles(p);
       if (detected.hasPackageJson) {
         results.push({ path: p, name: detected.packageName || d.name, detected });
@@ -231,7 +331,8 @@ ipcMain.handle("projects:scan", (_e, rootPath) => {
 ipcMain.handle("projects:chooseFolder", async () => {
   const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
   if (r.canceled || !r.filePaths[0]) return null;
-  return r.filePaths[0];
+  const real = registerAllowedRoot(r.filePaths[0]);
+  return real ?? r.filePaths[0];
 });
 
 /* ---------- IPC : Exec (streaming) ---------- */
@@ -242,12 +343,40 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
     let stdout = "";
     let stderr = "";
     let aborted = false;
-    const timeoutMs = opts.timeoutMs ?? 10 * 60 * 1000;
+    const timeoutMs = Math.min(Number(opts?.timeoutMs) || 10 * 60 * 1000, 30 * 60 * 1000);
+
+    const fail = (msg) =>
+      resolve({
+        exitCode: -1,
+        stdout: "",
+        stderr: msg,
+        durationMs: Date.now() - start,
+        aborted: false,
+      });
+
+    if (!opts || typeof opts !== "object") return fail("Requête invalide.");
+    if (!isAllowedCommand(opts.cmd)) {
+      return fail(`Commande non autorisée : ${String(opts.cmd)}`);
+    }
+    const args = Array.isArray(opts.args) ? opts.args : [];
+    if (!args.every(isSafeArg)) {
+      return fail("Argument invalide (caractères interdits).");
+    }
+    const cwd = resolveWithinAllowed(opts.cwd);
+    if (!cwd) {
+      return fail("Dossier de travail non autorisé.");
+    }
+    // On ignore complètement `opts.env` : le renderer ne peut pas
+    // injecter d'environnement. On expose uniquement l'environnement
+    // du processus principal.
+
     try {
-      const child = spawn(opts.cmd, opts.args || [], {
-        cwd: opts.cwd,
-        env: { ...process.env, ...(opts.env || {}) },
-        shell: process.platform === "win32",
+      const child = spawn(opts.cmd, args, {
+        cwd,
+        env: process.env,
+        // `shell:false` : plus d'interprétation shell donc plus
+        // d'injection via `&&`, `|`, backticks, etc.
+        shell: false,
       });
       const timer = setTimeout(() => {
         aborted = true;
@@ -258,7 +387,7 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
         const text = data.toString();
         if (stream === "stdout") stdout += text;
         else stderr += text;
-        if (channel) {
+        if (channel && typeof channel === "string") {
           for (const line of text.split(/\r?\n/)) {
             if (line.length) event.sender.send(channel, { stream, line });
           }
@@ -299,29 +428,39 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
   });
 });
 
-/* ---------- IPC : FS ---------- */
+/* ---------- IPC : FS (confiné aux racines approuvées) ---------- */
 
-ipcMain.handle("fs:exists", (_e, p) => fs.existsSync(p));
+ipcMain.handle("fs:exists", (_e, p) => {
+  const safe = resolveWithinAllowed(p);
+  if (!safe) return false;
+  return fs.existsSync(safe);
+});
 
 ipcMain.handle("fs:readJson", (_e, p) => {
+  const safe = resolveWithinAllowed(p);
+  if (!safe) return null;
   try {
-    return JSON.parse(fs.readFileSync(p, "utf8"));
+    return JSON.parse(fs.readFileSync(safe, "utf8"));
   } catch {
     return null;
   }
 });
 
 ipcMain.handle("fs:readText", (_e, p) => {
+  const safe = resolveWithinAllowed(p);
+  if (!safe) return null;
   try {
-    return fs.readFileSync(p, "utf8");
+    return fs.readFileSync(safe, "utf8");
   } catch {
     return null;
   }
 });
 
 ipcMain.handle("fs:stat", (_e, p) => {
+  const safe = resolveWithinAllowed(p);
+  if (!safe) return null;
   try {
-    const s = fs.statSync(p);
+    const s = fs.statSync(safe);
     return { size: s.size, isFile: s.isFile(), isDir: s.isDirectory() };
   } catch {
     return null;
@@ -329,17 +468,23 @@ ipcMain.handle("fs:stat", (_e, p) => {
 });
 
 ipcMain.handle("fs:listDir", (_e, p) => {
+  const safe = resolveWithinAllowed(p);
+  if (!safe) return [];
   try {
-    return fs.readdirSync(p);
+    return fs.readdirSync(safe);
   } catch {
     return [];
   }
 });
 
 ipcMain.handle("fs:findByExtension", (_e, dir, ext, maxDepth = 6) => {
+  const safe = resolveWithinAllowed(dir);
+  if (!safe) return [];
+  if (typeof ext !== "string" || !/^\.[A-Za-z0-9]{1,10}$/.test(ext)) return [];
+  const depthLimit = Math.min(Math.max(Number(maxDepth) || 6, 1), 12);
   const results = [];
   function walk(d, depth) {
-    if (depth > maxDepth) return;
+    if (depth > depthLimit) return;
     let entries = [];
     try {
       entries = fs.readdirSync(d, { withFileTypes: true });
@@ -348,18 +493,35 @@ ipcMain.handle("fs:findByExtension", (_e, dir, ext, maxDepth = 6) => {
     }
     for (const e of entries) {
       const p = path.join(d, e.name);
+      // On reste dans la racine (pas de suivi de lien symbolique sortant).
+      if (!resolveWithinAllowed(p)) continue;
       if (e.isDirectory()) walk(p, depth + 1);
       else if (e.isFile() && e.name.endsWith(ext)) results.push(p);
     }
   }
-  walk(dir, 0);
+  walk(safe, 0);
   return results;
 });
 
-/* ---------- IPC : Shell ---------- */
+/* ---------- IPC : Shell (dossiers uniquement, dans les racines) ---------- */
 
-ipcMain.handle("shell:openFolder", (_e, p) => shell.openPath(p));
-ipcMain.handle("shell:revealItem", (_e, p) => shell.showItemInFolder(p));
+ipcMain.handle("shell:openFolder", (_e, p) => {
+  const safe = resolveWithinAllowed(p);
+  if (!safe) return "";
+  try {
+    const st = fs.statSync(safe);
+    if (!st.isDirectory()) return "";
+  } catch {
+    return "";
+  }
+  return shell.openPath(safe);
+});
+
+ipcMain.handle("shell:revealItem", (_e, p) => {
+  const safe = resolveWithinAllowed(p);
+  if (!safe) return;
+  shell.showItemInFolder(safe);
+});
 
 /* ---------- IPC : Net ---------- */
 
