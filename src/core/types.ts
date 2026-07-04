@@ -30,6 +30,8 @@ export interface Project {
     hasVersionScript?: boolean;
     /** Phase 2 : présence d'un wrapper Gradle utilisable. */
     hasGradleWrapper?: boolean;
+    /** Phase 3 : présence d'un CHANGELOG.md. */
+    hasChangelog?: boolean;
   };
   /** Phase 2 : dernier score global connu (mise en cache). */
   lastHealthScore?: number;
@@ -213,6 +215,7 @@ export interface DetectedFiles {
   hasIos: boolean;
   hasVersionScript: boolean;
   hasGradleWrapper: boolean;
+  hasChangelog?: boolean;
   packageName?: string;
   currentVersion?: string;
   currentBuild?: number;

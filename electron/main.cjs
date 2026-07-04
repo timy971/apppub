@@ -1,31 +1,56 @@
 /* eslint-disable */
 /**
- * AppPublisher — Electron main process.
- * Fenêtre unique, sandbox actif, aucune API Node exposée au renderer.
- * Toute la communication passe par le preload et le canal IPC typé.
+ * AppPublisher — Electron main process (Phase 3).
  *
- * Durcissement sécurité :
- *  - `exec:run` restreint à une allowlist de commandes (node, npm, npx, git,
- *    java, gradlew) avec validation stricte des arguments et refus des
- *    variables d'environnement fournies par le renderer.
- *  - Tous les accès `fs:*` et `shell:*` sont confinés à un ensemble de
- *    racines projet explicitement approuvées par l'utilisateur via le
- *    sélecteur natif (`projects:chooseFolder`) ou implicitement par un
- *    scan (`projects:scan`). Les chemins sont canonicalisés avant toute
- *    opération et rejetés s'ils sortent de ces racines.
+ * Sécurité (rappel Phase 2)
+ *  - `exec:run` : allowlist stricte de commandes, arguments validés,
+ *    `shell:false`, env du renderer ignoré, cwd confiné aux racines projet.
+ *  - `fs:*` et `shell:*` : chemins canonicalisés + containment obligatoire.
+ *
+ * Nouveautés Phase 3
+ *  - `bootstrapPath()` : au démarrage, on importe le PATH d'un login shell
+ *    utilisateur (zsh/bash) pour retrouver Homebrew, nvm, JDK, sdkmanager,
+ *    exactement comme si l'utilisateur ouvrait un Terminal. Sans ça, une
+ *    application lancée depuis le Finder ne trouve ni `node`, ni `npm`,
+ *    ni `java`, ni `git`.
+ *  - `projects:registerRoots` : ré-enregistre en une fois les racines des
+ *    projets déjà connus (persistés côté renderer), sinon toute lecture
+ *    disque est refusée au 2ᵉ lancement.
+ *  - Écritures disque confinées : `fs:writeText`, `fs:writeJson`,
+ *    `fs:mkdir`, `fs:copyFile` — indispensables pour de vraies sauvegardes.
  */
 const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const os = require("os");
 const https = require("https");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
 
+/* ---------- Bootstrap : PATH utilisateur (macOS/Linux) ---------- */
+
+function bootstrapPath() {
+  if (process.platform === "win32") return;
+  try {
+    const userShell = process.env.SHELL || "/bin/zsh";
+    const r = spawnSync(userShell, ["-ilc", "echo __APPPUB_PATH__$PATH"], {
+      encoding: "utf8",
+      timeout: 3000,
+    });
+    if (r.status !== 0) return;
+    const m = r.stdout && r.stdout.match(/__APPPUB_PATH__(.+)/);
+    if (m && m[1]) {
+      process.env.PATH = m[1].trim() + ":" + (process.env.PATH || "");
+    }
+  } catch {
+    // Silencieux : on retombe sur le PATH par défaut.
+  }
+}
+bootstrapPath();
+
 /* ---------- Sécurité : racines projet approuvées ---------- */
 
-/** Ensemble des chemins réels autorisés à la lecture / listing / ouverture. */
 const allowedRoots = new Set();
 
 function registerAllowedRoot(p) {
@@ -41,21 +66,13 @@ function registerAllowedRoot(p) {
   }
 }
 
-/**
- * Vérifie qu'un chemin fourni par le renderer est bien contenu dans l'une
- * des racines approuvées. Renvoie le chemin canonicalisé si valide, sinon
- * `null`. Le fichier n'a pas besoin d'exister : on canonicalise alors le
- * parent.
- */
 function resolveWithinAllowed(inputPath) {
   if (!inputPath || typeof inputPath !== "string") return null;
   if (allowedRoots.size === 0) return null;
-
   let candidate;
   try {
     candidate = fs.realpathSync(inputPath);
   } catch {
-    // Fichier inexistant : on canonicalise le parent et on recompose.
     try {
       const parent = fs.realpathSync(path.dirname(inputPath));
       candidate = path.join(parent, path.basename(inputPath));
@@ -63,7 +80,6 @@ function resolveWithinAllowed(inputPath) {
       return null;
     }
   }
-
   for (const root of allowedRoots) {
     const rel = path.relative(root, candidate);
     if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
@@ -88,7 +104,6 @@ const COMMAND_ALLOWLIST = new Set([
   "./gradlew",
 ]);
 
-// Métacaractères shell susceptibles d'introduire une injection.
 const ARG_FORBIDDEN = /[;&|`$><\n\r\\]/;
 
 function isSafeArg(a) {
@@ -102,6 +117,8 @@ function isAllowedCommand(cmd) {
   const base = path.basename(cmd);
   return COMMAND_ALLOWLIST.has(base) || COMMAND_ALLOWLIST.has(cmd);
 }
+
+/* ---------- Fenêtre ---------- */
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -119,14 +136,9 @@ function createWindow() {
       sandbox: true,
     },
   });
-
   win.once("ready-to-show", () => win.show());
-
-  if (isDev) {
-    win.loadURL(process.env.APPPUBLISHER_DEV_URL);
-  } else {
-    win.loadFile(path.join(__dirname, "..", "dist", "index.html"));
-  }
+  if (isDev) win.loadURL(process.env.APPPUBLISHER_DEV_URL);
+  else win.loadFile(path.join(__dirname, "..", "dist", "index.html"));
   return win;
 }
 
@@ -149,9 +161,7 @@ function runCapture(cmd, args, timeoutMs = 4000) {
     let err = "";
     let done = false;
     try {
-      // Commandes de détection : gérées uniquement en interne, jamais depuis
-      // le renderer. `shell:false` pour éviter toute interprétation.
-      const p = spawn(cmd, args, { shell: false });
+      const p = spawn(cmd, args, { shell: false, env: process.env });
       const t = setTimeout(() => {
         if (!done) {
           p.kill();
@@ -177,7 +187,6 @@ function runCapture(cmd, args, timeoutMs = 4000) {
 }
 
 async function detectSystem() {
-  const platform = process.platform;
   const [node, npm, git, java] = await Promise.all([
     runCapture("node", ["-v"]),
     runCapture(process.platform === "win32" ? "npm.cmd" : "npm", ["-v"]),
@@ -191,13 +200,14 @@ async function detectSystem() {
   const internet = await pingInternet();
 
   return {
-    platform,
+    platform: process.platform,
     node: node.ok ? node.out.replace(/^v/, "") : undefined,
     npm: npm.ok ? npm.out : undefined,
     git: git.ok ? (git.out.match(/\d+\.\d+\.\d+/)?.[0] ?? git.out) : undefined,
-    java: java.ok || java.err
-      ? (java.err || java.out).split("\n")[0].match(/"([^"]+)"/)?.[1] ?? "installé"
-      : undefined,
+    java:
+      java.ok || java.err
+        ? (java.err || java.out).split("\n")[0].match(/"([^"]+)"/)?.[1] ?? "installé"
+        : undefined,
     androidStudio,
     androidSdk: androidHome ? readSdkVersion(androidHome) : undefined,
     androidSdkPath: androidHome,
@@ -220,8 +230,7 @@ function guessAndroidSdk() {
 
 function guessAndroidStudio() {
   if (process.platform === "darwin") {
-    const p = "/Applications/Android Studio.app";
-    return fs.existsSync(p) ? "installé" : undefined;
+    return fs.existsSync("/Applications/Android Studio.app") ? "installé" : undefined;
   }
   if (process.platform === "win32") {
     const p = path.join(process.env.LOCALAPPDATA || "", "Programs/Android Studio");
@@ -293,6 +302,7 @@ function detectProjectFiles(projectPath) {
     hasVersionScript: exists("scripts/version.mjs"),
     hasGradleWrapper:
       exists(path.join("android", "gradlew")) || exists(path.join("android", "gradlew.bat")),
+    hasChangelog: exists("CHANGELOG.md"),
     packageName: pkgName,
     currentVersion: versionJson?.version,
     currentBuild: versionJson?.build,
@@ -315,7 +325,6 @@ ipcMain.handle("projects:scan", (_e, rootPath) => {
     const results = [];
     for (const d of dirs) {
       const p = path.join(safe, d.name);
-      // Chaque projet détecté devient une racine autorisée.
       registerAllowedRoot(p);
       const detected = detectProjectFiles(p);
       if (detected.hasPackageJson) {
@@ -333,6 +342,21 @@ ipcMain.handle("projects:chooseFolder", async () => {
   if (r.canceled || !r.filePaths[0]) return null;
   const real = registerAllowedRoot(r.filePaths[0]);
   return real ?? r.filePaths[0];
+});
+
+/**
+ * Ré-enregistre en une passe les racines des projets connus côté renderer.
+ * Appelé au montage de l'application. Sans cette étape, aucun accès disque
+ * n'est autorisé au 2ᵉ lancement sur les projets déjà mémorisés.
+ */
+ipcMain.handle("projects:registerRoots", (_e, paths) => {
+  if (!Array.isArray(paths)) return [];
+  const ok = [];
+  for (const p of paths) {
+    const real = registerAllowedRoot(p);
+    if (real) ok.push(real);
+  }
+  return ok;
 });
 
 /* ---------- IPC : Exec (streaming) ---------- */
@@ -355,27 +379,16 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
       });
 
     if (!opts || typeof opts !== "object") return fail("Requête invalide.");
-    if (!isAllowedCommand(opts.cmd)) {
-      return fail(`Commande non autorisée : ${String(opts.cmd)}`);
-    }
+    if (!isAllowedCommand(opts.cmd)) return fail(`Commande non autorisée : ${String(opts.cmd)}`);
     const args = Array.isArray(opts.args) ? opts.args : [];
-    if (!args.every(isSafeArg)) {
-      return fail("Argument invalide (caractères interdits).");
-    }
+    if (!args.every(isSafeArg)) return fail("Argument invalide (caractères interdits).");
     const cwd = resolveWithinAllowed(opts.cwd);
-    if (!cwd) {
-      return fail("Dossier de travail non autorisé.");
-    }
-    // On ignore complètement `opts.env` : le renderer ne peut pas
-    // injecter d'environnement. On expose uniquement l'environnement
-    // du processus principal.
+    if (!cwd) return fail("Dossier de travail non autorisé.");
 
     try {
       const child = spawn(opts.cmd, args, {
         cwd,
-        env: process.env,
-        // `shell:false` : plus d'interprétation shell donc plus
-        // d'injection via `&&`, `|`, backticks, etc.
+        env: process.env, // renderer env ignoré volontairement
         shell: false,
       });
       const timer = setTimeout(() => {
@@ -428,7 +441,7 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
   });
 });
 
-/* ---------- IPC : FS (confiné aux racines approuvées) ---------- */
+/* ---------- IPC : FS (lecture confinée) ---------- */
 
 ipcMain.handle("fs:exists", (_e, p) => {
   const safe = resolveWithinAllowed(p);
@@ -493,7 +506,6 @@ ipcMain.handle("fs:findByExtension", (_e, dir, ext, maxDepth = 6) => {
     }
     for (const e of entries) {
       const p = path.join(d, e.name);
-      // On reste dans la racine (pas de suivi de lien symbolique sortant).
       if (!resolveWithinAllowed(p)) continue;
       if (e.isDirectory()) walk(p, depth + 1);
       else if (e.isFile() && e.name.endsWith(ext)) results.push(p);
@@ -503,18 +515,72 @@ ipcMain.handle("fs:findByExtension", (_e, dir, ext, maxDepth = 6) => {
   return results;
 });
 
-/* ---------- IPC : Shell (dossiers uniquement, dans les racines) ---------- */
+/* ---------- IPC : FS (écriture confinée, Phase 3) ---------- */
 
+ipcMain.handle("fs:mkdir", (_e, p) => {
+  const safe = resolveWithinAllowed(p);
+  if (!safe) return false;
+  try {
+    fs.mkdirSync(safe, { recursive: true });
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle("fs:writeText", (_e, p, content) => {
+  const safe = resolveWithinAllowed(p);
+  if (!safe) return false;
+  if (typeof content !== "string") return false;
+  try {
+    fs.mkdirSync(path.dirname(safe), { recursive: true });
+    fs.writeFileSync(safe, content, "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle("fs:writeJson", (_e, p, value) => {
+  const safe = resolveWithinAllowed(p);
+  if (!safe) return false;
+  try {
+    fs.mkdirSync(path.dirname(safe), { recursive: true });
+    fs.writeFileSync(safe, JSON.stringify(value, null, 2) + "\n", "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle("fs:copyFile", (_e, src, dest) => {
+  const safeSrc = resolveWithinAllowed(src);
+  const safeDest = resolveWithinAllowed(dest);
+  if (!safeSrc || !safeDest) return false;
+  try {
+    fs.mkdirSync(path.dirname(safeDest), { recursive: true });
+    fs.copyFileSync(safeSrc, safeDest);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+/* ---------- IPC : Shell ---------- */
+
+// openFolder accepte un dossier OU un fichier : dans ce dernier cas on ouvre
+// le dossier parent. Le renderer peut ainsi passer directement le chemin
+// du .aab produit par le build.
 ipcMain.handle("shell:openFolder", (_e, p) => {
   const safe = resolveWithinAllowed(p);
   if (!safe) return "";
   try {
     const st = fs.statSync(safe);
-    if (!st.isDirectory()) return "";
+    const target = st.isDirectory() ? safe : path.dirname(safe);
+    return shell.openPath(target);
   } catch {
     return "";
   }
-  return shell.openPath(safe);
 });
 
 ipcMain.handle("shell:revealItem", (_e, p) => {

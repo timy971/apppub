@@ -31,7 +31,7 @@ const SIMULATED_LINES = [
   "Écriture du fichier final…",
 ];
 
-async function fakeExec(opts: ExecOptions, onLine?: ExecLineHandler): Promise<ExecResult> {
+async function fakeExec(_opts: ExecOptions, onLine?: ExecLineHandler): Promise<ExecResult> {
   const start = performance.now();
   let out = "";
   for (const line of SIMULATED_LINES) {
@@ -79,6 +79,7 @@ export const webBridge: SystemBridge = {
         hasIos: false,
         hasVersionScript: true,
         hasGradleWrapper: true,
+        hasChangelog: false,
         packageName: inferName(path),
         currentVersion: "1.0.0",
         currentBuild: 1,
@@ -86,7 +87,6 @@ export const webBridge: SystemBridge = {
     },
 
     async scan(rootPath: string): Promise<ScannedProject[]> {
-      // Simulation : projets déterministes basés sur le chemin racine.
       const base = rootPath.replace(/[\\/]+$/, "");
       const names = ["CranioScan", "Orthopulse", "VictoryTrack"];
       return names.map((n) => ({
@@ -100,6 +100,7 @@ export const webBridge: SystemBridge = {
           hasIos: n === "CranioScan",
           hasVersionScript: true,
           hasGradleWrapper: true,
+          hasChangelog: n === "CranioScan",
           packageName: n,
           currentVersion: "1.0.0",
           currentBuild: 1,
@@ -108,10 +109,14 @@ export const webBridge: SystemBridge = {
     },
 
     async chooseFolder(): Promise<string | null> {
-      // Web n'a pas de picker natif fiable. On demande la saisie via prompt().
       if (typeof window === "undefined") return null;
       const p = window.prompt("Chemin du dossier de vos projets :", "/Users/moi/Projets");
       return p?.trim() || null;
+    },
+
+    async registerRoots(): Promise<string[]> {
+      // No-op en Web : pas de confinement fs à alimenter.
+      return [];
     },
   },
 
@@ -137,6 +142,18 @@ export const webBridge: SystemBridge = {
     },
     async findByExtension() {
       return [];
+    },
+    async mkdir() {
+      return true;
+    },
+    async writeText() {
+      return true;
+    },
+    async writeJson() {
+      return true;
+    },
+    async copyFile() {
+      return true;
     },
   },
 

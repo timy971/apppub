@@ -1,9 +1,7 @@
 import type { SystemBridge } from "./types";
 
 /**
- * Adapter Electron — délègue à `window.appPublisher` exposé par preload.cjs
- * via `contextBridge.exposeInMainWorld`. N'est utilisé que lorsque
- * `hasElectronBridge()` retourne true.
+ * Adapter Electron — délègue à `window.appPublisher` exposé par preload.cjs.
  */
 
 interface AppPublisherApi {
@@ -13,8 +11,6 @@ interface AppPublisherApi {
   exec: {
     run: (
       opts: Parameters<SystemBridge["exec"]["run"]>[0],
-      // Le preload passe par un canal IPC : le handler ligne-à-ligne est fourni
-      // via un identifiant de subscription. On adapte plus bas.
       onLineChannel?: string,
     ) => Promise<Awaited<ReturnType<SystemBridge["exec"]["run"]>>>;
     subscribeLines: (
@@ -54,6 +50,7 @@ export const electronBridge: SystemBridge = {
     detect: (path) => ensure().projects.detect(path),
     scan: (root) => ensure().projects.scan(root),
     chooseFolder: () => ensure().projects.chooseFolder(),
+    registerRoots: (paths) => ensure().projects.registerRoots(paths),
   },
 
   exec: {
@@ -76,6 +73,10 @@ export const electronBridge: SystemBridge = {
     stat: (p) => ensure().fs.stat(p),
     listDir: (p) => ensure().fs.listDir(p),
     findByExtension: (d, e, max) => ensure().fs.findByExtension(d, e, max),
+    mkdir: (p) => ensure().fs.mkdir(p),
+    writeText: (p, c) => ensure().fs.writeText(p, c),
+    writeJson: (p, v) => ensure().fs.writeJson(p, v),
+    copyFile: (s, d) => ensure().fs.copyFile(s, d),
   },
 
   shell: {

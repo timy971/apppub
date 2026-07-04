@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("appPublisher", {
     detect: (p) => ipcRenderer.invoke("projects:detect", p),
     scan: (root) => ipcRenderer.invoke("projects:scan", root),
     chooseFolder: () => ipcRenderer.invoke("projects:chooseFolder"),
+    registerRoots: (paths) => ipcRenderer.invoke("projects:registerRoots", paths),
   },
 
   exec: {
@@ -35,6 +36,10 @@ contextBridge.exposeInMainWorld("appPublisher", {
     stat: (p) => ipcRenderer.invoke("fs:stat", p),
     listDir: (p) => ipcRenderer.invoke("fs:listDir", p),
     findByExtension: (d, e, max) => ipcRenderer.invoke("fs:findByExtension", d, e, max),
+    mkdir: (p) => ipcRenderer.invoke("fs:mkdir", p),
+    writeText: (p, content) => ipcRenderer.invoke("fs:writeText", p, content),
+    writeJson: (p, value) => ipcRenderer.invoke("fs:writeJson", p, value),
+    copyFile: (src, dest) => ipcRenderer.invoke("fs:copyFile", src, dest),
   },
 
   shell: {
