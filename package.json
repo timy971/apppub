@@ -11,9 +11,11 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "sync:version": "node scripts/sync-version.cjs",
     "electron:dev": "APPPUBLISHER_DEV_URL=http://localhost:8080 electron electron/main.cjs",
-    "electron:pack:mac": "vite build && electron-packager . AppPublisher --platform=darwin --arch=arm64 --out=electron-release --overwrite --ignore='^/src' --ignore='^/electron-release'",
-    "electron:pack:win": "vite build && electron-packager . AppPublisher --platform=win32 --arch=x64 --out=electron-release --overwrite --ignore='^/src' --ignore='^/electron-release'"
+    "make:icons": "bash scripts/make-icons.sh",
+    "pack:mac": "node scripts/pack.cjs mac",
+    "pack:win": "node scripts/pack.cjs win"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
