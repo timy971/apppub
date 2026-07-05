@@ -74,6 +74,15 @@ export function AppSidebar() {
         <Section label="Outils" items={utils} isActive={isActive} collapsed={collapsed} />
         <Section label="Assistance" items={support} isActive={isActive} collapsed={collapsed} />
       </SidebarContent>
+
+      {!collapsed && (
+        <SidebarFooter className="border-t px-3 py-3 text-[11px] leading-tight text-muted-foreground">
+          <div className="font-medium text-foreground/80">
+            {AppInfo.name} v{AppInfo.version}
+          </div>
+          <div>par {AppInfo.author}</div>
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }
