@@ -13,6 +13,7 @@ import {
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -23,6 +24,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ProjectSwitcher } from "./project-switcher";
+import { AppInfo } from "@/core/app-info";
 
 const primary = [
   { title: "Tableau de bord", url: "/", icon: LayoutDashboard },
