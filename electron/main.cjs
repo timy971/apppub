@@ -118,12 +118,55 @@ function isAllowedCommand(cmd) {
   return COMMAND_ALLOWLIST.has(base) || COMMAND_ALLOWLIST.has(cmd);
 }
 
+/* ---------- Persistance des dimensions de la fenêtre ---------- */
+
+const windowStatePath = path.join(app.getPath("userData"), "window-state.json");
+
+function readWindowState() {
+  try {
+    const raw = fs.readFileSync(windowStatePath, "utf8");
+    const s = JSON.parse(raw);
+    if (
+      typeof s.width === "number" &&
+      typeof s.height === "number" &&
+      s.width >= 800 &&
+      s.height >= 500
+    ) {
+      return s;
+    }
+  } catch {}
+  return null;
+}
+
+function writeWindowState(win) {
+  try {
+    if (!win || win.isDestroyed()) return;
+    const bounds = win.getBounds();
+    const state = {
+      width: bounds.width,
+      height: bounds.height,
+      x: bounds.x,
+      y: bounds.y,
+      maximized: win.isMaximized(),
+    };
+    fs.mkdirSync(path.dirname(windowStatePath), { recursive: true });
+    fs.writeFileSync(windowStatePath, JSON.stringify(state), "utf8");
+  } catch {
+    // Non bloquant.
+  }
+}
+
 /* ---------- Fenêtre ---------- */
 
+let mainWindow = null;
+
 function createWindow() {
+  const saved = readWindowState();
   const win = new BrowserWindow({
-    width: 1200,
-    height: 820,
+    width: saved?.width ?? 1200,
+    height: saved?.height ?? 820,
+    x: saved?.x,
+    y: saved?.y,
     minWidth: 960,
     minHeight: 640,
     backgroundColor: "#0b0b0f",
@@ -136,13 +179,77 @@ function createWindow() {
       sandbox: true,
     },
   });
-  win.once("ready-to-show", () => win.show());
+  win.once("ready-to-show", () => {
+    win.show();
+    if (saved?.maximized) win.maximize();
+  });
+  win.on("close", () => writeWindowState(win));
+
+  win.webContents.on("did-fail-load", (_e, code, desc) => {
+    // Uniquement journalisé — on ne relance pas automatiquement pour éviter
+    // les boucles. L'utilisateur peut relancer l'application.
+    console.error(`[AppPublisher] chargement échoué (${code}) : ${desc}`);
+  });
+
   if (isDev) win.loadURL(process.env.APPPUBLISHER_DEV_URL);
   else win.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+
+  mainWindow = win;
   return win;
 }
 
+/* ---------- Menu "À propos" (macOS) ---------- */
+
+function configureAboutPanel() {
+  let pkgVersion = app.getVersion();
+  try {
+    const versionJsonPath = path.join(__dirname, "..", "version.json");
+    if (fs.existsSync(versionJsonPath)) {
+      const v = JSON.parse(fs.readFileSync(versionJsonPath, "utf8"));
+      if (v?.version) pkgVersion = v.version;
+    }
+  } catch {}
+  app.setAboutPanelOptions({
+    applicationName: "AppPublisher",
+    applicationVersion: pkgVersion,
+    copyright: `Copyright © ${new Date().getFullYear()} Tim C.`,
+    credits: "Assistant de publication d'applications multiplateformes.",
+  });
+}
+
+/* ---------- Robustesse : erreurs non capturées ---------- */
+
+process.on("uncaughtException", (err) => {
+  console.error("[AppPublisher] uncaughtException:", err);
+  try {
+    dialog.showErrorBox(
+      "AppPublisher a rencontré un problème",
+      "Une erreur inattendue est survenue. L'application reste utilisable ; " +
+        "si le problème persiste, fermez puis rouvrez AppPublisher.\n\n" +
+        String(err?.message ?? err),
+    );
+  } catch {}
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[AppPublisher] unhandledRejection:", reason);
+});
+
+/* ---------- Instance unique ---------- */
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
 app.whenReady().then(() => {
+  configureAboutPanel();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -152,6 +259,7 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
+
 
 /* ---------- IPC : System ---------- */
 

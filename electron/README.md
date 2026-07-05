@@ -1,4 +1,4 @@
-# AppPublisher — Intégration Electron
+# AppPublisher — Intégration Electron & Packaging
 
 Ce dossier contient le **main process** (`main.cjs`) et le **preload**
 (`preload.cjs`) d'AppPublisher. Le renderer (le code React) n'a jamais
@@ -21,65 +21,88 @@ typé exposé via `contextBridge`, consommé côté renderer par
 └────────────────────────┘
 ```
 
-## Sécurité (Phase 2)
+## Sécurité
 
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
-- `exec:run` : commandes limitées à `node`, `npm`, `npx`, `git`, `java`,
-  `gradlew` ; caractères shell interdits ; `shell:false` ; `env` du renderer
-  ignoré ; `cwd` obligatoirement dans une racine projet approuvée.
+- `exec:run` : allowlist stricte (`node`, `npm`, `npx`, `git`, `java`,
+  `gradlew`), caractères shell interdits, `shell:false`, `env` du renderer
+  ignoré, `cwd` obligatoirement dans une racine projet approuvée.
 - `fs:*` / `shell:*` : chaque chemin est canonicalisé (`realpath`) puis
   vérifié comme contenu dans une racine approuvée.
+- **Instance unique** : les tentatives de double-lancement raménent la
+  fenêtre existante au premier plan.
+- **Erreurs non capturées** : `uncaughtException` déclenche une boîte de
+  dialogue explicative sans crasher l'application.
 
-Les racines approuvées sont peuplées uniquement par :
-- `projects:chooseFolder` (sélecteur natif),
-- `projects:scan` (dossiers contenant des projets),
-- `projects:registerRoots` au démarrage (voir ci-dessous).
+## Persistance de fenêtre
 
-## Nouveautés Phase 3
+Position, taille et état maximisé de la fenêtre sont écrits dans
+`window-state.json` (dossier `userData` d'Electron) à chaque fermeture
+et restaurés au lancement suivant.
 
-- **Import du PATH utilisateur** : au démarrage, un login shell (`zsh -ilc`
-  / `bash -lc`) est lancé une fois pour récupérer le `PATH` qui contient
-  Homebrew, nvm, JDK, etc. Sans ça, une app lancée depuis le Finder ne
-  trouverait ni `node`, ni `npm`, ni `java`.
-- **`projects:registerRoots`** : au montage, le renderer appelle
-  `bridge().projects.registerRoots(paths)` avec les projets déjà connus.
-  C'est indispensable pour que les fichiers d'un projet sauvegardé
-  redeviennent lisibles au 2ᵉ lancement.
-- **Écritures disque confinées** : `fs:writeText`, `fs:writeJson`,
-  `fs:mkdir`, `fs:copyFile`. Utilisées par `BackupService` pour créer
-  de vrais snapshots dans `<projet>/.apppublisher-backups/`.
-- **`shell:openFolder`** accepte désormais un fichier : le dossier parent
-  est ouvert. Le renderer peut passer directement le chemin d'un `.aab`.
+## Packaging (Phase 3.6)
 
-## Lancement en développement
+L'outil retenu est **electron-builder** (et non electron-packager) :
 
-```bash
-# terminal 1
-npm run dev
-# terminal 2
-npm run electron:dev
-```
+- une seule commande produit `.app` + `.dmg` + `.zip` sur macOS ;
+- prépare le terrain pour la signature Apple Developer ID, la
+  notarisation et l'auto-update sans changer d'outil ;
+- gère automatiquement la conversion `icon.png` → `icon.icns` / `icon.ico`
+  lorsque le format cible est absent.
 
-## Prérequis d'installation (une fois)
+Configuration : voir `electron-builder.config.cjs` et `app.config.cjs`
+à la racine. Métadonnées, identifiant bundle et cibles y sont centralisés.
 
-Depuis votre machine :
+### Commandes
 
 ```bash
-npm install --save-dev electron @electron/packager
+# Installation locale des dépendances de packaging (une seule fois)
+npm install --save-dev electron electron-builder
+
+# Régénérer les icônes .icns / .ico depuis build/icon.png (macOS)
+npm run make:icons
+
+# Développement — hot reload
+npm run dev            # terminal 1 (Vite)
+npm run electron:dev   # terminal 2 (Electron sur http://localhost:8080)
+
+# Packaging macOS (arm64) — produit dist-app/AppPublisher-*.dmg + .zip
+npm run pack:mac
+
+# Packaging Windows (x64) — produit dist-app/AppPublisher Setup *.exe + .zip
+# (exécutable depuis Windows, ou depuis macOS avec Wine installé)
+npm run pack:win
 ```
 
-Ces dépendances ne sont pas installées côté sandbox Lovable.
+Le dossier `dist-app/` est **entièrement nettoyé** avant chaque packaging
+pour ne jamais mélanger les binaires d'anciennes versions.
 
-## Packaging
+### Version
 
-```bash
-# macOS (Apple Silicon)
-npm run electron:pack:mac
+La source de vérité unique est `/version.json` à la racine du dépôt.
+`scripts/sync-version.cjs` (appelé automatiquement par `pack:*`) recopie
+cette valeur dans `package.json` avant qu'electron-builder ne construise
+les binaires. L'UI de l'application lit également ce fichier via une
+constante injectée par Vite (`__APP_VERSION__`).
 
-# Windows
-npm run electron:pack:win
-```
+### Icônes
 
-Le binaire est produit dans `electron-release/`. Aucune signature n'est
-appliquée : pour une distribution publique, prévoir un certificat
-Developer ID (macOS) ou un certificat de signature de code (Windows).
+- Source : `build/icon.png` (1024×1024).
+- Générés : `build/icon.icns` (macOS) et `build/icon.ico` (Windows).
+- Remplacement : remplacer `icon.png`, puis `npm run make:icons`.
+
+electron-builder utilisera `icon.png` seul si les formats natifs sont
+absents, mais la qualité est meilleure avec les fichiers dédiés.
+
+## Ce que le packaging **ne fait pas encore**
+
+Volontairement hors périmètre de la Phase 3.6 (à traiter ultérieurement) :
+
+- signature Apple Developer ID ;
+- notarisation Apple ;
+- signature Authenticode Windows ;
+- publication automatique / auto-update ;
+- CI/CD (GitHub Actions, etc.).
+
+L'architecture est prête pour ces ajouts : il suffira d'activer les
+blocs correspondants dans `electron-builder.config.cjs`.
