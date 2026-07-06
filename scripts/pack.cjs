@@ -75,8 +75,8 @@ if (fs.existsSync(distApp)) {
 ok(`dist-app/ nettoyé.`);
 
 /* ---------- 4. Build Vite ---------- */
-info("Compilation de l'interface (vite build)…");
-run("npx", ["vite", "build"]);
+info("Compilation de l'interface (vite build — config Electron SPA)…");
+run("npx", ["vite", "build", "--config", "vite.electron.config.ts"]);
 if (!fs.existsSync(path.join(root, "dist", "index.html"))) {
   fail("dist/index.html non produit — la compilation a échoué.");
 }
