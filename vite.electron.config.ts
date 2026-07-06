@@ -55,5 +55,16 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     sourcemap: false,
+    // Rollup : point d'entrée SPA explicite et structure assets
+    rollupOptions: {
+      input: resolve(here, "index.html"),
+      output: {
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+      },
+    },
+    // Optimisation Electron : pas de polyfill module preload
+    polyfillModulePreload: false,
   },
 });
