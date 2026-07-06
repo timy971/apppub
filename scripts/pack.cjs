@@ -52,10 +52,10 @@ if (!fs.existsSync(path.join(buildDir, "icon.png"))) {
 ok("Icône source (icon.png) présente.");
 
 if (target === "mac" && !fs.existsSync(path.join(buildDir, "icon.icns"))) {
-  warn("build/icon.icns absent — electron-builder tentera de le générer depuis icon.png.");
+  fail("build/icon.icns manquant. Lancez npm run make:icons ou ajoutez l'icône macOS avant pack:mac.");
 }
 if (target === "win" && !fs.existsSync(path.join(buildDir, "icon.ico"))) {
-  warn("build/icon.ico absent — electron-builder tentera de le générer depuis icon.png.");
+  warn("build/icon.ico absent — l'icône Windows sera à générer avant une livraison Windows finale.");
 }
 
 for (const rel of ["electron/main.cjs", "electron/preload.cjs", "app.config.cjs"]) {
@@ -88,6 +88,10 @@ const ebArgs = ["electron-builder", "--config", "electron-builder.config.cjs"];
 if (target === "mac") ebArgs.push("--mac");
 if (target === "win") ebArgs.push("--win");
 run("npx", ebArgs);
+
+if (target === "mac" && !fs.existsSync(path.join(distApp, "mac-arm64", "AppPublisher.app"))) {
+  fail("AppPublisher.app non produit — le packaging macOS n'est pas valide.");
+}
 
 /* ---------- 6. Rapport ---------- */
 const produced = fs.existsSync(distApp)

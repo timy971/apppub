@@ -48,10 +48,7 @@ module.exports = {
   mac: {
     category: "public.app-category.developer-tools",
     icon: "build/icon.icns",
-    target: [
-      { target: "dmg", arch: ["arm64"] },
-      { target: "zip", arch: ["arm64"] },
-    ],
+    target: [{ target: "dir", arch: ["arm64"] }],
     darkModeSupport: true,
     hardenedRuntime: false, // désactivé tant qu'il n'y a pas de signature Apple
     gatekeeperAssess: false,
@@ -82,7 +79,6 @@ module.exports = {
       { target: "nsis", arch: ["x64"] },
       { target: "zip", arch: ["x64"] },
     ],
-    publisherName: app.author,
   },
   nsis: {
     oneClick: false,

@@ -44,7 +44,7 @@ et restaurés au lancement suivant.
 
 L'outil retenu est **electron-builder** (et non electron-packager) :
 
-- une seule commande produit `.app` + `.dmg` + `.zip` sur macOS ;
+- une seule commande produit une `.app` macOS exécutable ;
 - prépare le terrain pour la signature Apple Developer ID, la
   notarisation et l'auto-update sans changer d'outil ;
 - gère automatiquement la conversion `icon.png` → `icon.icns` / `icon.ico`
@@ -66,7 +66,7 @@ npm run make:icons
 npm run dev            # terminal 1 (Vite)
 npm run electron:dev   # terminal 2 (Electron sur http://localhost:8080)
 
-# Packaging macOS (arm64) — produit dist-app/AppPublisher-*.dmg + .zip
+# Packaging macOS (arm64) — produit dist-app/mac-arm64/AppPublisher.app
 npm run pack:mac
 
 # Packaging Windows (x64) — produit dist-app/AppPublisher Setup *.exe + .zip
@@ -100,6 +100,7 @@ Volontairement hors périmètre de la Phase 3.6 (à traiter ultérieurement) :
 
 - signature Apple Developer ID ;
 - notarisation Apple ;
+- génération `.dmg` / `.zip` sur macOS ;
 - signature Authenticode Windows ;
 - publication automatique / auto-update ;
 - CI/CD (GitHub Actions, etc.).
