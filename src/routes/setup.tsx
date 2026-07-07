@@ -22,19 +22,41 @@ function SetupWizard() {
   const [detected, setDetected] = useState<ProjectDraft | null>(null);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    diag("wizard", "mount");
+    return () => diag("wizard", "unmount");
+  }, []);
+
+  useEffect(() => {
+    diag("wizard", "step:changed", { step });
+  }, [step]);
+
+  function go(next: Step, reason: string) {
+    diag("wizard", "setStep", { from: step, to: next, reason });
+    setStep(next);
+  }
+
   async function runDetection() {
-    if (!projectPath.trim()) return;
+    diag("wizard", "click:detect", { projectPath });
+    if (!projectPath.trim()) {
+      diag("wizard", "detect:skip:emptyPath");
+      return;
+    }
     setDetecting(true);
     try {
       const draft = await ProjectsService.detectFromPath(projectPath.trim());
+      diag("wizard", "detect:draftReady", { name: draft.name });
       setDetected(draft);
-      setStep(2);
+      go(2, "detect:success");
+    } catch (e) {
+      diag("wizard", "detect:error", { error: String((e as Error)?.message ?? e) });
     } finally {
       setDetecting(false);
     }
   }
 
   function finish() {
+    diag("wizard", "click:finish", { hasDetected: !!detected, name });
     if (detected) {
       const project = ProjectsService.save(detected);
       AppStore.refreshProjects();
@@ -44,10 +66,12 @@ function SetupWizard() {
       userName: name.trim() || "vous",
       onboardingCompleted: true,
     });
+    diag("wizard", "navigate:home");
     navigate({ to: "/" });
   }
 
   function skipProject() {
+    diag("wizard", "click:skipProject");
     AppStore.updateSettings({
       userName: name.trim() || "vous",
       onboardingCompleted: true,
