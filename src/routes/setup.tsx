@@ -125,7 +125,7 @@ function SetupWizard() {
                 <div className="flex justify-end">
                   <Button
                     size="lg"
-                    onClick={() => setStep(2)}
+                    onClick={() => { diag("wizard", "click:continuer:name", { name }); go(2, "click:continuer:name"); }}
                     disabled={!name.trim()}
                   >
                     Continuer
