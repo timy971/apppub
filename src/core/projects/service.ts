@@ -63,40 +63,52 @@ export const ProjectsService = {
    * simulé en Web). L'API publique n'a pas changé depuis Phase 1.
    */
   async detectFromPath(path: string): Promise<ProjectDraft> {
-    JournalService.log("command", "detect", { path });
-    const detected = (await bridge().projects.detect(path)) ?? {
-      hasPackageJson: false,
-      hasVersionJson: false,
-      hasCapacitorConfig: false,
-      hasAndroid: false,
-      hasIos: false,
-      hasVersionScript: false,
-      hasGradleWrapper: false,
-      hasChangelog: false,
-    };
-    return {
-      name: detected.packageName || inferName(path),
-      logoEmoji: "📱",
-      localPath: path,
-      currentVersion: detected.currentVersion || "1.0.0",
-      currentBuild: detected.currentBuild || 1,
-      detected: {
+    return diagOp(`ProjectsService.detectFromPath`, async () => {
+      diag("service", "detectFromPath:begin", { path });
+      JournalService.log("command", "detect", { path });
+      const detected = (await bridge().projects.detect(path)) ?? {
+        hasPackageJson: false,
+        hasVersionJson: false,
+        hasCapacitorConfig: false,
+        hasAndroid: false,
+        hasIos: false,
+        hasVersionScript: false,
+        hasGradleWrapper: false,
+        hasChangelog: false,
+      };
+      diag("service", "detectFromPath:bridgeReturned", {
         hasPackageJson: detected.hasPackageJson,
         hasAndroid: detected.hasAndroid,
-        hasIos: detected.hasIos,
-        hasVersionJson: detected.hasVersionJson,
-        hasCapacitorConfig: detected.hasCapacitorConfig,
-        hasVersionScript: detected.hasVersionScript,
-        hasGradleWrapper: detected.hasGradleWrapper,
-        hasChangelog: detected.hasChangelog,
-      },
-    };
+      });
+      return {
+        name: detected.packageName || inferName(path),
+        logoEmoji: "📱",
+        localPath: path,
+        currentVersion: detected.currentVersion || "1.0.0",
+        currentBuild: detected.currentBuild || 1,
+        detected: {
+          hasPackageJson: detected.hasPackageJson,
+          hasAndroid: detected.hasAndroid,
+          hasIos: detected.hasIos,
+          hasVersionJson: detected.hasVersionJson,
+          hasCapacitorConfig: detected.hasCapacitorConfig,
+          hasVersionScript: detected.hasVersionScript,
+          hasGradleWrapper: detected.hasGradleWrapper,
+          hasChangelog: detected.hasChangelog,
+        },
+      };
+    });
   },
 
   /** Phase 2 — scanne un dossier racine et retourne les projets détectés. */
   async scanFolder(root: string): Promise<ScannedProject[]> {
-    JournalService.log("command", "scan", { root });
-    return bridge().projects.scan(root);
+    return diagOp(`ProjectsService.scanFolder`, async () => {
+      diag("service", "scanFolder:begin", { root });
+      JournalService.log("command", "scan", { root });
+      const r = await bridge().projects.scan(root);
+      diag("service", "scanFolder:end", { count: r.length });
+      return r;
+    });
   },
 
   /** Phase 2 — crée un projet directement depuis un ScannedProject. */
