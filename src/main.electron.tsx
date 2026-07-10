@@ -45,3 +45,13 @@ createRoot(rootEl).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// Navigation depuis le menu natif "Diagnostic → Ouvrir la console".
+onDiagnosticNavigate?.((target) => {
+  try {
+    router.navigate({ to: target as never });
+  } catch {
+    /* noop */
+  }
+});
+
