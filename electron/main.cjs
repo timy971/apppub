@@ -126,7 +126,7 @@ function diagWrite(entry) {
           ? " args=" + _safeJSON(entry.args)
           : "";
     const line = `[${ts}] [${src}] [${lvl}]${op}${dur} ${entry.message || ""}${extra}${err}\n`;
-    fs.appendFileSync(DIAG_LOG_PATH, line, "utf8");
+    fs.appendFileSync(currentLogFile(), line, "utf8");
     // Console main : utile en electron:dev.
     if (isDev) process.stdout.write(line);
   } catch {}
