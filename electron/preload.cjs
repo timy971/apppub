@@ -89,7 +89,21 @@ contextBridge.exposeInMainWorld("appPublisher", {
     openLog: () => inv("diag:openLog"),
     revealLog: () => inv("diag:revealLog"),
     getLogPath: () => inv("diag:getLogPath"),
+    getLogDir: () => inv("diag:getLogDir"),
+    tail: (limit) => inv("diag:tail", limit),
+    getSysInfo: () => inv("diag:getSysInfo"),
+    exportBundle: (extra) => inv("diag:exportBundle", extra),
+    onNavigate: (cb) => {
+      const listener = (_e, target) => {
+        try {
+          cb(target);
+        } catch {}
+      };
+      ipcRenderer.on("diag:navigate", listener);
+      return () => ipcRenderer.removeListener("diag:navigate", listener);
+    },
   },
+
 
   system: {
     detect: () => inv("system:detect"),
