@@ -14,6 +14,7 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PublishRouteImport } from './routes/publish'
 import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as LogsRouteImport } from './routes/logs'
 import { Route as JournalRouteImport } from './routes/journal'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as DiagnosticRouteImport } from './routes/diagnostic'
@@ -43,6 +44,11 @@ const PublishRoute = PublishRouteImport.update({
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
   path: '/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogsRoute = LogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JournalRoute = JournalRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/diagnostic': typeof DiagnosticRoute
   '/history': typeof HistoryRoute
   '/journal': typeof JournalRoute
+  '/logs': typeof LogsRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/settings': typeof SettingsRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/diagnostic': typeof DiagnosticRoute
   '/history': typeof HistoryRoute
   '/journal': typeof JournalRoute
+  '/logs': typeof LogsRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/settings': typeof SettingsRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/diagnostic': typeof DiagnosticRoute
   '/history': typeof HistoryRoute
   '/journal': typeof JournalRoute
+  '/logs': typeof LogsRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/settings': typeof SettingsRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/diagnostic'
     | '/history'
     | '/journal'
+    | '/logs'
     | '/projects'
     | '/publish'
     | '/settings'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/diagnostic'
     | '/history'
     | '/journal'
+    | '/logs'
     | '/projects'
     | '/publish'
     | '/settings'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/diagnostic'
     | '/history'
     | '/journal'
+    | '/logs'
     | '/projects'
     | '/publish'
     | '/settings'
@@ -153,6 +165,7 @@ export interface RootRouteChildren {
   DiagnosticRoute: typeof DiagnosticRoute
   HistoryRoute: typeof HistoryRoute
   JournalRoute: typeof JournalRoute
+  LogsRoute: typeof LogsRoute
   ProjectsRoute: typeof ProjectsRoute
   PublishRoute: typeof PublishRoute
   SettingsRoute: typeof SettingsRoute
@@ -195,6 +208,13 @@ declare module '@tanstack/react-router' {
       path: '/projects'
       fullPath: '/projects'
       preLoaderRoute: typeof ProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logs': {
+      id: '/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof LogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/journal': {
@@ -241,6 +261,7 @@ const rootRouteChildren: RootRouteChildren = {
   DiagnosticRoute: DiagnosticRoute,
   HistoryRoute: HistoryRoute,
   JournalRoute: JournalRoute,
+  LogsRoute: LogsRoute,
   ProjectsRoute: ProjectsRoute,
   PublishRoute: PublishRoute,
   SettingsRoute: SettingsRoute,
