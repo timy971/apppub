@@ -62,9 +62,35 @@ bootstrapPath();
  *  - Watchdog toutes les 2 s : signale toute opération main >2 s.
  */
 
-const DIAG_LOG_PATH = path.join(app.getPath("userData"), "diagnostic.log");
+const DIAG_LOG_DIR = path.join(app.getPath("userData"), "logs");
 try {
-  fs.mkdirSync(path.dirname(DIAG_LOG_PATH), { recursive: true });
+  fs.mkdirSync(DIAG_LOG_DIR, { recursive: true });
+} catch {}
+
+/** Retourne le chemin du fichier de log du jour (`logs/YYYY-MM-DD.log`). */
+function currentLogFile() {
+  const d = new Date();
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return path.join(DIAG_LOG_DIR, `${day}.log`);
+}
+
+/** Purge les logs plus vieux que 30 jours. */
+function pruneOldLogs() {
+  try {
+    const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+    for (const f of fs.readdirSync(DIAG_LOG_DIR)) {
+      const full = path.join(DIAG_LOG_DIR, f);
+      try {
+        const st = fs.statSync(full);
+        if (st.isFile() && st.mtimeMs < cutoff) fs.unlinkSync(full);
+      } catch {}
+    }
+  } catch {}
+}
+pruneOldLogs();
+
+const DIAG_LOG_PATH = currentLogFile();
+try {
   fs.appendFileSync(
     DIAG_LOG_PATH,
     `\n=== AppPublisher diagnostic session ${new Date().toISOString()} ` +
@@ -73,6 +99,7 @@ try {
     "utf8",
   );
 } catch {}
+
 
 function _safeJSON(v) {
   try {
