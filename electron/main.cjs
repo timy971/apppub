@@ -217,6 +217,15 @@ function resolveWithinAllowed(inputPath) {
       candidate = path.join(parent, path.basename(inputPath));
     } catch {
       return null;
+    }
+  }
+  for (const root of allowedRoots) {
+    const rel = path.relative(root, candidate);
+    if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 /* ---------- Menu Diagnostic (accès rapide au fichier de log) ---------- */
@@ -240,7 +249,7 @@ function setupDiagnosticMenu() {
             click: async () => {
               diagWrite({ level: "menu", message: "Diagnostic → Ouvrir le journal" });
               try {
-                await shell.openPath(DIAG_LOG_PATH);
+                await shell.openPath(currentLogFile());
               } catch (e) {
                 diagWrite({ level: "error", message: "menu open failed", error: String(e) });
               }
@@ -251,7 +260,7 @@ function setupDiagnosticMenu() {
             click: () => {
               diagWrite({ level: "menu", message: "Diagnostic → Révéler" });
               try {
-                shell.showItemInFolder(DIAG_LOG_PATH);
+                shell.showItemInFolder(currentLogFile());
               } catch (e) {
                 diagWrite({ level: "error", message: "menu reveal failed", error: String(e) });
               }
@@ -259,11 +268,19 @@ function setupDiagnosticMenu() {
           },
           { type: "separator" },
           {
+            label: "Ouvrir la console de diagnostic",
+            accelerator: "CmdOrCtrl+Shift+L",
+            click: () => {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send("diag:navigate", "/logs");
+              }
+            },
+          },
+          {
             label: "Copier le chemin du fichier",
             click: () => {
-              diagWrite({ level: "menu", message: "Diagnostic → Copier chemin" });
               try {
-                clipboard.writeText(DIAG_LOG_PATH);
+                clipboard.writeText(currentLogFile());
               } catch (e) {
                 diagWrite({ level: "error", message: "menu copy failed", error: String(e) });
               }
@@ -273,7 +290,6 @@ function setupDiagnosticMenu() {
             label: "Recharger la fenêtre",
             accelerator: "CmdOrCtrl+R",
             click: () => {
-              diagWrite({ level: "menu", message: "Diagnostic → Reload" });
               if (mainWindow && !mainWindow.isDestroyed()) mainWindow.reload();
             },
           },
@@ -281,7 +297,6 @@ function setupDiagnosticMenu() {
             label: "Outils de développement",
             accelerator: "CmdOrCtrl+Alt+I",
             click: () => {
-              diagWrite({ level: "menu", message: "Diagnostic → DevTools" });
               if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.webContents.openDevTools({ mode: "detach" });
               }
@@ -296,15 +311,7 @@ function setupDiagnosticMenu() {
     diagWrite({ level: "error", message: "setupDiagnosticMenu failed", error: String(e) });
   }
 }
-  }
-  for (const root of allowedRoots) {
-    const rel = path.relative(root, candidate);
-    if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
-      return candidate;
-    }
-  }
-  return null;
-}
+
 
 /* ---------- Sécurité : allowlist commandes ---------- */
 
