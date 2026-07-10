@@ -9,7 +9,9 @@ import {
   Settings as SettingsIcon,
   Rocket,
   LifeBuoy,
+  Terminal,
 } from "lucide-react";
+
 import {
   Sidebar,
   SidebarContent,
@@ -43,7 +45,11 @@ const utils = [
   { title: "Paramètres", url: "/settings", icon: SettingsIcon },
 ];
 
-const support = [{ title: "Support", url: "/journal", icon: LifeBuoy }];
+const support = [
+  { title: "Support", url: "/journal", icon: LifeBuoy },
+  { title: "Console diagnostic", url: "/logs", icon: Terminal },
+];
+
 
 export function AppSidebar() {
   const { state } = useSidebar();
