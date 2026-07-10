@@ -195,25 +195,117 @@ ipcMain.on("diag:log", (_e, entry) => {
 });
 
 /* IPC exposés au menu Diagnostic et aux composants de support. */
-ipcMain.handle("diag:getLogPath", () => DIAG_LOG_PATH);
+ipcMain.handle("diag:getLogPath", () => currentLogFile());
+ipcMain.handle("diag:getLogDir", () => DIAG_LOG_DIR);
 ipcMain.handle("diag:openLog", async () => {
+  const p = currentLogFile();
   try {
-    await shell.openPath(DIAG_LOG_PATH);
+    await shell.openPath(p);
   } catch (e) {
     diagWrite({ level: "error", message: "diag:openLog failed", error: String(e) });
   }
-  return DIAG_LOG_PATH;
+  return p;
 });
 ipcMain.handle("diag:revealLog", () => {
+  const p = currentLogFile();
   try {
-    shell.showItemInFolder(DIAG_LOG_PATH);
+    shell.showItemInFolder(p);
   } catch (e) {
     diagWrite({ level: "error", message: "diag:revealLog failed", error: String(e) });
   }
-  return DIAG_LOG_PATH;
+  return p;
 });
 
-diagWrite({ level: "info", message: "diag ready", ctx: { path: DIAG_LOG_PATH } });
+/** Renvoie les N dernières lignes du fichier de log courant. */
+ipcMain.handle("diag:tail", (_e, limit) => {
+  const n = Math.max(1, Math.min(5000, Number(limit) || 500));
+  try {
+    const p = currentLogFile();
+    if (!fs.existsSync(p)) return [];
+    const raw = fs.readFileSync(p, "utf8");
+    const lines = raw.split(/\r?\n/).filter(Boolean);
+    return lines.slice(-n);
+  } catch {
+    return [];
+  }
+});
+
+/** Informations système pour le bundle de support. */
+ipcMain.handle("diag:getSysInfo", () => ({
+  platform: process.platform,
+  arch: process.arch,
+  osRelease: os.release(),
+  osType: os.type(),
+  totalMemMB: Math.round(os.totalmem() / 1024 / 1024),
+  freeMemMB: Math.round(os.freemem() / 1024 / 1024),
+  cpuModel: (os.cpus()[0] || {}).model,
+  cpuCount: os.cpus().length,
+  nodeVersion: process.versions.node,
+  electronVersion: process.versions.electron,
+  chromeVersion: process.versions.chrome,
+  appVersion: app.getVersion(),
+  locale: app.getLocale(),
+  userDataPath: app.getPath("userData"),
+  logDir: DIAG_LOG_DIR,
+}));
+
+/**
+ * Exporte un bundle de support (fichier .txt agrégeant sysinfo + logs récents).
+ * Placé sur le bureau utilisateur pour retrouver facilement le fichier.
+ */
+ipcMain.handle("diag:exportBundle", async (_e, extra) => {
+  try {
+    const now = new Date();
+    const stamp = now.toISOString().replace(/[:.]/g, "-");
+    const dest = path.join(app.getPath("desktop"), `apppublisher-support-${stamp}.txt`);
+    const parts = [];
+    parts.push(`# AppPublisher — Bundle de support`);
+    parts.push(`Date: ${now.toISOString()}`);
+    parts.push(`Version: ${app.getVersion()}`);
+    parts.push(`Plateforme: ${process.platform} ${os.release()} (${process.arch})`);
+    parts.push(`Node: ${process.versions.node} · Electron: ${process.versions.electron}`);
+    parts.push(`Mémoire libre/total (Mo): ${Math.round(os.freemem() / 1048576)}/${Math.round(os.totalmem() / 1048576)}`);
+    parts.push(`Répertoire de logs: ${DIAG_LOG_DIR}`);
+    if (extra && typeof extra === "object") {
+      parts.push("");
+      parts.push("## Contexte renderer");
+      try {
+        parts.push(JSON.stringify(extra, null, 2));
+      } catch {}
+    }
+    parts.push("");
+    parts.push("## Fichiers de logs disponibles");
+    let files = [];
+    try {
+      files = fs
+        .readdirSync(DIAG_LOG_DIR)
+        .filter((f) => f.endsWith(".log"))
+        .sort()
+        .slice(-3);
+    } catch {}
+    for (const f of files) {
+      parts.push("");
+      parts.push(`### ${f}`);
+      try {
+        parts.push(fs.readFileSync(path.join(DIAG_LOG_DIR, f), "utf8"));
+      } catch (e) {
+        parts.push(`(lecture impossible: ${String(e)})`);
+      }
+    }
+    fs.writeFileSync(dest, parts.join("\n"), "utf8");
+    diagWrite({ level: "info", message: "diag:exportBundle ok", ctx: { dest } });
+    try {
+      shell.showItemInFolder(dest);
+    } catch {}
+    return dest;
+  } catch (e) {
+    diagWrite({ level: "error", message: "diag:exportBundle failed", error: String(e) });
+    throw e;
+  }
+});
+
+diagWrite({ level: "info", message: "diag ready", ctx: { path: currentLogFile() } });
+
 
 /* ---------- Sécurité : racines projet approuvées ---------- */
 
