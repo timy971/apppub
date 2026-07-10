@@ -38,9 +38,16 @@ export interface LogEntry {
 type Listener = (e: LogEntry) => void;
 
 interface DiagBridge {
-  log?: (
-    e: Partial<LogEntry> & { level: string; message: string; ts?: string },
-  ) => void;
+  log?: (e: {
+    ts?: string;
+    source?: string;
+    level: string;
+    message: string;
+    ctx?: unknown;
+    opId?: string;
+    durationMs?: number;
+    error?: string;
+  }) => void;
   openLog?: () => Promise<string>;
   revealLog?: () => Promise<string>;
   getLogPath?: () => Promise<string>;
@@ -50,6 +57,7 @@ interface DiagBridge {
   exportBundle?: (extra?: unknown) => Promise<string>;
   onNavigate?: (cb: (target: string) => void) => () => void;
 }
+
 
 function getBridge(): DiagBridge | undefined {
   if (typeof window === "undefined") return undefined;
