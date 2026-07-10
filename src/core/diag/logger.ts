@@ -83,20 +83,18 @@ class LoggerImpl {
     }
     // Console navigateur (utile en dev).
     try {
-      const fn =
-        entry.level === "error" || entry.level === "fatal"
-          ? console.error
-          : entry.level === "warn"
-            ? console.warn
-            : console.log;
-      fn.call(
-        console,
-        `[diag ${entry.level}] ${entry.module ? `[${entry.module}] ` : ""}${entry.message}`,
-        entry.ctx ?? "",
-      );
+      const label = `[diag ${entry.level}] ${entry.module ? `[${entry.module}] ` : ""}${entry.message}`;
+      if (entry.level === "error" || entry.level === "fatal") {
+        console.error(label, entry.ctx ?? "");
+      } else if (entry.level === "warn") {
+        console.warn(label, entry.ctx ?? "");
+      } else {
+        console.log(label, entry.ctx ?? "");
+      }
     } catch {
       /* noop */
     }
+
     // Forward vers le Main (fichier + agrégation).
     const b = getBridge();
     if (b?.log) {
