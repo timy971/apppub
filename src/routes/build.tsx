@@ -13,6 +13,7 @@ import { bridge } from "@/core/bridge";
 import { ErrorCard } from "@/components/error-card";
 import { translateError } from "@/core/errors/translator";
 import { toast } from "sonner";
+import { WorkflowView } from "@/components/workflow-view";
 
 export const Route = createFileRoute("/build")({
   component: BuildPage,
