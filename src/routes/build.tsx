@@ -217,8 +217,6 @@ function BuildPage() {
 }
 
 function BuildWorkflowView({ workflow }: { workflow: Workflow }) {
-  // Import à froid pour éviter dépendance circulaire visuelle : réutilisation du composant.
-  const { WorkflowView } = require("@/components/workflow-view") as typeof import("@/components/workflow-view");
   return <WorkflowView workflow={workflow} />;
 }
 
