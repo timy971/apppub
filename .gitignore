@@ -31,3 +31,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Packaging assets required by electron-builder must remain versioned.
+# Some environments ignore /build/ globally, so explicitly re-include it here.
+!/build/
+!/build/**
