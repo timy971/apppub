@@ -512,12 +512,41 @@ const COMMAND_ALLOWLIST = new Set([
   "./gradlew",
 ]);
 
-const ARG_FORBIDDEN = /[;&|`$><\n\r\\]/;
+// Caractères interdits dans un argument passé à `spawn` (audit I3/M11).
+//
+// On lance TOUJOURS avec `shell: false` : le shell utilisateur n'interprète
+// jamais l'argument, seuls le NUL et les nouvelles lignes (qui pourraient
+// tronquer un argument côté OS/logs) restent réellement dangereux.
+// Le backslash `\` a été retiré volontairement : c'est le séparateur natif
+// des chemins Windows (`C:\Users\…\gradlew.bat`) et son interdiction rendait
+// tout `exec:run` inopérant sur cette plateforme.
+const ARG_FORBIDDEN = /[\n\r\u0000]/;
+
+function firstForbiddenChar(a) {
+  const m = typeof a === "string" ? a.match(ARG_FORBIDDEN) : null;
+  if (!m) return null;
+  const c = m[0];
+  if (c === "\n") return "\\n";
+  if (c === "\r") return "\\r";
+  if (c === "\u0000") return "NUL";
+  return c;
+}
 
 function isSafeArg(a) {
   if (typeof a !== "string") return false;
-  if (a.length > 2048) return false;
+  if (a.length > 4096) return false;
   return !ARG_FORBIDDEN.test(a);
+}
+
+function findUnsafeArg(args) {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (typeof a !== "string") return { index: i, reason: "type non-string" };
+    if (a.length > 4096) return { index: i, reason: "argument > 4096 caractères" };
+    const bad = firstForbiddenChar(a);
+    if (bad) return { index: i, reason: `caractère interdit '${bad}'` };
+  }
+  return null;
 }
 
 function isAllowedCommand(cmd) {
@@ -900,7 +929,8 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
     if (!opts || typeof opts !== "object") return fail("Requête invalide.");
     if (!isAllowedCommand(opts.cmd)) return fail(`Commande non autorisée : ${String(opts.cmd)}`);
     const args = Array.isArray(opts.args) ? opts.args : [];
-    if (!args.every(isSafeArg)) return fail("Argument invalide (caractères interdits).");
+    const unsafe = findUnsafeArg(args);
+    if (unsafe) return fail(`Argument invalide #${unsafe.index + 1} : ${unsafe.reason}.`);
     const cwd = resolveWithinAllowed(opts.cwd);
     if (!cwd) return fail("Dossier de travail non autorisé.");
 
