@@ -13,6 +13,7 @@ import { bridge } from "@/core/bridge";
 import { ErrorCard } from "@/components/error-card";
 import { translateError } from "@/core/errors/translator";
 import { toast } from "sonner";
+import { WorkflowView } from "@/components/workflow-view";
 
 export const Route = createFileRoute("/build")({
   component: BuildPage,
@@ -216,8 +217,6 @@ function BuildPage() {
 }
 
 function BuildWorkflowView({ workflow }: { workflow: Workflow }) {
-  // Import à froid pour éviter dépendance circulaire visuelle : réutilisation du composant.
-  const { WorkflowView } = require("@/components/workflow-view") as typeof import("@/components/workflow-view");
   return <WorkflowView workflow={workflow} />;
 }
 
