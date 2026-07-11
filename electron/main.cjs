@@ -376,13 +376,51 @@ diagWrite({ level: "info", message: "diag ready", ctx: { path: currentLogFile() 
 
 const allowedRoots = new Set();
 
+/**
+ * Audit I2 — les racines connues sont persistées sur disque et rechargées
+ * synchronement dès `app.whenReady()`, AVANT la création de la fenêtre.
+ * Cela supprime la course entre `registerRoots()` côté renderer (asynchrone,
+ * appelé dans un useEffect) et les premiers `fs:*` du Dashboard qui se
+ * voyaient sinon refuser l'accès (allowedRoots vide) → « dossier android
+ * manquant » intempestif au 1er rendu.
+ */
+function knownRootsPath() {
+  return path.join(app.getPath("userData"), "known-roots.json");
+}
+
+function loadKnownRoots() {
+  try {
+    const raw = fs.readFileSync(knownRootsPath(), "utf8");
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((p) => typeof p === "string");
+  } catch {
+    return [];
+  }
+}
+
+function persistKnownRoots() {
+  try {
+    fs.mkdirSync(path.dirname(knownRootsPath()), { recursive: true });
+    fs.writeFileSync(
+      knownRootsPath(),
+      JSON.stringify([...allowedRoots], null, 2),
+      "utf8",
+    );
+  } catch (e) {
+    diagWrite({ level: "warn", message: "known-roots persist failed", ctx: { error: String(e) } });
+  }
+}
+
 function registerAllowedRoot(p) {
   try {
     if (!p || typeof p !== "string") return null;
     const real = fs.realpathSync(p);
     const st = fs.statSync(real);
     if (!st.isDirectory()) return null;
+    const wasNew = !allowedRoots.has(real);
     allowedRoots.add(real);
+    if (wasNew) persistKnownRoots();
     return real;
   } catch {
     return null;
@@ -687,6 +725,20 @@ if (!gotSingleInstanceLock) {
 
 app.whenReady().then(() => {
   diagWrite({ level: "info", message: "app whenReady" });
+
+  // Audit I2 — restaurer les racines projet connues AVANT tout accès fs
+  //           depuis le renderer, pour éviter la course au 1er rendu.
+  const persisted = loadKnownRoots();
+  let restored = 0;
+  for (const p of persisted) {
+    if (registerAllowedRoot(p)) restored += 1;
+  }
+  diagWrite({
+    level: "info",
+    message: "known-roots restored",
+    ctx: { count: restored, requested: persisted.length },
+  });
+
   configureAboutPanel();
   setupDiagnosticMenu();
   createWindow();
