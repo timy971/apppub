@@ -28,23 +28,88 @@ const https = require("https");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
 
-/* ---------- Bootstrap : PATH utilisateur (macOS/Linux) ---------- */
+/* ---------- Bootstrap : PATH utilisateur (macOS/Linux) ----------
+ *
+ * Objectifs (audit I1) :
+ *  - Ne PAS bloquer le démarrage plus de ~1.5 s : on utilise un shell
+ *    non-interactif (-lc) qui saute les plugins zsh/oh-my-zsh coûteux
+ *    tout en chargeant .zprofile/.bash_profile (nvm, brew, jenv…).
+ *  - Toujours fournir un PATH utilisable : même si le shell échoue ou
+ *    dépasse le timeout, on ajoute une liste de chemins standards
+ *    (Homebrew Apple Silicon, Homebrew Intel, /usr/local/bin, nvm par
+ *    défaut) pour que `node`/`npm`/`git` soient trouvés au premier lancement.
+ */
+
+function defaultFallbackPaths() {
+  const home = process.env.HOME || "";
+  const list = [
+    "/opt/homebrew/bin", // macOS Apple Silicon (brew)
+    "/opt/homebrew/sbin",
+    "/usr/local/bin", // macOS Intel (brew)
+    "/usr/local/sbin",
+    "/usr/bin",
+    "/bin",
+    "/usr/sbin",
+    "/sbin",
+  ];
+  if (home) {
+    list.push(
+      `${home}/.nvm/versions/node/current/bin`,
+      `${home}/.volta/bin`,
+      `${home}/.local/bin`,
+      `${home}/.cargo/bin`,
+    );
+  }
+  return list;
+}
+
+function mergePath(extra) {
+  const current = (process.env.PATH || "").split(":").filter(Boolean);
+  const seen = new Set(current);
+  const merged = [...current];
+  for (const p of extra) {
+    if (!p || seen.has(p)) continue;
+    seen.add(p);
+    merged.push(p);
+  }
+  process.env.PATH = merged.join(":");
+}
 
 function bootstrapPath() {
   if (process.platform === "win32") return;
+
+  // 1. Fallback statique appliqué immédiatement : garantit un PATH minimal
+  //    même si le spawn échoue ou dépasse le timeout.
+  mergePath(defaultFallbackPaths());
+
+  // 2. Tentative rapide de récupération du PATH du shell utilisateur
+  //    (login shell non-interactif). Timeout serré : on préfère un
+  //    démarrage instantané avec un PATH imparfait à un splash gelé.
   try {
     const userShell = process.env.SHELL || "/bin/zsh";
-    const r = spawnSync(userShell, ["-ilc", "echo __APPPUB_PATH__$PATH"], {
+    const r = spawnSync(userShell, ["-lc", "echo __APPPUB_PATH__$PATH"], {
       encoding: "utf8",
-      timeout: 3000,
+      timeout: 1500,
     });
-    if (r.status !== 0) return;
-    const m = r.stdout && r.stdout.match(/__APPPUB_PATH__(.+)/);
+    if (r.status !== 0 || !r.stdout) return;
+    const m = r.stdout.match(/__APPPUB_PATH__(.+)/);
     if (m && m[1]) {
-      process.env.PATH = m[1].trim() + ":" + (process.env.PATH || "");
+      // Le PATH du shell prend la priorité (mis en tête), tout en
+      // conservant le fallback derrière au cas où un binaire n'y
+      // figurerait pas.
+      const shellPaths = m[1].trim().split(":").filter(Boolean);
+      const current = (process.env.PATH || "").split(":").filter(Boolean);
+      const seen = new Set();
+      const merged = [];
+      for (const p of [...shellPaths, ...current]) {
+        if (!p || seen.has(p)) continue;
+        seen.add(p);
+        merged.push(p);
+      }
+      process.env.PATH = merged.join(":");
     }
   } catch {
-    // Silencieux : on retombe sur le PATH par défaut.
+    // Silencieux : le fallback statique est déjà en place.
   }
 }
 bootstrapPath();
