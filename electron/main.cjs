@@ -723,29 +723,77 @@ if (!gotSingleInstanceLock) {
   });
 }
 
+// Séquence de démarrage explicite. Chaque étape est isolée : une étape
+// annexe qui échoue (menu, panneau About, restauration des racines) ne
+// doit JAMAIS empêcher la création de la fenêtre principale — sinon
+// l'utilisateur voit une app fantôme sans UI et sans message d'erreur.
+function safeStep(name, fn) {
+  try {
+    diagWrite({ level: "info", message: `boot step start: ${name}` });
+    const result = fn();
+    diagWrite({ level: "info", message: `boot step ok: ${name}` });
+    return result;
+  } catch (e) {
+    diagWrite({
+      level: "error",
+      message: `boot step failed: ${name}`,
+      error: String((e && e.stack) || e),
+    });
+    return undefined;
+  }
+}
+
 app.whenReady().then(() => {
   diagWrite({ level: "info", message: "app whenReady" });
 
   // Audit I2 — restaurer les racines projet connues AVANT tout accès fs
   //           depuis le renderer, pour éviter la course au 1er rendu.
-  const persisted = loadKnownRoots();
-  let restored = 0;
-  for (const p of persisted) {
-    if (registerAllowedRoot(p)) restored += 1;
-  }
-  diagWrite({
-    level: "info",
-    message: "known-roots restored",
-    ctx: { count: restored, requested: persisted.length },
+  safeStep("restore-known-roots", () => {
+    const persisted = loadKnownRoots();
+    let restored = 0;
+    for (const p of persisted) {
+      if (registerAllowedRoot(p)) restored += 1;
+    }
+    diagWrite({
+      level: "info",
+      message: "known-roots restored",
+      ctx: { count: restored, requested: persisted.length },
+    });
   });
 
-  configureAboutPanel();
-  setupDiagnosticMenu();
-  createWindow();
+  safeStep("about-panel", () => configureAboutPanel());
+  safeStep("diagnostic-menu", () => setupDiagnosticMenu());
+
+  // createWindow est la SEULE étape non-optionnelle : si elle échoue,
+  // l'app n'a pas d'UI et doit quitter proprement plutôt que de rester
+  // en tâche de fond invisible.
+  try {
+    diagWrite({ level: "info", message: "boot step start: createWindow" });
+    createWindow();
+    diagWrite({ level: "info", message: "boot step ok: createWindow" });
+  } catch (e) {
+    diagWrite({
+      level: "fatal",
+      message: "createWindow failed — quitting",
+      error: String((e && e.stack) || e),
+    });
+    app.quit();
+    return;
+  }
+
   app.on("activate", () => {
     diagWrite({ level: "info", message: "app activate" });
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) safeStep("createWindow(activate)", createWindow);
   });
+}).catch((e) => {
+  // Filet de sécurité : une rejection non gérée du .then ci-dessus
+  // laisserait l'app zombie. On log et on quitte.
+  diagWrite({
+    level: "fatal",
+    message: "whenReady chain rejected",
+    error: String((e && e.stack) || e),
+  });
+  app.quit();
 });
 
 app.on("window-all-closed", () => {
