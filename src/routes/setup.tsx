@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, FolderOpen, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ function SetupWizard() {
   const [projectPath, setProjectPath] = useState("");
   const [detecting, setDetecting] = useState(false);
   const [detected, setDetected] = useState<ProjectDraft | null>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,6 +30,29 @@ function SetupWizard() {
 
   useEffect(() => {
     diag("wizard", "step:changed", { step });
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== 1) return;
+
+    let cancelled = false;
+    const focusNameInput = (source: string) => {
+      if (cancelled) return;
+      const input = nameInputRef.current;
+      if (!input) return;
+      input.focus({ preventScroll: true });
+      diag("wizard", "input:name:focus:forced", {
+        source,
+        active: document.activeElement === input,
+      });
+    };
+
+    requestAnimationFrame(() => focusNameInput("raf"));
+    const timer = window.setTimeout(() => focusNameInput("timeout"), 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [step]);
 
   function go(next: Step, reason: string) {
@@ -115,21 +139,26 @@ function SetupWizard() {
             >
               <div className="space-y-4">
                 <Input
+                  ref={nameInputRef}
+                  type="text"
+                  name="given-name"
                   autoFocus
+                  autoComplete="given-name"
+                  inputMode="text"
                   placeholder="Votre prénom"
                   value={name}
                   onChange={(e) => { diag("wizard", "input:name:change", { length: e.target.value.length }); setName(e.target.value); }}
                   onFocus={() => diag("wizard", "input:name:focus")}
                   onBlur={() => diag("wizard", "input:name:blur")}
+                  onClick={() => nameInputRef.current?.focus({ preventScroll: true })}
                   onKeyDown={(e) => { diag("wizard", "input:name:keydown", { key: e.key }); if (e.key === "Enter" && name.trim()) { diag("wizard", "keydown:Enter:name"); go(2, "enter:name"); } }}
-                  className="h-12 text-base"
+                  className="h-12 bg-card text-base caret-primary"
                 />
                 <div className="flex justify-end">
                   <Button
                     size="lg"
-                    onMouseDown={() => diag("wizard", "btn:continuer:name:mousedown", { name, disabled: !name.trim() })}
+                    onMouseDown={() => diag("wizard", "btn:continuer:name:mousedown", { name })}
                     onClick={() => { diag("wizard", "click:continuer:name", { name }); go(2, "click:continuer:name"); }}
-                    disabled={!name.trim()}
                   >
                     Continuer
                     <ArrowRight className="h-4 w-4" />
