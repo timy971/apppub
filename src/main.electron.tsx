@@ -8,7 +8,7 @@
  */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { RouterProvider, createRouter, createHashHistory } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { routeTree } from "./routeTree.gen";
@@ -22,12 +22,20 @@ installGlobalErrorCapture();
 
 const queryClient = new QueryClient();
 
+// Electron charge l'app via file://…/dist/index.html. Un history "browser"
+// tenterait de matcher ce chemin absolu contre les routes et retomberait
+// systématiquement sur la 404. Le hash history contourne complètement
+// l'URL du fichier : toutes les routes vivent après le "#".
+const hashHistory = createHashHistory();
+
 const router = createRouter({
   routeTree,
+  history: hashHistory,
   context: { queryClient },
   scrollRestoration: true,
   defaultPreloadStaleTime: 0,
 });
+
 
 declare module "@tanstack/react-router" {
   interface Register {
