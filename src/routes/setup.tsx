@@ -118,13 +118,16 @@ function SetupWizard() {
                   autoFocus
                   placeholder="Votre prénom"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => { diag("wizard", "input:name:change", { length: e.target.value.length }); setName(e.target.value); }}
+                  onFocus={() => diag("wizard", "input:name:focus")}
+                  onBlur={() => diag("wizard", "input:name:blur")}
+                  onKeyDown={(e) => { diag("wizard", "input:name:keydown", { key: e.key }); if (e.key === "Enter" && name.trim()) { diag("wizard", "keydown:Enter:name"); go(2, "enter:name"); } }}
                   className="h-12 text-base"
-                  onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { diag("wizard", "keydown:Enter:name"); go(2, "enter:name"); } }}
                 />
                 <div className="flex justify-end">
                   <Button
                     size="lg"
+                    onMouseDown={() => diag("wizard", "btn:continuer:name:mousedown", { name, disabled: !name.trim() })}
                     onClick={() => { diag("wizard", "click:continuer:name", { name }); go(2, "click:continuer:name"); }}
                     disabled={!name.trim()}
                   >
