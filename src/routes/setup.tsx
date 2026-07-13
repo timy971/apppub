@@ -128,6 +128,14 @@ function SetupWizard() {
                   placeholder="Votre prénom"
                   value={name}
                   onChange={(e) => { diag("wizard", "input:name:change", { length: e.target.value.length }); setName(e.target.value); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { diag("wizard", "keydown:Enter:name"); go(2, "enter:name"); } }}
+                  className="h-12 bg-card text-base caret-primary"
+                />
+                  autoComplete="given-name"
+                  inputMode="text"
+                  placeholder="Votre prénom"
+                  value={name}
+                  onChange={(e) => { diag("wizard", "input:name:change", { length: e.target.value.length }); setName(e.target.value); }}
                   onFocus={() => diag("wizard", "input:name:focus")}
                   onBlur={() => diag("wizard", "input:name:blur")}
                   onClick={() => nameInputRef.current?.focus({ preventScroll: true })}
