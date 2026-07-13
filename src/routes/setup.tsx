@@ -113,36 +113,7 @@ function SetupWizard() {
           )}
 
           {step === 1 && (
-            <Screen
-              title="Comment souhaitez-vous être appelé ?"
-              subtitle="Nous utiliserons ce prénom pour vous accueillir sur le tableau de bord."
-            >
-              <div className="space-y-4">
-                <Input
-                  ref={nameInputRef}
-                  type="text"
-                  name="given-name"
-                  autoFocus
-                  autoComplete="given-name"
-                  inputMode="text"
-                  placeholder="Votre prénom"
-                  value={name}
-                  onChange={(e) => { diag("wizard", "input:name:change", { length: e.target.value.length }); setName(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { diag("wizard", "keydown:Enter:name"); go(2, "enter:name"); } }}
-                  className="h-12 bg-card text-base caret-primary"
-                />
-                <div className="flex justify-end">
-                  <Button
-                    size="lg"
-                    onMouseDown={() => diag("wizard", "btn:continuer:name:mousedown", { name })}
-                    onClick={() => { diag("wizard", "click:continuer:name", { name }); go(2, "click:continuer:name"); }}
-                  >
-                    Continuer
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </Screen>
+            <div>STEP 1 OK</div>
           )}
 
           {step === 2 && !detected && (
