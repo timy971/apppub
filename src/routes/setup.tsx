@@ -113,7 +113,10 @@ function SetupWizard() {
           )}
 
           {step === 1 && (
-            <div>STEP 1 OK</div>
+            <div>
+              <h1>Comment souhaitez-vous être appelé ?</h1>
+              <p>Nous utiliserons ce prénom pour vous accueillir sur le tableau de bord.</p>
+            </div>
           )}
 
           {step === 2 && !detected && (
