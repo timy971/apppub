@@ -127,14 +127,15 @@ function SetupWizard() {
                   inputMode="text"
                   placeholder="Votre prénom"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) go(2, "enter:name"); }}
+                  onChange={(e) => { diag("wizard", "input:name:change", { length: e.target.value.length }); setName(e.target.value); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { diag("wizard", "keydown:Enter:name"); go(2, "enter:name"); } }}
                   className="h-12 bg-card text-base caret-primary"
                 />
                 <div className="flex justify-end">
                   <Button
                     size="lg"
-                    onClick={() => go(2, "click:continuer:name")}
+                    onMouseDown={() => diag("wizard", "btn:continuer:name:mousedown", { name })}
+                    onClick={() => { diag("wizard", "click:continuer:name", { name }); go(2, "click:continuer:name"); }}
                   >
                     Continuer
                     <ArrowRight className="h-4 w-4" />
