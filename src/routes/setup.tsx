@@ -32,28 +32,8 @@ function SetupWizard() {
     diag("wizard", "step:changed", { step });
   }, [step]);
 
-  useEffect(() => {
-    if (step !== 1) return;
-
-    let cancelled = false;
-    const focusNameInput = (source: string) => {
-      if (cancelled) return;
-      const input = nameInputRef.current;
-      if (!input) return;
-      input.focus({ preventScroll: true });
-      diag("wizard", "input:name:focus:forced", {
-        source,
-        active: document.activeElement === input,
-      });
-    };
-
-    requestAnimationFrame(() => focusNameInput("raf"));
-    const timer = window.setTimeout(() => focusNameInput("timeout"), 120);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [step]);
+  // Focus unique au premier montage du champ prénom (via autoFocus sur l'Input).
+  // Pas de re-focus programmatique : évite le focus thrashing qui bloquait la saisie.
 
   function go(next: Step, reason: string) {
     diag("wizard", "setStep", { from: step, to: next, reason });
