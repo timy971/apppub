@@ -117,22 +117,30 @@ function SetupWizard() {
               title="Comment souhaitez-vous être appelé ?"
               subtitle="Nous utiliserons ce prénom pour vous accueillir sur le tableau de bord."
             >
-              <Input
-                ref={nameInputRef}
-                type="text"
-                name="given-name"
-                autoFocus
-                autoComplete="given-name"
-                inputMode="text"
-                placeholder="Votre prénom"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) go(2, "enter:name"); }}
-                className="h-12 bg-card text-base caret-primary"
-              />
-              <Button type="button" onClick={() => go(2, "click:continuer:name")}>
-                Continuer
-              </Button>
+              <div className="space-y-4">
+                <Input
+                  ref={nameInputRef}
+                  type="text"
+                  name="given-name"
+                  autoFocus
+                  autoComplete="given-name"
+                  inputMode="text"
+                  placeholder="Votre prénom"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) go(2, "enter:name"); }}
+                  className="h-12 bg-card text-base caret-primary"
+                />
+                <div className="flex justify-end">
+                  <Button
+                    size="lg"
+                    onClick={() => go(2, "click:continuer:name")}
+                  >
+                    Continuer
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </Screen>
           )}
 
