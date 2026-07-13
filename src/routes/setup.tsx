@@ -113,9 +113,10 @@ function SetupWizard() {
           )}
 
           {step === 1 && (
-            <div>
-              <h1>Comment souhaitez-vous être appelé ?</h1>
-              <p>Nous utiliserons ce prénom pour vous accueillir sur le tableau de bord.</p>
+            <Screen
+              title="Comment souhaitez-vous être appelé ?"
+              subtitle="Nous utiliserons ce prénom pour vous accueillir sur le tableau de bord."
+            >
               <Input
                 type="text"
                 name="given-name"
@@ -126,7 +127,7 @@ function SetupWizard() {
               <Button type="button" onClick={() => go(2, "click:continuer:name")}>
                 Continuer
               </Button>
-            </div>
+            </Screen>
           )}
 
           {step === 2 && !detected && (
