@@ -117,6 +117,7 @@ function SetupWizard() {
               <h1>Comment souhaitez-vous être appelé ?</h1>
               <p>Nous utiliserons ce prénom pour vous accueillir sur le tableau de bord.</p>
               <input type="text" name="given-name" placeholder="Votre prénom" />
+              <button type="button">Continuer</button>
             </div>
           )}
 
