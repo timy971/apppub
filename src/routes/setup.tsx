@@ -109,7 +109,7 @@ function SetupWizard() {
                 size="lg"
                 onClick={() => {
                   diag("wizard", "click:commencer");
-                  navigate({ to: "/test" });
+                  go(1, "click:commencer");
                 }}
               >
                 Commencer
