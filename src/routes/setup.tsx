@@ -105,7 +105,13 @@ function SetupWizard() {
               subtitle="AppPublisher va vous accompagner pour publier vos applications Android sans jamais retenir une seule commande."
               icon={<Sparkles className="h-6 w-6" />}
             >
-              <Button size="lg" onClick={() => { diag("wizard", "click:commencer"); go(1, "click:commencer"); }}>
+              <Button
+                size="lg"
+                onClick={() => {
+                  diag("wizard", "click:commencer");
+                  navigate({ to: "/test" });
+                }}
+              >
                 Commencer
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -127,15 +133,26 @@ function SetupWizard() {
                   inputMode="text"
                   placeholder="Votre prénom"
                   value={name}
-                  onChange={(e) => { diag("wizard", "input:name:change", { length: e.target.value.length }); setName(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { diag("wizard", "keydown:Enter:name"); go(2, "enter:name"); } }}
+                  onChange={(e) => {
+                    diag("wizard", "input:name:change", { length: e.target.value.length });
+                    setName(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && name.trim()) {
+                      diag("wizard", "keydown:Enter:name");
+                      go(2, "enter:name");
+                    }
+                  }}
                   className="h-12 bg-card text-base caret-primary"
                 />
                 <div className="flex justify-end">
                   <Button
                     size="lg"
                     onMouseDown={() => diag("wizard", "btn:continuer:name:mousedown", { name })}
-                    onClick={() => { diag("wizard", "click:continuer:name", { name }); go(2, "click:continuer:name"); }}
+                    onClick={() => {
+                      diag("wizard", "click:continuer:name", { name });
+                      go(2, "click:continuer:name");
+                    }}
                   >
                     Continuer
                     <ArrowRight className="h-4 w-4" />
@@ -168,11 +185,7 @@ function SetupWizard() {
                   >
                     Ajouter un projet plus tard
                   </button>
-                  <Button
-                    size="lg"
-                    onClick={runDetection}
-                    disabled={!projectPath.trim() || detecting}
-                  >
+                  <Button size="lg" onClick={runDetection} disabled={!projectPath.trim() || detecting}>
                     {detecting ? "Détection…" : "Détecter le projet"}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
@@ -194,9 +207,7 @@ function SetupWizard() {
                   </div>
                   <div>
                     <div className="text-lg font-semibold">{detected.name}</div>
-                    <div className="text-sm text-muted-foreground truncate">
-                      {detected.localPath}
-                    </div>
+                    <div className="text-sm text-muted-foreground truncate">{detected.localPath}</div>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
@@ -208,10 +219,22 @@ function SetupWizard() {
               </div>
 
               <div className="mt-6 flex justify-end gap-2">
-                <Button variant="outline" onClick={() => { diag("wizard", "click:autreDossier"); setDetected(null); }}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    diag("wizard", "click:autreDossier");
+                    setDetected(null);
+                  }}
+                >
                   Choisir un autre dossier
                 </Button>
-                <Button size="lg" onClick={() => { diag("wizard", "click:continuer:detected"); go(3, "click:continuer:detected"); }}>
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    diag("wizard", "click:continuer:detected");
+                    go(3, "click:continuer:detected");
+                  }}
+                >
                   Continuer
                   <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -243,12 +266,7 @@ function Progress({ step }: { step: number }) {
     <div className="flex items-center gap-2">
       {steps.map((label, i) => (
         <div key={label} className="flex flex-1 items-center gap-2">
-          <div
-            className={
-              "h-1.5 flex-1 rounded-full transition-colors " +
-              (i <= step ? "bg-primary" : "bg-muted")
-            }
-          />
+          <div className={"h-1.5 flex-1 rounded-full transition-colors " + (i <= step ? "bg-primary" : "bg-muted")} />
         </div>
       ))}
     </div>
@@ -274,9 +292,7 @@ function Screen({
         </div>
       )}
       <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-      {subtitle && (
-        <p className="mt-3 text-base text-muted-foreground leading-relaxed">{subtitle}</p>
-      )}
+      {subtitle && <p className="mt-3 text-base text-muted-foreground leading-relaxed">{subtitle}</p>}
       <div className="mt-8">{children}</div>
     </div>
   );
