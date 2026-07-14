@@ -657,6 +657,7 @@ function createWindow() {
   win.once("ready-to-show", () => {
     win.show();
     if (saved?.maximized) win.maximize();
+    win.webContents.openDevTools({ mode: "detach" });
   });
   win.on("close", () => writeWindowState(win));
 
