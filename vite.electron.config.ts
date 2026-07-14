@@ -54,7 +54,8 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
-    sourcemap: false,
+    sourcemap: true,
+    minify: false,
     // Rollup : point d'entrée SPA explicite et structure assets
     rollupOptions: {
       input: resolve(here, "index.html"),
