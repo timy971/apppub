@@ -19,6 +19,29 @@ import { installGlobalErrorCapture } from "./core/diag/global-errors";
 diag("boot", "main.electron.tsx loaded");
 installGlobalErrorCapture();
 
+// DIAGNOSTIC TEMPORAIRE — compteur d'accès à Node.previousSibling
+// pour mesurer une boucle de traversée DOM suspectée dans le renderer.
+// À retirer une fois le diagnostic terminé.
+if (typeof window !== "undefined") {
+  const desc = Object.getOwnPropertyDescriptor(Node.prototype, "previousSibling");
+  if (desc?.get) {
+    let psCount = 0;
+    (window as any).__psCount = 0;
+    Object.defineProperty(Node.prototype, "previousSibling", {
+      configurable: true,
+      get() {
+        psCount++;
+        (window as any).__psCount = psCount;
+        if (psCount % 20000 === 0) {
+          // eslint-disable-next-line no-alert
+          alert("DIAGNOSTIC previousSibling appelé " + psCount + " fois");
+        }
+        return desc.get!.call(this);
+      },
+    });
+  }
+}
+
 
 const queryClient = new QueryClient();
 
