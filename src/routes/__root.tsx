@@ -145,7 +145,8 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AppShell />
-        <Toaster position="bottom-right" />
+        {/* DIAGNOSTIC TEMPORAIRE — Toaster désactivé pour test freeze wizard */}
+        {/* <Toaster position="bottom-right" /> */}
       </ThemeProvider>
     </QueryClientProvider>
   );
