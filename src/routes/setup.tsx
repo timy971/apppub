@@ -38,13 +38,14 @@ function SetupWizard() {
   // pendant commitHostMount, qui provoque un événement selectionchange
   // traité par React en pleine phase de commit — cause du freeze renderer.
   useEffect(() => {
+    // DIAGNOSTIC TEMPORAIRE — focus désactivé pour isoler la cause du freeze
     if (step === 1) {
-      const raf = requestAnimationFrame(() => nameInputRef.current?.focus());
-      return () => cancelAnimationFrame(raf);
+      // const raf = requestAnimationFrame(() => nameInputRef.current?.focus());
+      // return () => cancelAnimationFrame(raf);
     }
     if (step === 2 && !detected) {
-      const raf = requestAnimationFrame(() => projectPathInputRef.current?.focus());
-      return () => cancelAnimationFrame(raf);
+      // const raf = requestAnimationFrame(() => projectPathInputRef.current?.focus());
+      // return () => cancelAnimationFrame(raf);
     }
   }, [step, detected]);
 
