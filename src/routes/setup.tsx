@@ -21,6 +21,7 @@ function SetupWizard() {
   const [detecting, setDetecting] = useState(false);
   const [detected, setDetected] = useState<ProjectDraft | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const projectPathInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,8 +33,20 @@ function SetupWizard() {
     diag("wizard", "step:changed", { step });
   }, [step]);
 
-  // Focus unique au premier montage du champ prénom (via autoFocus sur l'Input).
-  // Pas de re-focus programmatique : évite le focus thrashing qui bloquait la saisie.
+  // Focus différé après le commit (via requestAnimationFrame), au lieu de
+  // autoFocus natif : autoFocus déclenche en interne un `.focus()` synchrone
+  // pendant commitHostMount, qui provoque un événement selectionchange
+  // traité par React en pleine phase de commit — cause du freeze renderer.
+  useEffect(() => {
+    if (step === 1) {
+      const raf = requestAnimationFrame(() => nameInputRef.current?.focus());
+      return () => cancelAnimationFrame(raf);
+    }
+    if (step === 2 && !detected) {
+      const raf = requestAnimationFrame(() => projectPathInputRef.current?.focus());
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [step, detected]);
 
   function go(next: Step, reason: string) {
     diag("wizard", "setStep", { from: step, to: next, reason });
@@ -128,7 +141,6 @@ function SetupWizard() {
                   ref={nameInputRef}
                   type="text"
                   name="given-name"
-                  autoFocus
                   autoComplete="given-name"
                   inputMode="text"
                   placeholder="Votre prénom"
@@ -170,7 +182,7 @@ function SetupWizard() {
             >
               <div className="space-y-4">
                 <Input
-                  autoFocus
+                  ref={projectPathInputRef}
                   placeholder="Exemple : /Users/tim/Projets/CranioScan"
                   value={projectPath}
                   onChange={(e) => setProjectPath(e.target.value)}
