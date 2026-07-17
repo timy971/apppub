@@ -33,8 +33,10 @@ if (typeof window !== "undefined") {
         psCount++;
         (window as any).__psCount = psCount;
         if (psCount % 20000 === 0) {
+          // eslint-disable-next-line no-console
+          console.trace("DIAGNOSTIC previousSibling appelé " + psCount + " fois");
           // eslint-disable-next-line no-alert
-          alert("DIAGNOSTIC previousSibling appelé " + psCount + " fois");
+          alert("DIAGNOSTIC previousSibling appelé " + psCount + " fois — voir Console pour la pile");
         }
         return desc.get!.call(this);
       },
