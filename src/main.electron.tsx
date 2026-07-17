@@ -18,7 +18,9 @@ import { installGlobalErrorCapture } from "./core/diag/global-errors";
 
 diag("boot", "main.electron.tsx loaded");
 installGlobalErrorCapture();
-
+// DIAGNOSTIC TEMPORAIRE — compteur d'événements natifs selectionchange réels
+(window as any).__scCount = 0;
+document.addEventListener("selectionchange", () => { (window as any).__scCount++; }, true);
 // DIAGNOSTIC TEMPORAIRE — compteur + historique des 40 derniers nœuds visités
 // via Node.previousSibling, pour mesurer une boucle de traversée DOM suspectée.
 // À retirer une fois le diagnostic terminé.
