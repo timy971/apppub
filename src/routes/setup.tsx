@@ -142,7 +142,7 @@ function SetupWizard() {
                   ref={nameInputRef}
                   type="text"
                   name="given-name"
-                  autoComplete="given-name"
+                  autoComplete="off"
                   inputMode="text"
                   placeholder="Votre prénom"
                   value={name}
