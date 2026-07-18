@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import { WhyButton } from "@/components/why-button";
 import { CopilotService } from "@/core/copilot/service";
 import type { HealthCheck, Project, PublishRecord } from "@/core/types";
-import type { FileRoutesByPath } from "@tanstack/react-router";
 
 /**
  * Carte principale du cockpit. Réutilise CopilotService (aucune logique
@@ -80,8 +79,8 @@ export function NextActionCard({
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {suggestion.action.to ? (
-              <Button asChild variant={isReady ? "default" : "default"}>
-                <Link to={suggestion.action.to as keyof FileRoutesByPath}>
+              <Button asChild>
+                <Link to={suggestion.action.to as never}>
                   {suggestion.action.label}
                   <ArrowRight className="h-4 w-4" />
                 </Link>
