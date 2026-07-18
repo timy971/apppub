@@ -209,7 +209,7 @@ function ProjectCockpit() {
   );
 }
 
-/* ---------------- Vue d'ensemble ---------------- */
+/* ---------------- Vue d'ensemble (cockpit) ---------------- */
 
 function OverviewTab({
   project,
@@ -219,173 +219,50 @@ function OverviewTab({
   status: ProjectStatus;
 }) {
   const [checks, setChecks] = useState<HealthCheck[]>([]);
-  const [score, setScore] = useState<HealthScore | null>(null);
-  const [backups, setBackups] = useState<ProjectBackup[]>([]);
+  const [checksLoading, setChecksLoading] = useState(true);
+  const history: PublishRecord[] = useMemo(
+    () => HistoryService.forProject(project.id),
+    [project.id],
+  );
 
   useEffect(() => {
     let cancelled = false;
+    setChecksLoading(true);
     (async () => {
       const c = await DiagnosticService.run(project);
       if (cancelled) return;
       setChecks(c);
-      setScore(HealthScoreService.from(c));
+      setChecksLoading(false);
     })();
-    setBackups(BackupService.list(project.id));
     return () => {
       cancelled = true;
     };
-  }, [project.id]);
-
-  const history = useMemo(() => HistoryService.forProject(project.id), [project.id]);
-  const lastBuild = history.find(
-    (h) => (h.kind === "build" || h.kind === undefined) && h.outcome === "success",
-  );
-  const lastPublish = history.find(
-    (h) => h.kind === "publish" && h.outcome === "success",
-  );
-  const lastVersion = history.find((h) => h.kind === "version");
-  const lastBackup = backups[0];
+  }, [project]);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <div className="lg:col-span-2 space-y-4">
-        {score && <HealthScoreCard score={score} />}
+    <div className="space-y-4">
+      <NextActionCard
+        project={project}
+        checks={checks}
+        history={history}
+        loading={checksLoading}
+      />
 
-        <Card className="p-6 shadow-soft">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold">Actions rapides</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <QuickAction
-              to="/version"
-              icon={<Package className="h-5 w-5" />}
-              title="Mettre à jour la version"
-              desc="Incrémente version et build."
-            />
-            <QuickAction
-              to="/build"
-              icon={<Package className="h-5 w-5" />}
-              title="Construire l'application"
-              desc="Génère un fichier .aab."
-            />
-            <QuickAction
-              to="/publish"
-              icon={<Rocket className="h-5 w-5" />}
-              title="Préparer la publication"
-              desc="Vérifie et met en forme les notes."
-            />
-          </div>
-        </Card>
-
-        <Card className="p-6 shadow-soft">
-          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
-            <ClipboardList className="h-4 w-4" />
-            Checklist du projet
-          </h2>
-          {status.findings.length === 0 ? (
-            <div className="text-sm text-success flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" />
-              Toutes les vérifications sont au vert.
-            </div>
-          ) : (
-            <ul className="space-y-2">
-              {status.findings.map((f) => (
-                <li key={f.id} className="flex items-start gap-2 text-sm">
-                  <span
-                    className={
-                      "mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full " +
-                      (f.severity === "error"
-                        ? "bg-danger"
-                        : f.severity === "warn"
-                          ? "bg-warning"
-                          : "bg-muted-foreground")
-                    }
-                  />
-                  <div>
-                    <div className="font-medium">{f.message}</div>
-                    {f.hint && (
-                      <div className="text-xs text-muted-foreground">{f.hint}</div>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-
-      <div className="space-y-4">
-        <Card className="p-5 shadow-soft">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            État actuel
-          </h3>
-          <dl className="space-y-2 text-sm">
-            <Row label="Version" value={`v${project.currentVersion}`} />
-            <Row label="Build" value={`#${project.currentBuild}`} />
-            <Row
-              label="Dernier build"
-              value={
-                lastBuild
-                  ? `v${lastBuild.version} · ${formatDate(lastBuild.createdAt)}`
-                  : "—"
-              }
-            />
-            <Row
-              label="Dernière publication"
-              value={
-                lastPublish
-                  ? `v${lastPublish.version} · ${formatDate(lastPublish.createdAt)}`
-                  : "—"
-              }
-            />
-            <Row
-              label="Dernière version poussée"
-              value={
-                lastVersion
-                  ? `v${lastVersion.version} · ${formatDate(lastVersion.createdAt)}`
-                  : "—"
-              }
-            />
-            <Row
-              label="Dernière sauvegarde"
-              value={lastBackup ? formatDate(lastBackup.createdAt) : "—"}
-            />
-          </dl>
-        </Card>
-
-        <Card className="p-5 shadow-soft">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Environnement
-          </h3>
-          {checks.length === 0 ? (
-            <div className="text-xs text-muted-foreground">Analyse en cours…</div>
-          ) : (
-            <ul className="space-y-1.5 text-sm">
-              {checks
-                .filter((c) => c.category === "environment")
-                .slice(0, 6)
-                .map((c) => (
-                  <li key={c.id} className="flex items-center gap-2">
-                    <span
-                      className={
-                        "inline-block h-2 w-2 rounded-full " +
-                        (c.status === "ok"
-                          ? "bg-success"
-                          : c.status === "warning"
-                            ? "bg-warning"
-                            : "bg-danger")
-                      }
-                    />
-                    <span>{c.label}</span>
-                  </li>
-                ))}
-            </ul>
-          )}
-        </Card>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <PublicationCard project={project} status={status} />
+          <TimelineCard project={project} />
+        </div>
+        <div className="space-y-4">
+          <HealthCard project={project} status={status} />
+          <ActivityCard project={project} />
+          <ResourcesCard project={project} />
+        </div>
       </div>
     </div>
   );
 }
+
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
