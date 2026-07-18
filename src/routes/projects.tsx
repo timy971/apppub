@@ -65,6 +65,7 @@ export const Route = createFileRoute("/projects")({
 function ProjectsPage() {
   const projects = useProjects();
   const settings = useSettings();
+  const navigate = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [path, setPath] = useState("");
@@ -75,6 +76,9 @@ function ProjectsPage() {
   const [scanned, setScanned] = useState<ScannedProject[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toDelete, setToDelete] = useState<Project | null>(null);
+  const [query, setQuery] = useState("");
+  const [lifecycleFilter, setLifecycleFilter] = useState<string>("all");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   async function detect() {
     if (!path.trim()) return;
