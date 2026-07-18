@@ -326,3 +326,211 @@ function ProjectsPage() {
     </div>
   );
 }
+
+function ProjectsList({
+  projects,
+  activeId,
+  query,
+  setQuery,
+  lifecycleFilter,
+  setLifecycleFilter,
+  favoritesOnly,
+  setFavoritesOnly,
+  onOpen,
+  onDelete,
+}: {
+  projects: Project[];
+  activeId: string | undefined;
+  query: string;
+  setQuery: (v: string) => void;
+  lifecycleFilter: string;
+  setLifecycleFilter: (v: string) => void;
+  favoritesOnly: boolean;
+  setFavoritesOnly: (v: boolean) => void;
+  onOpen: (p: Project) => void;
+  onDelete: (p: Project) => void;
+}) {
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return projects
+      .filter((p) => (favoritesOnly ? p.favorite : true))
+      .filter((p) =>
+        lifecycleFilter === "all"
+          ? true
+          : (p.lifecycle ?? "development") === lifecycleFilter,
+      )
+      .filter(
+        (p) =>
+          !q ||
+          p.name.toLowerCase().includes(q) ||
+          p.localPath.toLowerCase().includes(q) ||
+          (p.packageName ?? "").toLowerCase().includes(q),
+      )
+      .sort((a, b) => {
+        if (!!b.favorite !== !!a.favorite) return b.favorite ? 1 : -1;
+        return a.name.localeCompare(b.name);
+      });
+  }, [projects, query, lifecycleFilter, favoritesOnly]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher un projet…"
+            className="pl-9"
+          />
+        </div>
+        <Select value={lifecycleFilter} onValueChange={setLifecycleFilter}>
+          <SelectTrigger className="w-[190px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les cycles de vie</SelectItem>
+            {LIFECYCLE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant={favoritesOnly ? "default" : "outline"}
+          size="sm"
+          onClick={() => setFavoritesOnly(!favoritesOnly)}
+        >
+          {favoritesOnly ? (
+            <Star className="h-4 w-4 fill-current" />
+          ) : (
+            <StarOff className="h-4 w-4" />
+          )}
+          Favoris
+        </Button>
+      </div>
+
+      {filtered.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-muted-foreground shadow-soft">
+          Aucun projet ne correspond à ces filtres.
+        </Card>
+      ) : (
+        <div className="grid gap-3">
+          {filtered.map((p) => (
+            <ProjectCard
+              key={p.id}
+              project={p}
+              isActive={activeId === p.id}
+              onOpen={() => onOpen(p)}
+              onDelete={() => onDelete(p)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProjectCard({
+  project,
+  isActive,
+  onOpen,
+  onDelete,
+}: {
+  project: Project;
+  isActive: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  const status = useMemo(() => ProjectStatusService.evaluate(project), [project]);
+
+  function toggleFavorite(e: React.MouseEvent) {
+    e.stopPropagation();
+    ProjectsService.update(project.id, { favorite: !project.favorite });
+    AppStore.refreshProjects();
+  }
+  async function openInFinder(e: React.MouseEvent) {
+    e.stopPropagation();
+    await bridge().shell.openFolder(project.localPath);
+  }
+
+  return (
+    <Card
+      className="p-4 shadow-soft transition-colors hover:bg-accent/40 cursor-pointer"
+      onClick={onOpen}
+    >
+      <div className="flex items-center gap-4">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-xl shrink-0">
+          {project.logoEmoji ?? "📱"}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="font-semibold truncate">{project.name}</div>
+            {isActive && (
+              <span className="text-[11px] rounded-full bg-primary/10 px-2 py-0.5 text-primary">
+                Actif
+              </span>
+            )}
+            <ProjectLifecycleBadge lifecycle={project.lifecycle} />
+            <ProjectStatusBadge status={status} />
+          </div>
+          <div className="text-xs text-muted-foreground truncate font-mono mt-0.5">
+            {project.localPath}
+          </div>
+        </div>
+        <div className="text-right text-xs text-muted-foreground tabular-nums hidden sm:block">
+          v{project.currentVersion} · build {project.currentBuild}
+        </div>
+        <TooltipProvider delayDuration={200}>
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={toggleFavorite}>
+                  {project.favorite ? (
+                    <Star className="h-4 w-4 fill-current text-warning" />
+                  ) : (
+                    <StarOff className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {project.favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={openInFinder}>
+                  <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ouvrir le dossier</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  to="/projects/$id"
+                  params={{ id: project.id }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"
+                >
+                  <Pencil className="h-4 w-4 text-muted-foreground" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>Modifier le projet</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={onDelete}>
+                  <Trash2 className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Retirer</TooltipContent>
+            </Tooltip>
+            <ChevronRight className="h-4 w-4 text-muted-foreground ml-1" />
+          </div>
+        </TooltipProvider>
+      </div>
+    </Card>
+  );
+}
