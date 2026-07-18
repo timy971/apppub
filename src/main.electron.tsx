@@ -18,50 +18,6 @@ import { installGlobalErrorCapture } from "./core/diag/global-errors";
 
 diag("boot", "main.electron.tsx loaded");
 installGlobalErrorCapture();
-// DIAGNOSTIC TEMPORAIRE — compteur d'événements natifs selectionchange réels
-(window as any).__scCount = 0;
-document.addEventListener("selectionchange", () => { (window as any).__scCount++; }, true);
-// DIAGNOSTIC TEMPORAIRE — compteur + historique des 40 derniers nœuds visités
-// via Node.previousSibling, pour mesurer une boucle de traversée DOM suspectée.
-// À retirer une fois le diagnostic terminé.
-if (typeof window !== "undefined") {
-  const desc = Object.getOwnPropertyDescriptor(Node.prototype, "previousSibling");
-  if (desc?.get) {
-    let psCount = 0;
-    const ring: string[] = [];
-    (window as any).__psCount = 0;
-    Object.defineProperty(Node.prototype, "previousSibling", {
-      configurable: true,
-      get() {
-        psCount++;
-        (window as any).__psCount = psCount;
-        const n = this as Node;
-        const label =
-          n.nodeType === 8
-            ? "COMMENT:" + JSON.stringify((n as Comment).data).slice(0, 40)
-            : n.nodeType === 3
-              ? "TEXT:" + JSON.stringify((n as Text).data).slice(0, 20)
-              : n.nodeType === 1
-                ? "EL:" + (n as Element).tagName + (((n as Element).id) ? "#" + (n as Element).id : "")
-                : "TYPE" + n.nodeType;
-        ring.push(label);
-        if (ring.length > 40) ring.shift();
-        (window as any).__psRing = ring;
-        if (psCount === 1) {
-          // eslint-disable-next-line no-console
-          console.log("DIAGNOSTIC premier appel previousSibling sur:", label, n);
-        }
-        if (psCount % 20000 === 0) {
-          // eslint-disable-next-line no-console
-          console.log("DIAGNOSTIC previousSibling " + psCount + " — 40 derniers nœuds visités:", ring.slice());
-          // eslint-disable-next-line no-alert
-          alert("DIAGNOSTIC previousSibling appelé " + psCount + " fois — voir Console pour l'historique des nœuds");
-        }
-        return desc.get!.call(this);
-      },
-    });
-  }
-}
 
 
 const queryClient = new QueryClient();
