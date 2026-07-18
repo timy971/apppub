@@ -45,12 +45,16 @@ import { PublicationCard } from "@/components/project-cockpit/publication-card";
 import { TimelineCard } from "@/components/project-cockpit/timeline-card";
 import { ActivityCard } from "@/components/project-cockpit/activity-card";
 import { ResourcesCard } from "@/components/project-cockpit/resources-card";
+import {
+  CockpitNavProvider,
+  useCockpitNav,
+} from "@/components/project-cockpit/cockpit-nav";
 import { AppStore, useProjects, useSettings } from "@/core/store/app-store";
 import { ProjectsService } from "@/core/projects/service";
 import { HistoryService } from "@/core/history/service";
 import { DiagnosticService } from "@/core/diagnostic/service";
 import { ProjectStatusService } from "@/core/projects/status";
-import type { ProjectStatus } from "@/core/projects/status";
+import type { CockpitTab, ProjectStatus } from "@/core/projects/status";
 import {
   getAndroidConfig,
   patchAndroidConfig,
@@ -65,17 +69,24 @@ import type {
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/projects/$id")({
-  component: ProjectCockpit,
+  component: ProjectCockpitRoute,
 });
+
+function ProjectCockpitRoute() {
+  return (
+    <CockpitNavProvider>
+      <ProjectCockpit />
+    </CockpitNavProvider>
+  );
+}
 
 function ProjectCockpit() {
   const { id } = Route.useParams();
   const projects = useProjects();
   const settings = useSettings();
   const navigate = useNavigate();
+  const nav = useCockpitNav();
   const project = projects.find((p) => p.id === id);
-
-  const [tab, setTab] = useState("overview");
 
   if (!project) {
     return (
@@ -180,7 +191,7 @@ function ProjectCockpit() {
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs value={nav.tab} onValueChange={(v) => nav.setTab(v as CockpitTab)}>
         <TabsList>
           <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
           <TabsTrigger value="identity">Identité</TabsTrigger>
@@ -220,9 +231,11 @@ function OverviewTab({
 }) {
   const [checks, setChecks] = useState<HealthCheck[]>([]);
   const [checksLoading, setChecksLoading] = useState(true);
+  const { refreshKey } = useCockpitNav();
   const history: PublishRecord[] = useMemo(
     () => HistoryService.forProject(project.id),
-    [project.id],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [project.id, refreshKey],
   );
 
   useEffect(() => {
@@ -243,6 +256,7 @@ function OverviewTab({
     <div className="space-y-4">
       <NextActionCard
         project={project}
+        status={status}
         checks={checks}
         history={history}
         loading={checksLoading}
@@ -285,6 +299,7 @@ function IdentityTab({
   return (
     <Card className="p-6 shadow-soft space-y-5 max-w-3xl">
       <InlineText
+        fieldKey="name"
         label="Nom du projet"
         value={project.name}
         onSave={(name) => {
@@ -296,6 +311,7 @@ function IdentityTab({
         }}
       />
       <InlineText
+        fieldKey="logoEmoji"
         label="Icône (emoji)"
         value={project.logoEmoji ?? ""}
         placeholder="📱"
@@ -303,6 +319,7 @@ function IdentityTab({
         onSave={(v) => update({ logoEmoji: v.trim() || undefined })}
       />
       <InlineTextarea
+        fieldKey="description"
         label="Description"
         value={project.description ?? ""}
         placeholder="Une phrase qui décrit ce projet…"
@@ -322,6 +339,7 @@ function IdentityTab({
         </div>
       </div>
       <InlineText
+        fieldKey="githubRepo"
         label="Dépôt Git"
         value={project.githubRepo ?? ""}
         placeholder="git@github.com:vous/depot.git"
@@ -388,13 +406,14 @@ function ConfigurationTab({
   return (
     <Card className="p-6 shadow-soft space-y-5 max-w-3xl">
       <InlineText
+        fieldKey="packageName"
         label="Nom de package"
         value={project.packageName ?? ""}
         placeholder="com.exemple.monapp"
         onSave={(v) => update({ packageName: v.trim() || undefined })}
       />
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
+        <div data-cockpit-field="currentVersion">
           <Label>Version actuelle</Label>
           <Input value={project.currentVersion} readOnly className="mt-1.5 font-mono" />
           <p className="mt-1.5 text-xs text-muted-foreground">
@@ -411,6 +430,7 @@ function ConfigurationTab({
         </div>
       </div>
       <InlineText
+        fieldKey="buildCommand"
         label="Commande de build personnalisée"
         value={project.buildCommand ?? ""}
         placeholder="npm run build"
@@ -448,7 +468,7 @@ function AndroidSection({ project }: { project: Project }) {
     if (chosen) save({ keystorePath: chosen });
   }
   return (
-    <Card className="p-6 shadow-soft max-w-3xl">
+    <Card className="p-6 shadow-soft max-w-3xl" data-cockpit-field="android">
       <div className="mb-4 flex items-center gap-2">
         <Smartphone className="h-5 w-5 text-primary" />
         <h2 className="text-base font-semibold">Android</h2>
@@ -460,12 +480,13 @@ function AndroidSection({ project }: { project: Project }) {
       </div>
       <div className="space-y-4">
         <InlineText
+          fieldKey="android.applicationId"
           label="Identifiant d'application"
           value={cfg.applicationId ?? ""}
           placeholder="com.exemple.monapp"
           onSave={(v) => save({ applicationId: v.trim() || undefined })}
         />
-        <div>
+        <div data-cockpit-field="android.keystorePath">
           <Label>Clé de signature (keystore)</Label>
           <div className="mt-1.5 flex gap-2">
             <Input
@@ -480,13 +501,14 @@ function AndroidSection({ project }: { project: Project }) {
           </div>
         </div>
         <InlineText
+          fieldKey="android.keystoreAlias"
           label="Alias de la clé"
           value={cfg.keystoreAlias ?? ""}
           placeholder="upload"
           onSave={(v) => save({ keystoreAlias: v.trim() || undefined })}
         />
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+          <div data-cockpit-field="android.defaultTrack">
             <Label>Piste par défaut</Label>
             <Select
               value={cfg.defaultTrack ?? "internal"}
@@ -506,6 +528,7 @@ function AndroidSection({ project }: { project: Project }) {
             </Select>
           </div>
           <InlineText
+            fieldKey="android.primaryLanguage"
             label="Langue principale"
             value={cfg.primaryLanguage ?? ""}
             placeholder="fr-FR"
@@ -527,7 +550,7 @@ function IosSection({ project }: { project: Project }) {
     AppStore.refreshProjects();
   }
   return (
-    <Card className="p-6 shadow-soft max-w-3xl">
+    <Card className="p-6 shadow-soft max-w-3xl" data-cockpit-field="ios">
       <div className="mb-4 flex items-center gap-2">
         <Apple className="h-5 w-5 text-muted-foreground" />
         <h2 className="text-base font-semibold">iOS</h2>
@@ -537,18 +560,21 @@ function IosSection({ project }: { project: Project }) {
       </div>
       <div className="space-y-4">
         <InlineText
+          fieldKey="ios.bundleId"
           label="Bundle identifier"
           value={cfg.bundleId ?? ""}
           placeholder="com.exemple.monapp"
           onSave={(v) => save({ bundleId: v.trim() || undefined })}
         />
         <InlineText
+          fieldKey="ios.teamId"
           label="Team ID"
           value={cfg.teamId ?? ""}
           placeholder="ABCDE12345"
           onSave={(v) => save({ teamId: v.trim() || undefined })}
         />
         <InlineText
+          fieldKey="ios.primaryLanguage"
           label="Langue principale"
           value={cfg.primaryLanguage ?? ""}
           placeholder="fr-FR"
@@ -562,7 +588,12 @@ function IosSection({ project }: { project: Project }) {
 /* ---------------- Historique ---------------- */
 
 function HistoryTab({ project }: { project: Project }) {
-  const records = useMemo(() => HistoryService.forProject(project.id), [project.id]);
+  const { refreshKey } = useCockpitNav();
+  const records = useMemo(
+    () => HistoryService.forProject(project.id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [project.id, refreshKey],
+  );
   if (records.length === 0) {
     return (
       <Card className="p-10 text-center shadow-soft">
@@ -636,18 +667,20 @@ function InlineText({
   placeholder,
   maxLength,
   onSave,
+  fieldKey,
 }: {
   label: string;
   value: string;
   placeholder?: string;
   maxLength?: number;
   onSave: (v: string) => void;
+  fieldKey?: string;
 }) {
   const [local, setLocal] = useState(value);
   useEffect(() => setLocal(value), [value]);
   const dirty = local !== value;
   return (
-    <div>
+    <div data-cockpit-field={fieldKey}>
       <Label>{label}</Label>
       <div className="mt-1.5 flex gap-2">
         <Input
@@ -686,17 +719,19 @@ function InlineTextarea({
   value,
   placeholder,
   onSave,
+  fieldKey,
 }: {
   label: string;
   value: string;
   placeholder?: string;
   onSave: (v: string) => void;
+  fieldKey?: string;
 }) {
   const [local, setLocal] = useState(value);
   useEffect(() => setLocal(value), [value]);
   const dirty = local !== value;
   return (
-    <div>
+    <div data-cockpit-field={fieldKey}>
       <Label>{label}</Label>
       <Textarea
         value={local}
