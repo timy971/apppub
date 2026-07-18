@@ -20,6 +20,7 @@ import { Route as HistoryRouteImport } from './routes/history'
 import { Route as DiagnosticRouteImport } from './routes/diagnostic'
 import { Route as BuildRouteImport } from './routes/build'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProjectsIdRouteImport } from './routes/projects.$id'
 
 const VersionRoute = VersionRouteImport.update({
   id: '/version',
@@ -76,6 +77,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsIdRoute = ProjectsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ProjectsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -84,11 +90,12 @@ export interface FileRoutesByFullPath {
   '/history': typeof HistoryRoute
   '/journal': typeof JournalRoute
   '/logs': typeof LogsRoute
-  '/projects': typeof ProjectsRoute
+  '/projects': typeof ProjectsRouteWithChildren
   '/publish': typeof PublishRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/version': typeof VersionRoute
+  '/projects/$id': typeof ProjectsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -97,11 +104,12 @@ export interface FileRoutesByTo {
   '/history': typeof HistoryRoute
   '/journal': typeof JournalRoute
   '/logs': typeof LogsRoute
-  '/projects': typeof ProjectsRoute
+  '/projects': typeof ProjectsRouteWithChildren
   '/publish': typeof PublishRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/version': typeof VersionRoute
+  '/projects/$id': typeof ProjectsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -111,11 +119,12 @@ export interface FileRoutesById {
   '/history': typeof HistoryRoute
   '/journal': typeof JournalRoute
   '/logs': typeof LogsRoute
-  '/projects': typeof ProjectsRoute
+  '/projects': typeof ProjectsRouteWithChildren
   '/publish': typeof PublishRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/version': typeof VersionRoute
+  '/projects/$id': typeof ProjectsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/version'
+    | '/projects/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/version'
+    | '/projects/$id'
   id:
     | '__root__'
     | '/'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/version'
+    | '/projects/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -166,7 +178,7 @@ export interface RootRouteChildren {
   HistoryRoute: typeof HistoryRoute
   JournalRoute: typeof JournalRoute
   LogsRoute: typeof LogsRoute
-  ProjectsRoute: typeof ProjectsRoute
+  ProjectsRoute: typeof ProjectsRouteWithChildren
   PublishRoute: typeof PublishRoute
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
@@ -252,8 +264,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/$id': {
+      id: '/projects/$id'
+      path: '/$id'
+      fullPath: '/projects/$id'
+      preLoaderRoute: typeof ProjectsIdRouteImport
+      parentRoute: typeof ProjectsRoute
+    }
   }
 }
+
+interface ProjectsRouteChildren {
+  ProjectsIdRoute: typeof ProjectsIdRoute
+}
+
+const ProjectsRouteChildren: ProjectsRouteChildren = {
+  ProjectsIdRoute: ProjectsIdRoute,
+}
+
+const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
+  ProjectsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -262,7 +293,7 @@ const rootRouteChildren: RootRouteChildren = {
   HistoryRoute: HistoryRoute,
   JournalRoute: JournalRoute,
   LogsRoute: LogsRoute,
-  ProjectsRoute: ProjectsRoute,
+  ProjectsRoute: ProjectsRouteWithChildren,
   PublishRoute: PublishRoute,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,
