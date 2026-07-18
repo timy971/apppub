@@ -6,13 +6,12 @@ import {
   Star,
   StarOff,
   CheckCircle2,
-  Package,
-  Rocket,
   History as HistoryIcon,
   Save,
   Smartphone,
   Apple,
-  ClipboardList,
+  Package,
+  Rocket,
   Info,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -35,18 +34,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { HealthScoreCard } from "@/components/health-score-card";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import {
   ProjectLifecycleBadge,
   LIFECYCLE_OPTIONS,
 } from "@/components/project-lifecycle-badge";
+import { NextActionCard } from "@/components/project-cockpit/next-action-card";
+import { HealthCard } from "@/components/project-cockpit/health-card";
+import { PublicationCard } from "@/components/project-cockpit/publication-card";
+import { TimelineCard } from "@/components/project-cockpit/timeline-card";
+import { ActivityCard } from "@/components/project-cockpit/activity-card";
+import { ResourcesCard } from "@/components/project-cockpit/resources-card";
 import { AppStore, useProjects, useSettings } from "@/core/store/app-store";
 import { ProjectsService } from "@/core/projects/service";
 import { HistoryService } from "@/core/history/service";
-import { BackupService } from "@/core/backup/service";
 import { DiagnosticService } from "@/core/diagnostic/service";
-import { HealthScoreService } from "@/core/health/service";
 import { ProjectStatusService } from "@/core/projects/status";
 import type { ProjectStatus } from "@/core/projects/status";
 import {
@@ -56,9 +58,7 @@ import {
 import { bridge } from "@/core/bridge";
 import type {
   HealthCheck,
-  HealthScore,
   Project,
-  ProjectBackup,
   ProjectLifecycle,
   PublishRecord,
 } from "@/core/types";
