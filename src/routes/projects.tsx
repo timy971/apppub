@@ -294,44 +294,18 @@ function ProjectsPage() {
           </div>
         </Card>
       ) : (
-        <div className="grid gap-3">
-          {projects.map((p) => {
-            const isActive = settings.activeProjectId === p.id;
-            return (
-              <Card key={p.id} className="p-4 shadow-soft">
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => AppStore.setActiveProject(p.id)}
-                    className="flex flex-1 items-center gap-4 min-w-0 text-left"
-                  >
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-xl">
-                      {p.logoEmoji ?? "📱"}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <div className="font-semibold truncate">{p.name}</div>
-                        {isActive && (
-                          <span className="text-[11px] rounded-full bg-primary/10 px-2 py-0.5 text-primary">
-                            Actif
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate font-mono">
-                        {p.localPath}
-                      </div>
-                    </div>
-                  </button>
-                  <div className="text-right text-xs text-muted-foreground tabular-nums">
-                    v{p.currentVersion} · build {p.currentBuild}
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => setToDelete(p)}>
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+        <ProjectsList
+          projects={projects}
+          activeId={settings.activeProjectId}
+          query={query}
+          setQuery={setQuery}
+          lifecycleFilter={lifecycleFilter}
+          setLifecycleFilter={setLifecycleFilter}
+          favoritesOnly={favoritesOnly}
+          setFavoritesOnly={setFavoritesOnly}
+          onOpen={(p) => navigate({ to: "/projects/$id", params: { id: p.id } })}
+          onDelete={setToDelete}
+        />
       )}
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
