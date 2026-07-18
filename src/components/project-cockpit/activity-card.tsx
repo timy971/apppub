@@ -5,12 +5,15 @@ import { HistoryService } from "@/core/history/service";
 import { BackupService } from "@/core/backup/service";
 import type { Project } from "@/core/types";
 import { formatRelative } from "./shared";
+import { useCockpitNav } from "./cockpit-nav";
 
 /**
  * Résume l'activité récente du projet à partir des services existants.
- * Aucune nouvelle source de vérité.
+ * Le refreshKey du cockpit permet de re-lire les services après une
+ * action mutante (backup manuel, …) sans nouvelle source de vérité.
  */
 export function ActivityCard({ project }: { project: Project }) {
+  const { refreshKey } = useCockpitNav();
   const rows = useMemo(() => {
     const history = HistoryService.forProject(project.id);
     const lastVersion = history.find((h) => h.kind === "version");
@@ -26,7 +29,8 @@ export function ActivityCard({ project }: { project: Project }) {
       { label: "Dernière préparation de publication", at: lastPublish?.createdAt },
       { label: "Dernière sauvegarde", at: lastBackup?.createdAt },
     ];
-  }, [project]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, refreshKey]);
 
   return (
     <Card className="p-6 shadow-soft">
