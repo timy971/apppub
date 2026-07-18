@@ -1,11 +1,5 @@
-import { AlertTriangle, Check, CircleX, Heart, Info } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, CircleX, Heart, Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { ProjectStatusService } from "@/core/projects/status";
 import type {
   ProjectStatus,
@@ -14,10 +8,12 @@ import type {
 } from "@/core/projects/status";
 import type { Project } from "@/core/types";
 import { DOMAIN_LABELS, worstSeverity, type DomainSeverity } from "./shared";
+import { useCockpitNav } from "./cockpit-nav";
 
 /**
- * Score global + détail par domaine. Toutes les données proviennent
- * exclusivement de ProjectStatusService (aucune logique parallèle).
+ * Score global + détail par domaine, entièrement interactif : chaque ligne
+ * possédant une action structurée peut être cliquée pour naviguer
+ * directement au champ concerné. La logique métier reste dans les règles.
  */
 export function HealthCard({
   project,
@@ -81,19 +77,17 @@ export function HealthCard({
           </div>
         </div>
       </div>
-      <ul className="mt-5 space-y-1.5">
-        <TooltipProvider delayDuration={100}>
-          {rows.map((r) => (
-            <HealthRow
-              key={r.domain}
-              label={DOMAIN_LABELS[r.domain]}
-              severity={r.severity}
-              findings={r.findings}
-              project={project}
-              domain={r.domain}
-            />
-          ))}
-        </TooltipProvider>
+      <ul className="mt-5 space-y-1">
+        {rows.map((r) => (
+          <HealthRow
+            key={r.domain}
+            label={DOMAIN_LABELS[r.domain]}
+            severity={r.severity}
+            findings={r.findings}
+            project={project}
+            domain={r.domain}
+          />
+        ))}
       </ul>
     </Card>
   );
@@ -112,40 +106,65 @@ function HealthRow({
   project: Project;
   domain: StatusDomain;
 }) {
+  const nav = useCockpitNav();
   const notApplicable = severity === "ok" && !isApplicable(project, domain);
+  const primary = findings.find((f) => f.action) ?? findings[0];
+  const clickable = !!primary?.action;
   const detail =
-    findings.length > 0
-      ? findings.map((f) => f.hint ?? f.message).join(" — ")
-      : notApplicable
-        ? "Non applicable à ce projet."
-        : "Tout est en ordre.";
+    primary?.explanation ??
+    primary?.hint ??
+    primary?.message ??
+    (notApplicable ? "Non applicable à ce projet." : "Tout est en ordre.");
+
+  const inner = (
+    <>
+      <SeverityIcon severity={notApplicable ? "info" : severity} />
+      <div className="min-w-0 flex-1">
+        <div
+          className={
+            "text-sm " +
+            (notApplicable ? "text-muted-foreground" : "text-foreground")
+          }
+        >
+          {label}
+        </div>
+        <div className="text-xs text-muted-foreground truncate">{detail}</div>
+      </div>
+      {clickable && (
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-60" />
+      )}
+    </>
+  );
+
+  if (clickable && primary?.action) {
+    const action = primary.action;
+    return (
+      <li>
+        <button
+          type="button"
+          onClick={() => nav.runAction(action)}
+          className="group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
+          title={action.label}
+        >
+          {inner}
+        </button>
+      </li>
+    );
+  }
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <li className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-muted/50 cursor-help">
-          <SeverityIcon severity={notApplicable ? "info" : severity} />
-          <span
-            className={
-              notApplicable ? "text-muted-foreground" : "text-foreground"
-            }
-          >
-            {label}
-          </span>
-        </li>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs text-xs">{detail}</TooltipContent>
-    </Tooltip>
+    <li className="flex items-start gap-2 rounded-md px-2 py-1.5">{inner}</li>
   );
 }
 
 function SeverityIcon({ severity }: { severity: DomainSeverity }) {
   if (severity === "error")
-    return <CircleX className="h-4 w-4 text-danger shrink-0" />;
+    return <CircleX className="mt-0.5 h-4 w-4 text-danger shrink-0" />;
   if (severity === "warn")
-    return <AlertTriangle className="h-4 w-4 text-warning shrink-0" />;
+    return <AlertTriangle className="mt-0.5 h-4 w-4 text-warning shrink-0" />;
   if (severity === "info")
-    return <Info className="h-4 w-4 text-muted-foreground shrink-0" />;
-  return <Check className="h-4 w-4 text-success shrink-0" />;
+    return <Info className="mt-0.5 h-4 w-4 text-muted-foreground shrink-0" />;
+  return <Check className="mt-0.5 h-4 w-4 text-success shrink-0" />;
 }
 
 function derivedDomains(project: Project): StatusDomain[] {

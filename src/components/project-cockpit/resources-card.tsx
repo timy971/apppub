@@ -1,15 +1,30 @@
-import { Copy, ExternalLink, FolderOpen, GitBranch, Package, ArchiveRestore, Layers } from "lucide-react";
+import { useState } from "react";
+import {
+  ArchiveRestore,
+  Copy,
+  ExternalLink,
+  FolderOpen,
+  GitBranch,
+  Layers,
+  Loader2,
+  Package,
+  Save,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { bridge } from "@/core/bridge";
+import { BackupService } from "@/core/backup/service";
 import type { Project } from "@/core/types";
 import { toast } from "sonner";
+import { useCockpitNav } from "./cockpit-nav";
 
 /**
- * Regroupe toutes les actions utiles pour naviguer autour du projet.
- * Chaque action réutilise le bridge existant (aucune API supplémentaire).
+ * Ressources + actions rapides. Toutes les mutations (backup) transitent
+ * par les services existants — la carte ne stocke aucun état métier.
  */
 export function ResourcesCard({ project }: { project: Project }) {
+  const nav = useCockpitNav();
+  const [backingUp, setBackingUp] = useState(false);
   const androidPath = `${project.localPath}/android`;
   const backupsPath = `${project.localPath}/.apppublisher-backups`;
   const distPath = `${project.localPath}/android/app/build/outputs`;
@@ -26,7 +41,7 @@ export function ResourcesCard({ project }: { project: Project }) {
     if (!project.githubRepo) return;
     const url = toHttpsUrl(project.githubRepo);
     if (url) window.open(url, "_blank", "noopener");
-    else copy(project.githubRepo);
+    else void copy(project.githubRepo);
   }
 
   async function copy(value: string) {
@@ -38,11 +53,43 @@ export function ResourcesCard({ project }: { project: Project }) {
     }
   }
 
+  async function backupNow() {
+    if (backingUp) return;
+    setBackingUp(true);
+    try {
+      const b = await BackupService.create(project, "manual");
+      toast.success(
+        `Sauvegarde créée · ${b.files.length} fichier(s) mémorisé(s)`,
+      );
+      // Rafraîchit Timeline + Activité sans recharger la page.
+      nav.bumpRefresh();
+    } catch {
+      toast.error("La sauvegarde a échoué");
+    } finally {
+      setBackingUp(false);
+    }
+  }
+
   return (
     <Card className="p-6 shadow-soft">
-      <div className="mb-4 flex items-center gap-2">
-        <Layers className="h-4 w-4 text-primary" />
-        <h2 className="text-base font-semibold">Ressources</h2>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-primary" />
+          <h2 className="text-base font-semibold">Ressources</h2>
+        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={backupNow}
+          disabled={backingUp}
+        >
+          {backingUp ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          {backingUp ? "Sauvegarde…" : "Sauvegarder"}
+        </Button>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <ResourceButton
@@ -136,7 +183,6 @@ function isHttps(url: string): boolean {
 
 function toHttpsUrl(url: string): string | null {
   if (isHttps(url)) return url;
-  // git@github.com:user/repo.git → https://github.com/user/repo
   const m = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
   if (m) return `https://${m[1]}/${m[2]}`;
   return null;

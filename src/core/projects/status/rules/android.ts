@@ -11,6 +11,8 @@ export const androidRules: ProjectRule[] = [
         : {
             severity: "warn",
             message: "Aucun dossier Android n'a été trouvé dans le projet.",
+            explanation:
+              "Un dossier android/ est nécessaire pour compiler l'application sous Android.",
             hint: "Exécutez « npx cap add android » avant de préparer un build.",
           },
   },
@@ -24,6 +26,8 @@ export const androidRules: ProjectRule[] = [
         : {
             severity: "error",
             message: "Le wrapper Gradle est absent du projet Android.",
+            explanation:
+              "Sans le wrapper Gradle, aucune commande de build Android ne peut être exécutée.",
             hint: "Réinstallez la plateforme Android depuis Capacitor.",
           };
     },
@@ -39,7 +43,14 @@ export const androidRules: ProjectRule[] = [
         : {
             severity: "warn",
             message: "L'identifiant d'application Android n'est pas renseigné.",
-            hint: "Renseignez-le dans l'onglet Publication.",
+            explanation:
+              "L'applicationId identifie de façon unique votre app sur Google Play (ex : com.entreprise.monapp).",
+            action: {
+              label: "Renseigner l'identifiant",
+              tab: "publishing",
+              section: "android",
+              field: "android.applicationId",
+            },
           };
     },
   },
@@ -54,7 +65,14 @@ export const androidRules: ProjectRule[] = [
         : {
             severity: "warn",
             message: "Aucune clé de signature n'est configurée.",
-            hint: "Requise pour publier sur Google Play.",
+            explanation:
+              "Le keystore signe cryptographiquement votre APK/AAB. Sans lui, Google Play refuse la publication.",
+            action: {
+              label: "Configurer le keystore",
+              tab: "publishing",
+              section: "android",
+              field: "android.keystorePath",
+            },
           };
     },
   },

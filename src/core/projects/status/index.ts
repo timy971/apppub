@@ -30,4 +30,4 @@ export const ProjectStatusService = {
   },
 };
 
-export type { ProjectStatus, ProjectStatusLevel, RuleFinding, StatusSeverity, StatusDomain } from "./types";
+export type { ProjectStatus, ProjectStatusLevel, RuleFinding, StatusSeverity, StatusDomain, CockpitTab, RuleAction } from "./types";

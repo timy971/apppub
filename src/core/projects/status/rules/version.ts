@@ -10,7 +10,14 @@ export const versionRules: ProjectRule[] = [
         : {
             severity: "warn",
             message: "Le numéro de version n'est pas au format attendu.",
-            hint: "Un format « 1.2.3 » facilite le suivi des publications.",
+            explanation:
+              "Un format « 1.2.3 » (semver) est requis par Google Play et facilite le suivi.",
+            action: {
+              label: "Corriger la version",
+              tab: "configuration",
+              section: "version",
+              field: "currentVersion",
+            },
           },
   },
   {
@@ -22,7 +29,8 @@ export const versionRules: ProjectRule[] = [
         : {
             severity: "info",
             message: "Aucun fichier version.json n'a été trouvé.",
-            hint: "AppPublisher pourra le créer lors de la première mise à jour de version.",
+            explanation:
+              "AppPublisher pourra le créer lors de la première mise à jour de version.",
           },
   },
 ];

@@ -11,6 +11,8 @@ export const buildRules: ProjectRule[] = [
         : {
             severity: "warn",
             message: "Aucune configuration Capacitor détectée.",
+            explanation:
+              "Capacitor fait le pont entre votre app web et les plateformes natives (Android/iOS).",
             hint: "Un fichier capacitor.config.* est attendu à la racine.",
           };
     },

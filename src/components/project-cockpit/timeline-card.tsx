@@ -13,6 +13,7 @@ import { HistoryService } from "@/core/history/service";
 import { BackupService } from "@/core/backup/service";
 import type { Project } from "@/core/types";
 import { formatRelative } from "./shared";
+import { useCockpitNav } from "./cockpit-nav";
 
 interface TimelineEvent {
   id: string;
@@ -28,7 +29,9 @@ interface TimelineEvent {
  * (HistoryService + BackupService + createdAt du projet).
  */
 export function TimelineCard({ project }: { project: Project }) {
-  const events = useMemo(() => buildEvents(project), [project]);
+  const { refreshKey } = useCockpitNav();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const events = useMemo(() => buildEvents(project), [project, refreshKey]);
 
   return (
     <Card className="p-6 shadow-soft">

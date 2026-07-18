@@ -10,7 +10,14 @@ export const identityRules: ProjectRule[] = [
         : {
             severity: "error",
             message: "Le projet n'a pas de nom.",
-            hint: "Renseignez un nom dans l'onglet Identité.",
+            explanation:
+              "Le nom identifie le projet dans AppPublisher et dans vos futures publications.",
+            action: {
+              label: "Renseigner le nom",
+              tab: "identity",
+              section: "identity",
+              field: "name",
+            },
           },
   },
   {
@@ -22,6 +29,8 @@ export const identityRules: ProjectRule[] = [
         : {
             severity: "error",
             message: "Aucun dossier local n'est associé au projet.",
+            explanation:
+              "AppPublisher a besoin d'un dossier local pour lire la version, le code et générer les builds.",
             hint: "Sélectionnez le dossier du projet.",
           },
   },
@@ -34,6 +43,8 @@ export const identityRules: ProjectRule[] = [
         : {
             severity: "warn",
             message: "Aucun fichier package.json détecté dans le dossier.",
+            explanation:
+              "Sans package.json, AppPublisher ne peut pas déterminer les scripts de build.",
             hint: "Vérifiez que le chemin pointe bien à la racine de l'application.",
           },
   },

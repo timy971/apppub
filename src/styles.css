@@ -182,3 +182,25 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
 }
+
+/*
+ * Cockpit — surbrillance temporaire d'un champ après une action.
+ * L'animation est douce, discrète et courte (~1.8s), pour signaler
+ * l'endroit d'arrivée sans distraire l'utilisateur.
+ */
+@keyframes cockpit-highlight-pulse {
+  0%   { box-shadow: 0 0 0 0 var(--color-primary); }
+  40%  { box-shadow: 0 0 0 6px color-mix(in oklch, var(--color-primary) 25%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.cockpit-highlight {
+  border-radius: var(--radius-md);
+  animation: cockpit-highlight-pulse 1.8s ease-out;
+}
+.cockpit-highlight :is(input, textarea, button) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+  transition: outline-color 300ms ease;
+}
