@@ -9,6 +9,30 @@ export type UUID = string;
 
 /* ---------- Projet ---------- */
 
+export type ProjectLifecycle = "development" | "published" | "archived";
+
+/** Phase 3 : configuration Android d'un projet (extraite du modèle racine). */
+export interface AndroidPublishingConfig {
+  applicationId?: string;
+  keystorePath?: string;
+  keystoreAlias?: string;
+  defaultTrack?: "internal" | "alpha" | "beta" | "production";
+  primaryLanguage?: string;
+}
+
+/** Phase 3 : configuration iOS — structure posée, publication future. */
+export interface IosPublishingConfig {
+  bundleId?: string;
+  teamId?: string;
+  primaryLanguage?: string;
+}
+
+/** Phase 3 : espace multi-plateformes extensible sans casser le modèle. */
+export interface ProjectPublishing {
+  android?: AndroidPublishingConfig;
+  ios?: IosPublishingConfig;
+}
+
 export interface Project {
   id: UUID;
   name: string;
@@ -16,6 +40,7 @@ export interface Project {
   localPath: string;
   githubRepo?: string;
   playStoreAppId?: string;
+  /** @deprecated Phase 3 — utiliser publishing.android.keystorePath. Lu pour compat. */
   keystorePath?: string;
   buildCommand?: string;
   currentVersion: string;
@@ -35,11 +60,22 @@ export interface Project {
   };
   /** Phase 2 : dernier score global connu (mise en cache). */
   lastHealthScore?: number;
+  /** Phase 3 : description libre du projet. */
+  description?: string;
+  /** Phase 3 : nom de package (com.example.app) — configuration uniquement. */
+  packageName?: string;
+  /** Phase 3 : état métier — filtres et tableau de bord. */
+  lifecycle?: ProjectLifecycle;
+  /** Phase 3 : marquage favori pour tri rapide. */
+  favorite?: boolean;
+  /** Phase 3 : configuration multi-plateforme extensible. */
+  publishing?: ProjectPublishing;
   createdAt: string;
   updatedAt: string;
 }
 
 export type ProjectDraft = Omit<Project, "id" | "createdAt" | "updatedAt">;
+
 
 /* ---------- Versioning ---------- */
 
