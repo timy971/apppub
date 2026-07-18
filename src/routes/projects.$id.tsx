@@ -263,43 +263,6 @@ function OverviewTab({
   );
 }
 
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right tabular-nums">{value}</dd>
-    </div>
-  );
-}
-
-function QuickAction({
-  to,
-  icon,
-  title,
-  desc,
-}: {
-  to: "/version" | "/build" | "/publish";
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <Link
-      to={to}
-      className="flex items-start gap-3 rounded-xl border p-4 transition-colors hover:bg-accent"
-    >
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="font-medium text-sm">{title}</div>
-        <div className="text-xs text-muted-foreground mt-0.5">{desc}</div>
-      </div>
-    </Link>
-  );
-}
-
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString("fr-FR", {
@@ -308,6 +271,7 @@ function formatDate(iso: string): string {
     year: "numeric",
   });
 }
+
 
 /* ---------------- Identité ---------------- */
 
