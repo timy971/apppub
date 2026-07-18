@@ -10,7 +10,14 @@ export const gitRules: ProjectRule[] = [
         : {
             severity: "info",
             message: "Aucun dépôt Git n'est associé.",
-            hint: "Renseigner un dépôt facilite la sauvegarde et le partage.",
+            explanation:
+              "Renseigner un dépôt facilite la sauvegarde, les publications répétées et le partage.",
+            action: {
+              label: "Ajouter le dépôt Git",
+              tab: "identity",
+              section: "identity",
+              field: "githubRepo",
+            },
           },
   },
 ];
