@@ -1,6 +1,35 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { FolderPlus, Trash2, Search, Check } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import {
+  FolderPlus,
+  Trash2,
+  Search,
+  Check,
+  Star,
+  StarOff,
+  FolderOpen,
+  Pencil,
+  ChevronRight,
+} from "lucide-react";
+import { ProjectStatusService } from "@/core/projects/status";
+import {
+  ProjectLifecycleBadge,
+  LIFECYCLE_OPTIONS,
+} from "@/components/project-lifecycle-badge";
+import { ProjectStatusBadge } from "@/components/project-status-badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
