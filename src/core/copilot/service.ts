@@ -2,102 +2,76 @@ import type {
   CopilotSuggestion,
   HealthCheck,
   Project,
+  ProjectBackup,
   PublishRecord,
 } from "@/core/types";
-import { HealthScoreService } from "@/core/health/service";
+import { ProjectStatusService } from "@/core/projects/status";
+import { buildCopilotPlan } from "./engine";
+import type { CopilotPlan, CopilotRuleContext } from "./types";
 
 /**
- * CopilotService — propose la prochaine action pertinente.
- * Le résultat est **déterministe** (règles + priorités), aucune IA en ligne.
- * L'objectif est d'être un copilote transparent : chaque suggestion vient
- * avec une explication (`reason`) et un « pourquoi ? » pédagogique.
+ * CopilotService — devient un simple agrégateur.
+ *
+ * Toutes les recommandations passent par `buildCopilotPlan()`. L'API
+ * historique (`suggest()`, `estimatePublishMinutes()`) est conservée
+ * pour compatibilité, mais délègue au moteur : il n'existe donc PLUS
+ * qu'une seule logique de recommandation dans l'application.
  */
 export const CopilotService = {
+  /** Plan complet. Consommé par le Dashboard, le Cockpit, le Publish Center. */
+  plan(input: {
+    project: Project | undefined;
+    checks: HealthCheck[];
+    history: PublishRecord[];
+    backups?: ProjectBackup[];
+  }): CopilotPlan {
+    const ctx: CopilotRuleContext = {
+      project: input.project,
+      status: input.project ? ProjectStatusService.evaluate(input.project) : null,
+      checks: input.checks,
+      history: input.history,
+      backups: input.backups ?? [],
+    };
+    return buildCopilotPlan(ctx);
+  },
+
+  /** Compatibilité — retourne la Prochaine Meilleure Action au format legacy. */
   suggest(input: {
     project: Project | undefined;
     checks: HealthCheck[];
     history: PublishRecord[];
   }): CopilotSuggestion {
-    const { project, checks, history } = input;
-
-    if (!project) {
-      return {
-        title: "Ajoutez votre premier projet",
-        reason: "AppPublisher a besoin d'un projet pour commencer à vous accompagner.",
-        why: "Un projet correspond à une application. Vous pouvez en gérer plusieurs.",
-        action: { kind: "add-project", label: "Ajouter un projet", to: "/projects" },
-        etaMinutes: 2,
-        priority: 1,
-      };
-    }
-
-    const score = HealthScoreService.from(checks);
-
-    if (score.grade === "blocked") {
-      const first = checks.find((c) => c.status === "error");
-      return {
-        title: "Une action est nécessaire",
-        reason: first?.detail ?? "Un élément indispensable est manquant.",
-        why: first?.why,
-        action: { kind: "fix-environment", label: "Voir le diagnostic", to: "/diagnostic" },
-        etaMinutes: 5,
-        priority: 1,
-      };
-    }
-
-    if (score.score < 70) {
-      return {
-        title: "Relancer un diagnostic",
-        reason: "Quelques points sont à surveiller avant votre prochaine publication.",
-        why: "Un projet en bonne santé se construit sans surprise.",
-        action: { kind: "run-diagnostic", label: "Vérifier le projet", to: "/diagnostic" },
-        etaMinutes: 1,
-        priority: 3,
-      };
-    }
-
-    const lastBuild = history.find((h) => h.projectId === project.id && h.kind !== "version");
-    const lastVersion = history.find((h) => h.projectId === project.id && h.kind === "version");
-    const hasVersionSinceBuild =
-      lastVersion && (!lastBuild || lastVersion.createdAt > lastBuild.createdAt);
-
-    if (hasVersionSinceBuild) {
-      return {
-        title: "Construisez la nouvelle version",
-        reason: `La version ${project.currentVersion} n'a pas encore été construite.`,
-        why: "Google Play accepte uniquement les fichiers .aab construits pour la bonne version.",
-        action: { kind: "build-android", label: "Construire Android", to: "/build" },
-        etaMinutes: 4,
-        priority: 2,
-      };
-    }
-
-    if (!lastVersion && !lastBuild) {
-      return {
-        title: "Préparez votre première publication",
-        reason: "Choisissez comment faire évoluer votre application.",
-        why: "Une version indique aux utilisateurs qu'une nouveauté est disponible.",
-        action: { kind: "bump-version", label: "Modifier la version", to: "/version" },
-        etaMinutes: 2,
-        priority: 2,
-      };
-    }
-
-    return {
-      title: "Préparez la publication",
-      reason: "Votre application semble prête à être publiée sur Google Play.",
-      why: "L'assistant vérifie tout une dernière fois et met les notes en forme.",
-      action: { kind: "prepare-publish", label: "Préparer la publication", to: "/publish" },
-      etaMinutes: 3,
-      priority: 2,
-    };
+    const plan = this.plan(input);
+    return planToSuggestion(plan);
   },
 
-  /** Estimation du temps nécessaire pour la prochaine publication complète. */
   estimatePublishMinutes(checks: HealthCheck[]): number {
     const errors = checks.filter((c) => c.status === "error").length;
     const warnings = checks.filter((c) => c.status === "warning").length;
-    // Base 6 min (version + build + notes) + pénalités douces.
     return 6 + errors * 4 + warnings * 1;
   },
 };
+
+function planToSuggestion(plan: CopilotPlan): CopilotSuggestion {
+  const a = plan.nextAction;
+  const priority =
+    a.priority === "high" ? 1 : a.priority === "medium" ? 3 : 5;
+  const kind = inferKind(a.route);
+  return {
+    title: a.title,
+    reason: plan.headline,
+    why: plan.summary,
+    action: { kind, label: a.title, to: a.route },
+    etaMinutes: plan.etaMinutes,
+    priority,
+  };
+}
+
+function inferKind(route: string): CopilotSuggestion["action"]["kind"] {
+  if (route.startsWith("/diagnostic")) return "run-diagnostic";
+  if (route.startsWith("/build")) return "build-android";
+  if (route.startsWith("/publish")) return "prepare-publish";
+  if (route.startsWith("/version")) return "bump-version";
+  if (route.startsWith("/projects")) return "add-project";
+  return "fix-environment";
+}

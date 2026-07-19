@@ -1,5 +1,6 @@
 import type { PublishRecord, UUID } from "@/core/types";
 import { storage, STORAGE_KEYS } from "@/core/storage";
+import { CopilotBus } from "@/core/copilot/bus";
 
 export const HistoryService = {
   list(): PublishRecord[] {
@@ -16,6 +17,7 @@ export const HistoryService = {
       createdAt: new Date().toISOString(),
     };
     storage.set(STORAGE_KEYS.history, [rec, ...this.list()].slice(0, 200));
+    CopilotBus.notify();
     return rec;
   },
 
