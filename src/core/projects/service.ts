@@ -40,11 +40,22 @@ export const ProjectsService = {
     return project;
   },
 
-  update(id: UUID, patch: Partial<Project>): Project | undefined {
+  update(id: UUID, patch: Partial<Project>, opts?: { touched?: string[] }): Project | undefined {
     const list = this.list();
     const idx = list.findIndex((p) => p.id === id);
     if (idx === -1) return undefined;
-    const updated: Project = { ...list[idx], ...patch, id, updatedAt: now() };
+    // Marque comme "user" les champs explicitement modifiés depuis l'UI.
+    const nextSources: Record<string, "detected" | "user"> = {
+      ...(list[idx].fieldSources ?? {}),
+    };
+    for (const key of opts?.touched ?? []) nextSources[key] = "user";
+    const updated: Project = {
+      ...list[idx],
+      ...patch,
+      id,
+      updatedAt: now(),
+      fieldSources: nextSources,
+    };
     list[idx] = updated;
     storage.set(STORAGE_KEYS.projects, list);
     return updated;
@@ -116,6 +127,10 @@ export const ProjectsService = {
 
   /** Phase 2 — crée un projet directement depuis un ScannedProject. */
   saveFromScan(sp: ScannedProject): Project {
+    const fieldSources: Record<string, "detected" | "user"> = {};
+    if (sp.detected.displayName) fieldSources["name"] = "detected";
+    if (sp.detected.packageName) fieldSources["packageName"] = "detected";
+    if (sp.detected.currentVersion) fieldSources["currentVersion"] = "detected";
     return this.save({
       name: sp.detected.displayName || sp.detected.packageName || sp.name,
       technicalName: sp.detected.packageName,
@@ -134,6 +149,7 @@ export const ProjectsService = {
         hasGradleWrapper: sp.detected.hasGradleWrapper,
         hasChangelog: sp.detected.hasChangelog,
       },
+      fieldSources,
     });
   },
 

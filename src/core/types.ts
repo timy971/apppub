@@ -25,6 +25,10 @@ export interface IosPublishingConfig {
   bundleId?: string;
   teamId?: string;
   primaryLanguage?: string;
+  /** Phase 4 : schéma Xcode ciblé (ex : "App"). */
+  scheme?: string;
+  /** Phase 4 : configuration de build (ex : "Release"). */
+  releaseConfig?: string;
 }
 
 /** Phase 3 : espace multi-plateformes extensible sans casser le modèle. */
@@ -77,6 +81,17 @@ export interface Project {
   favorite?: boolean;
   /** Phase 3 : configuration multi-plateforme extensible. */
   publishing?: ProjectPublishing;
+  /** Phase 4 : notes libres, propres à l'utilisateur (jamais publiées). */
+  notes?: string;
+  /** Phase 4 : branche Git par défaut (ex : main). */
+  defaultBranch?: string;
+  /**
+   * Phase 4 : origine de chaque champ configurable — "detected" (lu dans les
+   * fichiers du projet) ou "user" (saisi/corrigé dans AppPublisher).
+   * Utilisé pour afficher un badge « Auto » vs « Modifié » et préparer les
+   * futures intégrations Google Play / App Store Connect / GitHub / Fastlane.
+   */
+  fieldSources?: Record<string, "detected" | "user">;
   createdAt: string;
   updatedAt: string;
 }

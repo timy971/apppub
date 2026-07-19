@@ -1,13 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { Clock, CheckCircle2, XCircle, StopCircle, History } from "lucide-react";
-import type { Project, PublishRecord, Settings } from "@/core/types";
+import type { Project, PublishRecord, Settings, SystemInfo } from "@/core/types";
 import type { OperationSnapshot } from "@/core/operations/types";
 import type { DurationStats } from "@/core/operations/estimator";
 import { HistoryService } from "@/core/history/service";
 import { Card } from "@/components/ui/card";
-import { formatDuration, formatSize } from "./shared";
+import { formatDuration } from "./shared";
 import { cn } from "@/lib/utils";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ExpertDetails, ExpertRow, CopyButton } from "@/components/expert-details";
+import { getAndroidConfig } from "@/core/projects/android-config";
+import { bridge } from "@/core/bridge";
 
 interface Props {
   project: Project;
@@ -24,6 +27,13 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
         .slice(0, 5),
     [project.id, snap?.status],
   );
+  const sys = useSystemInfo();
+  const android = getAndroidConfig(project);
+  const isWindows = sys?.platform === "win32";
+  const gradleCmd = isWindows
+    ? "gradlew.bat bundleRelease"
+    : "./gradlew bundleRelease";
+  const gradleCwd = `${project.localPath}/android`;
 
   return (
     <div className="space-y-4">
@@ -64,6 +74,26 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
           )}
         </dl>
       </Card>
+
+      <ExpertDetails title="Commande & environnement" defaultOpen>
+        <div className="flex items-start gap-2">
+          <span className="text-muted-foreground min-w-32 shrink-0">
+            Commande
+          </span>
+          <span className="min-w-0 flex-1 break-all">{gradleCmd}</span>
+          <CopyButton value={gradleCmd} size="xs" />
+        </div>
+        <ExpertRow label="Dossier" value={gradleCwd} />
+        <ExpertRow label="Application ID" value={android.applicationId} />
+        <ExpertRow label="Keystore" value={android.keystorePath} />
+        <ExpertRow label="Alias" value={android.keystoreAlias} />
+        <ExpertRow label="JAVA_HOME" value={sys?.javaHome} />
+        <ExpertRow label="ANDROID_HOME" value={sys?.androidHome} />
+        <ExpertRow label="Java" value={sys?.java} />
+        <ExpertRow label="Node" value={sys?.node} />
+        <ExpertRow label="Plateforme" value={sys?.platform} copyable={false} />
+      </ExpertDetails>
+
 
       <Card className="p-5 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
@@ -136,3 +166,26 @@ function HistoryRow({ rec }: { rec: PublishRecord }) {
 
 // Marqueur utilisé pour l'annulation dans un futur badge.
 export const CANCELLED_ICON = StopCircle;
+
+/**
+ * Récupère les infos système (une seule fois par montage). Le mode Expert
+ * s'en sert pour afficher versions et variables d'environnement.
+ */
+function useSystemInfo(): SystemInfo | null {
+  const [info, setInfo] = useState<SystemInfo | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    bridge()
+      .system.detect()
+      .then((s) => {
+        if (!cancelled) setInfo(s);
+      })
+      .catch(() => {
+        /* silencieux : c'est une info d'affichage */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return info;
+}
