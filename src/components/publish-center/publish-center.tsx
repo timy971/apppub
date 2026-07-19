@@ -15,12 +15,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 import { PublishHeader } from "./header";
+import { PublishCopilotStrip } from "./copilot-strip";
 import { ReleaseOverviewCard } from "./release-overview";
 import { ChecklistCard } from "./checklist";
 import { ReleaseNotesCard } from "./release-notes";
 import { StoreTargetsCard } from "./store-targets";
 import { ValidationSummaryCard } from "./validation-summary";
 import { ReleaseHistoryCard } from "./release-history";
+import { CopilotService } from "@/core/copilot/service";
 import {
   buildChecklist,
   computePreparationScore,
@@ -132,8 +134,16 @@ export function PublishCenter({ project }: { project: Project }) {
     return <PublishCenterSkeleton />;
   }
 
+  const copilotPlan = CopilotService.plan({
+    project,
+    checks: checks ?? [],
+    history,
+    backups: BackupService.list(project.id),
+  });
+
   return (
     <div className="space-y-4">
+      <PublishCopilotStrip plan={copilotPlan} />
       <PublishHeader
         project={project}
         status={status}
