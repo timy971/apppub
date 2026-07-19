@@ -34,9 +34,15 @@ const Ctx = createContext<CockpitNavContextValue | null>(null);
 export function CockpitNavProvider({
   children,
   initialTab,
+  initialField,
+  onFieldConsumed,
 }: {
   children: ReactNode;
   initialTab?: CockpitTab;
+  /** Champ à mettre en évidence au premier rendu (deep-linking). */
+  initialField?: string;
+  /** Appelé une fois le champ initial focusé — pour purger l'URL. */
+  onFieldConsumed?: () => void;
 }) {
   const [tab, setTabState] = useState<CockpitTab>(initialTab ?? "overview");
   const [refreshKey, setRefreshKey] = useState(0);
