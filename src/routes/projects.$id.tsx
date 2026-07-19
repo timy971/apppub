@@ -40,6 +40,9 @@ import {
   LIFECYCLE_OPTIONS,
 } from "@/components/project-lifecycle-badge";
 import { NextActionCard } from "@/components/project-cockpit/next-action-card";
+import { PlanCard } from "@/components/project-cockpit/plan-card";
+import { CopilotService } from "@/core/copilot/service";
+import { BackupService } from "@/core/backup/service";
 import { HealthCard } from "@/components/project-cockpit/health-card";
 import { PublicationCard } from "@/components/project-cockpit/publication-card";
 import { TimelineCard } from "@/components/project-cockpit/timeline-card";
@@ -266,8 +269,21 @@ function OverviewTab({
     };
   }, [project]);
 
+  const plan = useMemo(
+    () =>
+      CopilotService.plan({
+        project,
+        checks,
+        history,
+        backups: BackupService.list(project.id),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [project, checks, history, refreshKey],
+  );
+
   return (
     <div className="space-y-4">
+      <PlanCard plan={plan} />
       <NextActionCard
         project={project}
         status={status}
