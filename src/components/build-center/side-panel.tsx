@@ -1,13 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { Clock, CheckCircle2, XCircle, StopCircle, History } from "lucide-react";
-import type { Project, PublishRecord, Settings } from "@/core/types";
+import type { Project, PublishRecord, Settings, SystemInfo } from "@/core/types";
 import type { OperationSnapshot } from "@/core/operations/types";
 import type { DurationStats } from "@/core/operations/estimator";
 import { HistoryService } from "@/core/history/service";
 import { Card } from "@/components/ui/card";
 import { formatDuration, formatSize } from "./shared";
 import { cn } from "@/lib/utils";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ExpertDetails, ExpertRow, CopyButton } from "@/components/expert-details";
+import { getAndroidConfig } from "@/core/projects/android-config";
+import { bridge } from "@/core/bridge";
 
 interface Props {
   project: Project;
