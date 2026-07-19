@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { PageHeader } from "@/components/page-header";
 import { useActiveProject } from "@/core/store/app-store";
 import { PublishCenter, NoProjectPublish } from "@/components/publish-center/publish-center";
@@ -11,7 +10,6 @@ import { PublishCenter, NoProjectPublish } from "@/components/publish-center/pub
  * s'ajouter comme widgets sans refonte.
  */
 export const Route = createFileRoute("/publish")({
-  validateSearch: z.object({}).catchall(z.unknown()).parse,
   component: PublishPage,
 });
 
