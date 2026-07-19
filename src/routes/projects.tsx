@@ -511,6 +511,7 @@ function ProjectCard({
                 <Link
                   to="/projects/$id"
                   params={{ id: project.id }}
+                  search={{ tab: "identity" }}
                   onClick={(e) => e.stopPropagation()}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"
                 >
@@ -519,6 +520,7 @@ function ProjectCard({
               </TooltipTrigger>
               <TooltipContent>Modifier le projet</TooltipContent>
             </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" onClick={onDelete}>

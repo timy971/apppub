@@ -35,7 +35,14 @@ export interface ProjectPublishing {
 
 export interface Project {
   id: UUID;
+  /** Nom d'affichage (éditable). Utilisé partout dans l'UI. */
   name: string;
+  /**
+   * Nom technique (lecture seule) issu du package.json.
+   * Ne sert qu'aux opérations internes / diagnostic. Ne s'affiche jamais
+   * en dehors de l'onglet Identité du cockpit.
+   */
+  technicalName?: string;
   logoEmoji?: string;
   localPath: string;
   githubRepo?: string;
@@ -73,6 +80,7 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
 }
+
 
 export type ProjectDraft = Omit<Project, "id" | "createdAt" | "updatedAt">;
 
@@ -252,7 +260,13 @@ export interface DetectedFiles {
   hasVersionScript: boolean;
   hasGradleWrapper: boolean;
   hasChangelog?: boolean;
+  /** Nom technique lu dans package.json (ex : vite_react_shadcn_ts). */
   packageName?: string;
+  /**
+   * Meilleur nom d'affichage détecté selon l'ordre de priorité :
+   * capacitor appName → strings.xml app_name → package.json displayName → package.json name.
+   */
+  displayName?: string;
   currentVersion?: string;
   currentBuild?: number;
 }
@@ -262,6 +276,7 @@ export interface ScannedProject {
   name: string;
   detected: DetectedFiles;
 }
+
 
 /* ---------- Phase 2 : Health Score ---------- */
 

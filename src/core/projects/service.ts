@@ -81,9 +81,11 @@ export const ProjectsService = {
         hasAndroid: detected.hasAndroid,
       });
       return {
-        name: detected.packageName || inferName(path),
+        name: detected.displayName || detected.packageName || inferName(path),
+        technicalName: detected.packageName,
         logoEmoji: "📱",
         localPath: path,
+        packageName: detected.packageName,
         currentVersion: detected.currentVersion || "1.0.0",
         currentBuild: detected.currentBuild || 1,
         detected: {
@@ -97,6 +99,7 @@ export const ProjectsService = {
           hasChangelog: detected.hasChangelog,
         },
       };
+
     });
   },
 
@@ -114,9 +117,11 @@ export const ProjectsService = {
   /** Phase 2 — crée un projet directement depuis un ScannedProject. */
   saveFromScan(sp: ScannedProject): Project {
     return this.save({
-      name: sp.name,
+      name: sp.detected.displayName || sp.detected.packageName || sp.name,
+      technicalName: sp.detected.packageName,
       logoEmoji: "📱",
       localPath: sp.path,
+      packageName: sp.detected.packageName,
       currentVersion: sp.detected.currentVersion || "1.0.0",
       currentBuild: sp.detected.currentBuild || 1,
       detected: {
@@ -131,4 +136,5 @@ export const ProjectsService = {
       },
     });
   },
+
 };
