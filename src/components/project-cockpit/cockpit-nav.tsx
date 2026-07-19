@@ -31,8 +31,14 @@ interface CockpitNavContextValue {
 
 const Ctx = createContext<CockpitNavContextValue | null>(null);
 
-export function CockpitNavProvider({ children }: { children: ReactNode }) {
-  const [tab, setTabState] = useState<CockpitTab>("overview");
+export function CockpitNavProvider({
+  children,
+  initialTab,
+}: {
+  children: ReactNode;
+  initialTab?: CockpitTab;
+}) {
+  const [tab, setTabState] = useState<CockpitTab>(initialTab ?? "overview");
   const [refreshKey, setRefreshKey] = useState(0);
   const pendingFocus = useRef<string | null>(null);
 
