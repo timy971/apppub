@@ -127,6 +127,10 @@ export const ProjectsService = {
 
   /** Phase 2 — crée un projet directement depuis un ScannedProject. */
   saveFromScan(sp: ScannedProject): Project {
+    const fieldSources: Record<string, "detected" | "user"> = {};
+    if (sp.detected.displayName) fieldSources["name"] = "detected";
+    if (sp.detected.packageName) fieldSources["packageName"] = "detected";
+    if (sp.detected.currentVersion) fieldSources["currentVersion"] = "detected";
     return this.save({
       name: sp.detected.displayName || sp.detected.packageName || sp.name,
       technicalName: sp.detected.packageName,
@@ -145,6 +149,7 @@ export const ProjectsService = {
         hasGradleWrapper: sp.detected.hasGradleWrapper,
         hasChangelog: sp.detected.hasChangelog,
       },
+      fieldSources,
     });
   },
 
