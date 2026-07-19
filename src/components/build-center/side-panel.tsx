@@ -166,3 +166,26 @@ function HistoryRow({ rec }: { rec: PublishRecord }) {
 
 // Marqueur utilisé pour l'annulation dans un futur badge.
 export const CANCELLED_ICON = StopCircle;
+
+/**
+ * Récupère les infos système (une seule fois par montage). Le mode Expert
+ * s'en sert pour afficher versions et variables d'environnement.
+ */
+function useSystemInfo(): SystemInfo | null {
+  const [info, setInfo] = useState<SystemInfo | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    bridge()
+      .system.detect()
+      .then((s) => {
+        if (!cancelled) setInfo(s);
+      })
+      .catch(() => {
+        /* silencieux : c'est une info d'affichage */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return info;
+}
