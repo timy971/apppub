@@ -1027,8 +1027,9 @@ ipcMain.handle("projects:scan", (_e, rootPath) => {
       registerAllowedRoot(p);
       const detected = detectProjectFiles(p);
       if (detected.hasPackageJson) {
-        results.push({ path: p, name: detected.packageName || d.name, detected });
+        results.push({ path: p, name: detected.displayName || detected.packageName || d.name, detected });
       }
+
     }
     return results;
   } catch {

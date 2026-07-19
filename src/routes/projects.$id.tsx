@@ -330,7 +330,7 @@ function IdentityTab({
     <Card className="p-6 shadow-soft space-y-5 max-w-3xl">
       <InlineText
         fieldKey="name"
-        label="Nom du projet"
+        label="Nom de l'application"
         value={project.name}
         onSave={(name) => {
           if (!name.trim()) {
@@ -340,6 +340,23 @@ function IdentityTab({
           update({ name: name.trim() });
         }}
       />
+      <p className="-mt-3 text-xs text-muted-foreground">
+        C'est ce nom qui est affiché partout dans AppPublisher.
+      </p>
+      {project.technicalName && (
+        <div>
+          <Label>Nom technique</Label>
+          <Input
+            value={project.technicalName}
+            readOnly
+            className="mt-1.5 font-mono"
+          />
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Nom interne (issu du package.json). Utilisé uniquement par les
+            opérations techniques — non modifiable ici.
+          </p>
+        </div>
+      )}
       <InlineText
         fieldKey="logoEmoji"
         label="Icône (emoji)"
@@ -348,6 +365,7 @@ function IdentityTab({
         maxLength={4}
         onSave={(v) => update({ logoEmoji: v.trim() || undefined })}
       />
+
       <InlineTextarea
         fieldKey="description"
         label="Description"
