@@ -962,7 +962,7 @@ function HistoryRow({ record }: { record: PublishRecord }) {
 
 /* ---------------- Édition inline ---------------- */
 
-import type { FieldSource } from "@/core/projects/sources";
+
 
 function InlineText({
   label,
