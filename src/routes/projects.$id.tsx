@@ -68,13 +68,27 @@ import type {
 } from "@/core/types";
 import { toast } from "sonner";
 
+const COCKPIT_TABS: CockpitTab[] = [
+  "overview",
+  "identity",
+  "configuration",
+  "publishing",
+  "history",
+];
+
 export const Route = createFileRoute("/projects/$id")({
+  validateSearch: (search: Record<string, unknown>): { tab?: CockpitTab } => {
+    const raw = typeof search.tab === "string" ? (search.tab as string) : undefined;
+    const tab = raw && (COCKPIT_TABS as string[]).includes(raw) ? (raw as CockpitTab) : undefined;
+    return tab ? { tab } : {};
+  },
   component: ProjectCockpitRoute,
 });
 
 function ProjectCockpitRoute() {
+  const { tab } = Route.useSearch();
   return (
-    <CockpitNavProvider>
+    <CockpitNavProvider initialTab={tab}>
       <ProjectCockpit />
     </CockpitNavProvider>
   );
