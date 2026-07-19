@@ -103,6 +103,26 @@ export function CockpitNavProvider({
 
   const bumpRefresh = useCallback(() => setRefreshKey((n) => n + 1), []);
 
+  // Deep-linking : au premier montage, si un champ est demandé via l'URL,
+  // on exécute une action synthétique puis on notifie le parent pour purger
+  // le paramètre — évite qu'un refresh manuel réactive le focus.
+  const consumedRef = useRef(false);
+  useEffect(() => {
+    if (consumedRef.current) return;
+    if (!initialField) return;
+    consumedRef.current = true;
+    runAction({
+      label: "",
+      tab: initialTab ?? tab,
+      field: initialField,
+    });
+    // Laisse le focus se produire avant de purger l'URL (halo visible).
+    const timer = window.setTimeout(() => {
+      onFieldConsumed?.();
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [initialField, initialTab, runAction, onFieldConsumed, tab]);
+
   const value = useMemo<CockpitNavContextValue>(
     () => ({ tab, setTab, runAction, bumpRefresh, refreshKey }),
     [tab, setTab, runAction, bumpRefresh, refreshKey],
