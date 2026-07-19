@@ -1,19 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useSettings, useActiveProject, useProjects } from "@/core/store/app-store";
-import { DiagnosticService } from "@/core/diagnostic/service";
-import { CopilotService } from "@/core/copilot/service";
 import { HistoryService } from "@/core/history/service";
 import { BackupService } from "@/core/backup/service";
 import { ProjectStatusService } from "@/core/projects/status";
-import type {
-  CopilotSuggestion,
-  Project,
-  ProjectBackup,
-  PublishRecord,
-} from "@/core/types";
+import { useCopilotPlan } from "@/core/copilot/use-copilot-plan";
+import type { Project, ProjectBackup, PublishRecord } from "@/core/types";
 import { TodayCard, type TodaySummary } from "@/components/dashboard/today-card";
-import { CopilotHero } from "@/components/dashboard/copilot-hero";
+import { NextStepCard } from "@/components/dashboard/next-step-card";
+import { BlockersCard } from "@/components/dashboard/blockers-card";
+import { ReadyCard } from "@/components/dashboard/ready-card";
+import { PlanTimelineCard } from "@/components/dashboard/plan-timeline-card";
 import {
   ProjectsGrid,
   type ProjectSummary,
@@ -41,10 +38,7 @@ function Dashboard() {
   const activeProject = useActiveProject();
   const projects = useProjects();
   const navigate = useNavigate();
-
-  const [suggestion, setSuggestion] = useState<CopilotSuggestion | null>(null);
-  const [etaMinutes, setEtaMinutes] = useState<number | undefined>();
-  const [copilotLoading, setCopilotLoading] = useState(true);
+  const { plan, loading: copilotLoading } = useCopilotPlan();
 
   useEffect(() => {
     if (!settings.onboardingCompleted) {
@@ -52,44 +46,20 @@ function Dashboard() {
     }
   }, [settings.onboardingCompleted, navigate]);
 
-  // Copilote — dépend du diagnostic asynchrone.
-  useEffect(() => {
-    let cancelled = false;
-    setCopilotLoading(true);
-    (async () => {
-      const checks = await DiagnosticService.run(activeProject);
-      if (cancelled) return;
-      const history = HistoryService.list();
-      const sug = CopilotService.suggest({
-        project: activeProject,
-        checks,
-        history,
-      });
-      setSuggestion(sug);
-      setEtaMinutes(CopilotService.estimatePublishMinutes(checks));
-      setCopilotLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProject?.id]);
-
-  // Statuts & résumés — synchrones, mais on garde un mini-loading pour éviter
-  // le flash à l'hydratation.
   const [dataReady, setDataReady] = useState(false);
   useEffect(() => {
     const t = window.setTimeout(() => setDataReady(true), 60);
     return () => window.clearTimeout(t);
   }, []);
 
-  const history = useMemo<PublishRecord[]>(() => HistoryService.list(), [projects]);
+  const history = useMemo<PublishRecord[]>(() => HistoryService.list(), [projects, plan.signature]);
   const backups = useMemo<{ backup: ProjectBackup; project: Project }[]>(() => {
     const out: { backup: ProjectBackup; project: Project }[] = [];
     for (const p of projects) {
       for (const b of BackupService.list(p.id)) out.push({ backup: b, project: p });
     }
     return out;
-  }, [projects]);
+  }, [projects, plan.signature]);
 
   const summaries = useMemo<ProjectSummary[]>(() => {
     const activeId = settings.activeProjectId;
@@ -158,17 +128,18 @@ function Dashboard() {
       attentionCount: globalHealth.attention,
       blockedCount: globalHealth.blocked,
       lastBuildAt: lastBuild?.createdAt,
-      nextStep: suggestion?.title,
+      nextStep: plan.nextAction.title,
     };
-  }, [projects.length, globalHealth, history, suggestion]);
+  }, [projects.length, globalHealth, history, plan.nextAction.title]);
 
   if (!settings.onboardingCompleted) return null;
 
   const loading = !dataReady;
+  void activeProject; // read pour ré-évaluer si le projet actif change.
 
   return (
     <div className="space-y-8 pb-10">
-      {/* Ligne 1 : bienvenue + copilote hero */}
+      {/* Ligne 1 : bienvenue + prochaine étape (le Copilot pilote) */}
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="lg:col-span-2">
           <TodayCard
@@ -178,21 +149,26 @@ function Dashboard() {
           />
         </div>
         <div className="lg:col-span-3">
-          <CopilotHero
-            suggestion={suggestion}
-            etaMinutes={etaMinutes}
-            loading={copilotLoading}
-          />
+          <NextStepCard plan={copilotLoading ? null : plan} loading={copilotLoading} />
         </div>
       </div>
 
-      {/* Ligne 2 : statistiques */}
+      {/* Ligne 2 : ce qui bloque + ce qui est prêt */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <BlockersCard plan={copilotLoading ? null : plan} loading={copilotLoading} />
+        <ReadyCard plan={copilotLoading ? null : plan} loading={copilotLoading} />
+      </div>
+
+      {/* Ligne 3 : chronologie logique */}
+      <PlanTimelineCard plan={copilotLoading ? null : plan} loading={copilotLoading} />
+
+      {/* Ligne 4 : statistiques */}
       <section>
         <SectionTitle title="Cette semaine" />
         <StatsStrip stats={loading ? null : stats} loading={loading} />
       </section>
 
-      {/* Ligne 3 : projets */}
+      {/* Ligne 5 : projets */}
       <section>
         <SectionTitle
           title="Mes projets"
@@ -209,7 +185,7 @@ function Dashboard() {
         />
       </section>
 
-      {/* Ligne 4 : santé globale + activité */}
+      {/* Ligne 6 : santé globale + activité */}
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="lg:col-span-2">
           <GlobalHealthCard health={loading ? null : globalHealth} loading={loading} />
