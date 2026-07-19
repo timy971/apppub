@@ -35,7 +35,14 @@ export interface ProjectPublishing {
 
 export interface Project {
   id: UUID;
+  /** Nom d'affichage (éditable). Utilisé partout dans l'UI. */
   name: string;
+  /**
+   * Nom technique (lecture seule) issu du package.json.
+   * Ne sert qu'aux opérations internes / diagnostic. Ne s'affiche jamais
+   * en dehors de l'onglet Identité du cockpit.
+   */
+  technicalName?: string;
   logoEmoji?: string;
   localPath: string;
   githubRepo?: string;
@@ -73,6 +80,7 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
 }
+
 
 export type ProjectDraft = Omit<Project, "id" | "createdAt" | "updatedAt">;
 
