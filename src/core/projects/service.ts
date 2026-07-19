@@ -40,11 +40,22 @@ export const ProjectsService = {
     return project;
   },
 
-  update(id: UUID, patch: Partial<Project>): Project | undefined {
+  update(id: UUID, patch: Partial<Project>, opts?: { touched?: string[] }): Project | undefined {
     const list = this.list();
     const idx = list.findIndex((p) => p.id === id);
     if (idx === -1) return undefined;
-    const updated: Project = { ...list[idx], ...patch, id, updatedAt: now() };
+    // Marque comme "user" les champs explicitement modifiés depuis l'UI.
+    const nextSources: Record<string, "detected" | "user"> = {
+      ...(list[idx].fieldSources ?? {}),
+    };
+    for (const key of opts?.touched ?? []) nextSources[key] = "user";
+    const updated: Project = {
+      ...list[idx],
+      ...patch,
+      id,
+      updatedAt: now(),
+      fieldSources: nextSources,
+    };
     list[idx] = updated;
     storage.set(STORAGE_KEYS.projects, list);
     return updated;
