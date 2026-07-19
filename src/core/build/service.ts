@@ -4,9 +4,14 @@ import { JournalService } from "@/core/journal/logger";
 
 /**
  * BuildService — orchestre la construction Android.
- * L'appelant fournit un `onStep` pour mettre à jour l'UI (WorkflowView).
- * Chaque étape peut échouer : le service renvoie l'erreur brute, et
- * `translateError` s'en occupe côté UI pour produire un message humain.
+ *
+ * L'appelant fournit :
+ *  - `onStep`  : met à jour l'UI étape par étape.
+ *  - `onLine`  : streaming des lignes de sortie vers la console.
+ *  - `signal`  : AbortSignal facultatif pour interrompre proprement.
+ *
+ * Toutes les erreurs remontent brutes ; `translateError` les convertit
+ * côté UI. Aucune règle métier n'est dupliquée ailleurs.
  */
 
 export interface BuildResult {
@@ -18,13 +23,18 @@ export interface BuildResult {
 
 export interface StepReport {
   id: string;
-  status: "success" | "warning" | "error" | "skipped";
+  status: "running" | "success" | "warning" | "error" | "skipped";
   detail?: string;
 }
 
 export interface BuildRunOptions {
   onStep: (id: string, status: StepReport["status"], detail?: string) => void;
   onLine?: (line: string) => void;
+  signal?: AbortSignal;
+}
+
+function abortIfNeeded(signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 }
 
 async function run(
@@ -32,8 +42,10 @@ async function run(
   cmd: string,
   args: string[],
   cwd: string,
-  onLine?: (l: string) => void,
+  onLine: ((l: string) => void) | undefined,
+  signal: AbortSignal | undefined,
 ) {
+  abortIfNeeded(signal);
   const b = bridge();
   const result = await b.exec.run({ cmd, args, cwd, timeoutMs: 30 * 60_000 }, (l) =>
     onLine?.(l.line),
@@ -54,12 +66,17 @@ export const BuildService = {
   async build(project: Project, opts: BuildRunOptions): Promise<BuildResult> {
     const start = performance.now();
     const b = bridge();
+    const { signal } = opts;
 
     if (b.runtime === "web") {
-      // Simulation Phase 1-compatible : produit un nom d'artefact plausible.
+      // Simulation Phase 1-compatible pour la preview Lovable.
       for (const id of ["deps", "web", "sync", "gradle", "artifact"]) {
-        opts.onStep(id, "success");
-        await new Promise((r) => setTimeout(r, 400));
+        abortIfNeeded(signal);
+        opts.onStep(id, "running", "En cours…");
+        opts.onLine?.(`▶ ${id}`);
+        await new Promise((r) => setTimeout(r, 500));
+        opts.onLine?.(`  ok`);
+        opts.onStep(id, "success", "Terminé.");
       }
       const name = `${project.name.toLowerCase().replace(/\s+/g, "-")}-v${project.currentVersion}.aab`;
       return {
@@ -71,10 +88,11 @@ export const BuildService = {
     }
 
     // 1. Dépendances
+    abortIfNeeded(signal);
     const hasNodeModules = await b.fs.exists(`${project.localPath}/node_modules`);
     if (!hasNodeModules) {
-      opts.onStep("deps", "success", "Installation des dépendances…");
-      const r = await run(project, "npm", ["install"], project.localPath, opts.onLine);
+      opts.onStep("deps", "running", "Installation des dépendances…");
+      const r = await run(project, "npm", ["install"], project.localPath, opts.onLine, signal);
       if (r.exitCode !== 0) {
         opts.onStep("deps", "error", "L'installation des dépendances a échoué.");
         throw new Error(r.stderr || r.stdout);
@@ -85,8 +103,9 @@ export const BuildService = {
     }
 
     // 2. Build web
-    opts.onStep("web", "success", "Compilation de la partie web…");
-    const web = await run(project, "npm", ["run", "build"], project.localPath, opts.onLine);
+    abortIfNeeded(signal);
+    opts.onStep("web", "running", "Compilation de la partie web…");
+    const web = await run(project, "npm", ["run", "build"], project.localPath, opts.onLine, signal);
     if (web.exitCode !== 0) {
       opts.onStep("web", "error", "La compilation web a échoué.");
       throw new Error(web.stderr || web.stdout);
@@ -94,8 +113,16 @@ export const BuildService = {
     opts.onStep("web", "success", "Partie web compilée.");
 
     // 3. Sync Capacitor
-    opts.onStep("sync", "success", "Préparation de l'application Android…");
-    const sync = await run(project, "npx", ["cap", "sync", "android"], project.localPath, opts.onLine);
+    abortIfNeeded(signal);
+    opts.onStep("sync", "running", "Préparation de l'application Android…");
+    const sync = await run(
+      project,
+      "npx",
+      ["cap", "sync", "android"],
+      project.localPath,
+      opts.onLine,
+      signal,
+    );
     if (sync.exitCode !== 0) {
       opts.onStep("sync", "error", "La préparation Android a échoué.");
       throw new Error(sync.stderr || sync.stdout);
@@ -103,13 +130,18 @@ export const BuildService = {
     opts.onStep("sync", "success", "Application Android préparée.");
 
     // 4. Gradle bundleRelease
+    abortIfNeeded(signal);
     const androidDir = `${project.localPath}/android`;
-    const gradleCmd =
-      (await b.fs.exists(`${androidDir}/gradlew.bat`))
-        ? "gradlew.bat"
-        : "./gradlew";
-    opts.onStep("gradle", "success", "Fabrication du fichier Android…");
-    const gradle = await run(project, gradleCmd, ["bundleRelease"], androidDir, opts.onLine);
+    const gradleCmd = (await b.fs.exists(`${androidDir}/gradlew.bat`)) ? "gradlew.bat" : "./gradlew";
+    opts.onStep("gradle", "running", "Fabrication du fichier Android…");
+    const gradle = await run(
+      project,
+      gradleCmd,
+      ["bundleRelease"],
+      androidDir,
+      opts.onLine,
+      signal,
+    );
     if (gradle.exitCode !== 0) {
       opts.onStep("gradle", "error", "La construction Android a échoué.");
       throw new Error(gradle.stderr || gradle.stdout);
@@ -117,7 +149,8 @@ export const BuildService = {
     opts.onStep("gradle", "success", "Fichier Android fabriqué.");
 
     // 5. Localisation de l'artefact
-    opts.onStep("artifact", "success", "Recherche du fichier final…");
+    abortIfNeeded(signal);
+    opts.onStep("artifact", "running", "Recherche du fichier final…");
     const aabs = await b.fs.findByExtension(
       `${androidDir}/app/build/outputs/bundle/release`,
       ".aab",
