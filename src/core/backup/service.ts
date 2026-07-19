@@ -2,6 +2,7 @@ import type { Project, ProjectBackup, UUID } from "@/core/types";
 import { storage } from "@/core/storage";
 import { JournalService } from "@/core/journal/logger";
 import { bridge } from "@/core/bridge";
+import { CopilotBus } from "@/core/copilot/bus";
 
 /**
  * BackupService — sauvegarde légère avant une opération sensible.
@@ -85,6 +86,7 @@ export const BackupService = {
       files: files.length,
       location,
     });
+    CopilotBus.notify();
     return backup;
   },
 
