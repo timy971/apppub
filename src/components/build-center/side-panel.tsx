@@ -5,7 +5,7 @@ import type { OperationSnapshot } from "@/core/operations/types";
 import type { DurationStats } from "@/core/operations/estimator";
 import { HistoryService } from "@/core/history/service";
 import { Card } from "@/components/ui/card";
-import { formatDuration, formatSize } from "./shared";
+import { formatDuration } from "./shared";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { ExpertDetails, ExpertRow, CopyButton } from "@/components/expert-details";
