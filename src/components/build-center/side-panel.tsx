@@ -27,6 +27,13 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
         .slice(0, 5),
     [project.id, snap?.status],
   );
+  const sys = useSystemInfo();
+  const android = getAndroidConfig(project);
+  const isWindows = sys?.platform === "win32";
+  const gradleCmd = isWindows
+    ? "gradlew.bat bundleRelease"
+    : "./gradlew bundleRelease";
+  const gradleCwd = `${project.localPath}/android`;
 
   return (
     <div className="space-y-4">
@@ -67,6 +74,26 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
           )}
         </dl>
       </Card>
+
+      <ExpertDetails title="Commande & environnement" defaultOpen>
+        <div className="flex items-start gap-2">
+          <span className="text-muted-foreground min-w-32 shrink-0">
+            Commande
+          </span>
+          <span className="min-w-0 flex-1 break-all">{gradleCmd}</span>
+          <CopyButton value={gradleCmd} size="xs" />
+        </div>
+        <ExpertRow label="Dossier" value={gradleCwd} />
+        <ExpertRow label="Application ID" value={android.applicationId} />
+        <ExpertRow label="Keystore" value={android.keystorePath} />
+        <ExpertRow label="Alias" value={android.keystoreAlias} />
+        <ExpertRow label="JAVA_HOME" value={sys?.javaHome} />
+        <ExpertRow label="ANDROID_HOME" value={sys?.androidHome} />
+        <ExpertRow label="Java" value={sys?.java} />
+        <ExpertRow label="Node" value={sys?.node} />
+        <ExpertRow label="Plateforme" value={sys?.platform} copyable={false} />
+      </ExpertDetails>
+
 
       <Card className="p-5 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
