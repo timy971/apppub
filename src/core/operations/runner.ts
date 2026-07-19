@@ -38,6 +38,7 @@ export class OperationRunner {
   private listeners = new Set<Listener>();
   private abort = new AbortController();
   private logSeq = 0;
+  private rafPending = false;
 
   constructor(private def: OperationDef) {
     this.snap = {
@@ -61,6 +62,21 @@ export class OperationRunner {
     return () => {
       this.listeners.delete(l);
     };
+  }
+
+  /**
+   * Coalesce les émissions de logs à ~60Hz pour rester fluide même
+   * face à un stream Gradle qui crache des centaines de lignes/s.
+   */
+  private scheduleEmit() {
+    if (this.rafPending) return;
+    this.rafPending = true;
+    const fn = () => {
+      this.rafPending = false;
+      this.emit();
+    };
+    if (typeof requestAnimationFrame !== "undefined") requestAnimationFrame(fn);
+    else setTimeout(fn, 16);
   }
 
   private emit() {
