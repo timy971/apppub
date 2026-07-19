@@ -132,7 +132,7 @@ export class OperationRunner {
           stepId,
         });
         if (logs.length > MAX_LOGS) logs.splice(0, logs.length - MAX_LOGS);
-        this.emit();
+        this.scheduleEmit();
       },
     };
   }
