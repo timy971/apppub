@@ -927,20 +927,69 @@ ipcMain.handle("system:detect", detectSystem);
 
 function detectProjectFiles(projectPath) {
   const exists = (rel) => fs.existsSync(path.join(projectPath, rel));
+  const readTextSafe = (rel) => {
+    try {
+      return fs.readFileSync(path.join(projectPath, rel), "utf8");
+    } catch {
+      return null;
+    }
+  };
   const hasCapCfg =
     exists("capacitor.config.ts") ||
     exists("capacitor.config.js") ||
     exists("capacitor.config.json");
+
   let pkgName;
+  let pkgDisplayName;
   let versionJson;
   try {
     if (exists("package.json")) {
-      pkgName = JSON.parse(fs.readFileSync(path.join(projectPath, "package.json"), "utf8")).name;
+      const pkg = JSON.parse(fs.readFileSync(path.join(projectPath, "package.json"), "utf8"));
+      pkgName = typeof pkg.name === "string" ? pkg.name : undefined;
+      pkgDisplayName = typeof pkg.displayName === "string" ? pkg.displayName : undefined;
     }
     if (exists("version.json")) {
       versionJson = JSON.parse(fs.readFileSync(path.join(projectPath, "version.json"), "utf8"));
     }
   } catch {}
+
+  // 1. capacitor.config.* → appName
+  let capacitorAppName;
+  for (const rel of ["capacitor.config.json", "capacitor.config.ts", "capacitor.config.js"]) {
+    if (!exists(rel)) continue;
+    const raw = readTextSafe(rel);
+    if (!raw) continue;
+    if (rel.endsWith(".json")) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.appName === "string" && parsed.appName.trim()) {
+          capacitorAppName = parsed.appName.trim();
+          break;
+        }
+      } catch {}
+    } else {
+      const m = raw.match(/appName\s*:\s*['"`]([^'"`]+)['"`]/);
+      if (m && m[1].trim()) {
+        capacitorAppName = m[1].trim();
+        break;
+      }
+    }
+  }
+
+  // 2. android/app/src/main/res/values/strings.xml → app_name
+  let androidAppName;
+  const stringsRel = path.join("android", "app", "src", "main", "res", "values", "strings.xml");
+  if (exists(stringsRel)) {
+    const raw = readTextSafe(stringsRel);
+    if (raw) {
+      const m = raw.match(/<string\s+name=["']app_name["']\s*>([\s\S]*?)<\/string>/);
+      if (m && m[1].trim()) androidAppName = m[1].trim();
+    }
+  }
+
+  const displayName =
+    capacitorAppName || androidAppName || pkgDisplayName || pkgName || undefined;
+
   return {
     hasPackageJson: exists("package.json"),
     hasVersionJson: exists("version.json"),
@@ -952,10 +1001,12 @@ function detectProjectFiles(projectPath) {
       exists(path.join("android", "gradlew")) || exists(path.join("android", "gradlew.bat")),
     hasChangelog: exists("CHANGELOG.md"),
     packageName: pkgName,
+    displayName,
     currentVersion: versionJson?.version,
     currentBuild: versionJson?.build,
   };
 }
+
 
 ipcMain.handle("projects:detect", (_e, projectPath) => {
   const safe = resolveWithinAllowed(projectPath);
