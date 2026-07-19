@@ -65,7 +65,7 @@ import {
   getAndroidConfig,
   patchAndroidConfig,
 } from "@/core/projects/android-config";
-import { sourceOf, type TrackedFieldKey } from "@/core/projects/sources";
+import { sourceOf, type FieldSource, type TrackedFieldKey } from "@/core/projects/sources";
 import {
   validateApplicationId,
   validateAppleTeamId,
