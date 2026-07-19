@@ -260,7 +260,13 @@ export interface DetectedFiles {
   hasVersionScript: boolean;
   hasGradleWrapper: boolean;
   hasChangelog?: boolean;
+  /** Nom technique lu dans package.json (ex : vite_react_shadcn_ts). */
   packageName?: string;
+  /**
+   * Meilleur nom d'affichage détecté selon l'ordre de priorité :
+   * capacitor appName → strings.xml app_name → package.json displayName → package.json name.
+   */
+  displayName?: string;
   currentVersion?: string;
   currentBuild?: number;
 }
@@ -270,6 +276,7 @@ export interface ScannedProject {
   name: string;
   detected: DetectedFiles;
 }
+
 
 /* ---------- Phase 2 : Health Score ---------- */
 
