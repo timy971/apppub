@@ -2,7 +2,7 @@ import { Rocket, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
-import type { Project, PublishRecord } from "@/components/../core/types";
+import type { Project, PublishRecord } from "@/core/types";
 import type { ProjectStatus } from "@/core/projects/status";
 import type { PreparationScore } from "./shared";
 import { formatRelative } from "./shared";
