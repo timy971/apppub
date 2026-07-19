@@ -118,7 +118,11 @@ function EntryRow({ project, entry }: { project: Project; entry: ChecklistEntry 
           <Link
             to="/projects/$id"
             params={{ id: project.id }}
-            search={{ tab: entry.action.tab }}
+            search={
+              entry.action.field
+                ? { tab: entry.action.tab, field: entry.action.field }
+                : { tab: entry.action.tab }
+            }
           >
             {entry.action.label}
             <ArrowRight className="h-3.5 w-3.5" />
