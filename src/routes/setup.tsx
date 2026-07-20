@@ -190,6 +190,26 @@ function SetupWizard() {
                   className="h-12 text-base font-mono"
                   onKeyDown={(e) => e.key === "Enter" && runDetection()}
                 />
+                <details className="group rounded-xl border bg-muted/40 p-4 text-sm">
+                  <summary className="cursor-pointer select-none font-medium text-foreground">
+                    Je ne sais pas où se trouve mon projet
+                  </summary>
+                  <div className="mt-3 space-y-2 text-muted-foreground leading-relaxed">
+                    <p>
+                      Un projet Lovable est un dossier téléchargé sur votre
+                      ordinateur, contenant un fichier <code className="rounded bg-background px-1">package.json</code>.
+                    </p>
+                    <p>
+                      Sur macOS, il se trouve généralement dans <em>Documents</em>,
+                      <em> Développement</em> ou <em>GitHub</em>. Ouvrez le Finder,
+                      cliquez droit sur le dossier, puis choisissez « Copier … comme chemin d'accès ».
+                    </p>
+                    <p>
+                      Sur Windows, ouvrez l'Explorateur de fichiers, sélectionnez
+                      le dossier, puis copiez le chemin depuis la barre d'adresse.
+                    </p>
+                  </div>
+                </details>
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
