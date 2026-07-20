@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ProjectSwitcher } from "./project-switcher";
 import { AppInfo } from "@/core/app-info";
+import { useIsExpert } from "@/core/store/use-mode";
 
 const primary = [
   { title: "Tableau de bord", url: "/", icon: LayoutDashboard },
@@ -40,14 +41,17 @@ const publication = [
 ];
 
 const utils = [
-  { title: "Vérifier le projet", url: "/diagnostic", icon: HeartPulse },
-  { title: "Historique", url: "/history", icon: History },
+  { title: "Santé du projet", url: "/diagnostic", icon: HeartPulse },
+  { title: "Journal", url: "/history", icon: History },
   { title: "Paramètres", url: "/settings", icon: SettingsIcon },
 ];
 
-const support = [
+const supportBase = [
   { title: "Support", url: "/journal", icon: LifeBuoy },
-  { title: "Console diagnostic", url: "/logs", icon: Terminal },
+];
+
+const expertOnly = [
+  { title: "Console", url: "/logs", icon: Terminal },
 ];
 
 
@@ -56,6 +60,8 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (p: string) => (p === "/" ? currentPath === "/" : currentPath.startsWith(p));
+  const isExpert = useIsExpert();
+  const support = isExpert ? [...supportBase, ...expertOnly] : supportBase;
 
   return (
     <Sidebar collapsible="icon">
@@ -67,7 +73,7 @@ export function AppSidebar() {
           {!collapsed && (
             <div className="leading-tight">
               <div className="text-sm font-semibold">AppPublisher</div>
-              <div className="text-[11px] text-muted-foreground">Copilote de publication</div>
+              <div className="text-[11px] text-muted-foreground">Assistant de publication</div>
             </div>
           )}
         </Link>
@@ -124,3 +130,4 @@ function Section({
     </SidebarGroup>
   );
 }
+
