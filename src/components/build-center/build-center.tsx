@@ -18,6 +18,8 @@ import { SidePanel } from "./side-panel";
 import { LogConsole } from "./log-console";
 import { ResultCard } from "./result-card";
 import { BuildErrorPanel } from "./error-panel";
+import { LiveStatus } from "./live-status";
+import { BuildTips } from "./build-tips";
 
 interface Props {
   project: Project;
@@ -147,7 +149,11 @@ export function BuildCenter({ project }: Props) {
           {runner ? (
             <>
               <ProgressPanel snap={snap} elapsedMs={elapsedMs} stats={stats} />
+              {snap.status === "running" && (
+                <LiveStatus step={snap.steps.find((s) => s.status === "running")} />
+              )}
               <StepsTimeline steps={snap.steps} nowMs={now} />
+              {snap.status === "running" && <BuildTips />}
             </>
           ) : (
             <IntroCard />

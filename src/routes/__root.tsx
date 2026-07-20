@@ -17,6 +17,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ModeBadge } from "@/components/mode-badge";
 import { Toaster } from "@/components/ui/sonner";
+import { SetupAssistantProvider } from "@/components/setup-assistant/setup-context";
 
 function NotFoundComponent() {
   return (
@@ -144,9 +145,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AppShell />
-        {/* DIAGNOSTIC TEMPORAIRE — Toaster désactivé pour test freeze wizard */}
-        {/* <Toaster position="bottom-right" /> */}
+        <SetupAssistantProvider>
+          <AppShell />
+        </SetupAssistantProvider>
+        <Toaster position="bottom-right" />
       </ThemeProvider>
     </QueryClientProvider>
   );

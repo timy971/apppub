@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Sparkles, Clock } from "lucide-react";
+import { ArrowRight, Sparkles, Clock, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSetupAssistant } from "@/components/setup-assistant/setup-context";
 import type { CopilotPlan } from "@/core/copilot/types";
 
 /**
@@ -77,6 +78,7 @@ export function NextStepCard({
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
+                <AssistantButton />
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-background/80 backdrop-blur px-3 py-1.5 text-xs text-muted-foreground ring-1 ring-border">
                   <Clock className="h-3 w-3" />
                   Publication estimée : {plan.etaMinutes} min
@@ -99,5 +101,15 @@ export function NextStepCard({
         </div>
       </div>
     </Card>
+  );
+}
+
+function AssistantButton() {
+  const assistant = useSetupAssistant();
+  return (
+    <Button variant="outline" size="lg" onClick={() => assistant.open()}>
+      <Wand2 className="h-4 w-4" />
+      Ouvrir l'assistant
+    </Button>
   );
 }

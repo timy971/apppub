@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 
 import { PublishHeader } from "./header";
 import { PublishCopilotStrip } from "./copilot-strip";
+import { PublishExplainer } from "./publish-explainer";
 import { ReleaseOverviewCard } from "./release-overview";
 import { ChecklistCard } from "./checklist";
 import { ReleaseNotesCard } from "./release-notes";
@@ -143,6 +144,7 @@ export function PublishCenter({ project }: { project: Project }) {
 
   return (
     <div className="space-y-4">
+      <PublishExplainer />
       <PublishCopilotStrip plan={copilotPlan} />
       <PublishHeader
         project={project}
