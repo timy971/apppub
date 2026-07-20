@@ -89,6 +89,6 @@ export type TermKey = keyof typeof TERMS;
 
 /** Retourne le libellé selon le mode d'expérience. */
 export function termLabel(key: TermKey, expert: boolean): string {
-  const t = TERMS[key];
+  const t = TERMS[key] as Term;
   return expert && t.technical ? t.technical : t.label;
 }
