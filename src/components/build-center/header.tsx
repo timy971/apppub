@@ -13,6 +13,7 @@ interface Props {
   onStart: () => void;
   onCancel: () => void;
   onReset: () => void;
+  canStart?: boolean;
 }
 
 export function BuildCenterHeader({
@@ -22,6 +23,7 @@ export function BuildCenterHeader({
   onStart,
   onCancel,
   onReset,
+  canStart = true,
 }: Props) {
   const status = snap?.status ?? "idle";
   const isRunning = status === "running";
@@ -52,7 +54,12 @@ export function BuildCenterHeader({
         </div>
         <div className="flex items-center gap-2">
           {!isRunning && !isFinished && (
-            <Button size="lg" onClick={onStart}>
+            <Button
+              size="lg"
+              onClick={onStart}
+              disabled={!canStart}
+              title={canStart ? undefined : "Le préflight signale un point bloquant."}
+            >
               Lancer le build
             </Button>
           )}
