@@ -20,6 +20,7 @@ import { ResultCard } from "./result-card";
 import { BuildErrorPanel } from "./error-panel";
 import { LiveStatus } from "./live-status";
 import { BuildTips } from "./build-tips";
+import { PreflightCard } from "./preflight-card";
 
 interface Props {
   project: Project;
@@ -40,6 +41,7 @@ export function BuildCenter({ project }: Props) {
   const snap = useOperationSnapshot(runner);
   const [now, setNow] = useState<number>(() => performance.now());
   const recordedRef = useRef<string | null>(null);
+  const [preflightReady, setPreflightReady] = useState(false);
 
   // Chronomètre à 1Hz — suffit pour l'affichage humain, économe en CPU.
   useEffect(() => {
@@ -142,6 +144,7 @@ export function BuildCenter({ project }: Props) {
         onStart={start}
         onCancel={cancel}
         onReset={reset}
+        canStart={preflightReady}
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -156,7 +159,10 @@ export function BuildCenter({ project }: Props) {
               {snap.status === "running" && <BuildTips />}
             </>
           ) : (
-            <IntroCard />
+            <>
+              <PreflightCard project={project} onReady={setPreflightReady} />
+              <IntroCard />
+            </>
           )}
 
           {snap.status === "success" && (

@@ -129,58 +129,33 @@ export const BuildService = {
     }
     opts.onStep("sync", "success", "Application Android préparée.");
 
-    // 4. Gradle bundleRelease — sélection multi-plateforme du wrapper.
+    // 4. Gradle bundleRelease — sélection multi-plateforme centralisée.
     abortIfNeeded(signal);
-    const androidDir = `${project.localPath}/android`;
-    const sys = await b.system.detect().catch(() => null);
-    const isWindows = sys?.platform === "win32";
+    const { resolveGradle, ensureGradleExecutable, hasGlobalGradle } = await import("./gradle");
+    const gradleRes = await resolveGradle(project.localPath);
+    const androidDir = gradleRes.androidDir;
 
-    const wrapperUnix = `${androidDir}/gradlew`;
-    const wrapperWin = `${androidDir}/gradlew.bat`;
-    const hasWrapperUnix = await b.fs.exists(wrapperUnix);
-    const hasWrapperWin = await b.fs.exists(wrapperWin);
-
-    let gradleCmd: string;
-    let gradleArgs = ["bundleRelease"];
-
-    if (isWindows) {
-      if (!hasWrapperWin) {
-        opts.onStep("gradle", "error", "Le wrapper Gradle (gradlew.bat) est introuvable dans le projet Android.");
-        throw new Error("Le wrapper Gradle (gradlew) est introuvable dans le projet Android.");
+    let invocation = gradleRes.invocation;
+    if (!invocation) {
+      // Repli : gradle installé globalement (dev averti).
+      if (await hasGlobalGradle(androidDir)) {
+        opts.onLine?.("gradlew absent — utilisation de Gradle installé globalement.");
+        invocation = { cmd: "gradle", args: ["bundleRelease"], cwd: androidDir, wrapper: "global" };
+      } else {
+        opts.onStep("gradle", "error", "Le wrapper Gradle est introuvable dans le projet Android.");
+        throw new Error("Le wrapper Gradle est introuvable dans le projet Android.");
       }
-      gradleCmd = "gradlew.bat";
-    } else if (hasWrapperUnix) {
-      // Assurer que le wrapper est exécutable (chmod +x) sous Unix.
-      try {
-        await b.exec.run(
-          { cmd: "chmod", args: ["+x", "gradlew"], cwd: androidDir, timeoutMs: 10_000 },
-          (l) => opts.onLine?.(l.line),
-        );
-      } catch {
-        // non bloquant : on tentera l'exécution malgré tout
-      }
-      gradleCmd = "./gradlew";
-    } else {
-      // Solution de secours : gradle installé globalement.
-      const globalGradle = await b.exec
-        .run({ cmd: "gradle", args: ["-v"], cwd: androidDir, timeoutMs: 10_000 })
-        .then((r) => r.exitCode === 0)
-        .catch(() => false);
-      if (!globalGradle) {
-        opts.onStep("gradle", "error", "Le wrapper Gradle (gradlew) est introuvable dans le projet Android.");
-        throw new Error("Le wrapper Gradle (gradlew) est introuvable dans le projet Android.");
-      }
-      opts.onLine?.("gradlew absent — utilisation de Gradle installé globalement.");
-      gradleCmd = "gradle";
-      gradleArgs = ["bundleRelease"];
+    } else if (invocation.wrapper === "unix") {
+      // Idempotent : garantit gradlew exécutable sous Unix.
+      await ensureGradleExecutable(project.localPath);
     }
 
     opts.onStep("gradle", "running", "Fabrication du fichier Android…");
     const gradle = await run(
       project,
-      gradleCmd,
-      gradleArgs,
-      androidDir,
+      invocation.cmd,
+      invocation.args,
+      invocation.cwd,
       opts.onLine,
       signal,
     );
