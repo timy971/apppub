@@ -211,7 +211,7 @@ export const PreflightService = {
         : "Aucun identifiant d'application configuré (applicationId).",
       fix: android.applicationId
         ? undefined
-        : { label: "Configurer l'identifiant", kind: "open-cockpit", payload: { tab: "android", field: "applicationId" } },
+        : { label: "Configurer l'identifiant", kind: "open-cockpit", payload: { tab: "publishing", field: "android.applicationId" } },
     });
 
     checks.push({
@@ -224,7 +224,7 @@ export const PreflightService = {
         : "Aucune version détectée pour ce projet.",
       fix: project.currentVersion
         ? undefined
-        : { label: "Définir une version", kind: "open-cockpit", payload: { tab: "version" } },
+        : { label: "Définir une version", kind: "open-cockpit", payload: { tab: "configuration", field: "currentVersion" } },
     });
 
     // ---------- Keystore ----------
@@ -236,7 +236,7 @@ export const PreflightService = {
         status: "error",
         title: "Clé de signature",
         message: "Aucune clé de signature n'est configurée pour ce projet.",
-        fix: { label: "Configurer la clé", kind: "open-cockpit", payload: { tab: "android", field: "keystorePath" } },
+        fix: { label: "Configurer la clé", kind: "open-cockpit", payload: { tab: "publishing", field: "android.keystorePath" } },
       });
     } else {
       const keystoreExists = await b.fs.exists(keystorePath);
@@ -270,7 +270,7 @@ export const PreflightService = {
                 confirm: true,
                 payload: { path: candidate },
               }
-            : { label: "Choisir un autre fichier", kind: "open-cockpit", payload: { tab: "android", field: "keystorePath" } },
+            : { label: "Choisir un autre fichier", kind: "open-cockpit", payload: { tab: "publishing", field: "android.keystorePath" } },
       });
 
       checks.push({
@@ -283,7 +283,7 @@ export const PreflightService = {
           : "Aucun alias renseigné. Gradle demandera l'alias au moment de signer.",
         fix: android.keystoreAlias
           ? undefined
-          : { label: "Renseigner l'alias", kind: "open-cockpit", payload: { tab: "android", field: "keystoreAlias" } },
+          : { label: "Renseigner l'alias", kind: "open-cockpit", payload: { tab: "publishing", field: "android.keystoreAlias" } },
       });
     }
 
