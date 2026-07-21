@@ -92,7 +92,7 @@ export function PreflightCard({ project, onReady }: Props) {
               to: "/projects/$id",
               params: { id: project.id },
               search: {
-                ...(payload.tab ? { tab: payload.tab } : {}),
+                ...(payload.tab ? { tab: payload.tab as never } : {}),
                 ...(payload.field ? { field: payload.field } : {}),
               },
             });
