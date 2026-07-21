@@ -43,11 +43,13 @@ export function CheckItem({ check, running, onFix }: Props) {
           {check.message}
         </div>
         {check.technical && (
-          <ExpertDetails title="Détails techniques" className="mt-2">
-            <pre className="whitespace-pre-wrap break-all text-xs text-muted-foreground">
-              {check.technical}
-            </pre>
-          </ExpertDetails>
+          <div className="mt-2">
+            <ExpertDetails title="Détails techniques">
+              <pre className="whitespace-pre-wrap break-all text-xs text-muted-foreground">
+                {check.technical}
+              </pre>
+            </ExpertDetails>
+          </div>
         )}
       </div>
       {check.fix && onFix && (
