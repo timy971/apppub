@@ -150,6 +150,21 @@ contextBridge.exposeInMainWorld("appPublisher", {
   net: {
     online: () => inv("net:online"),
   },
+
+  secrets: {
+    supported: () => inv("secrets:supported"),
+    set: (profileId, field, value) => inv("secrets:set", profileId, field, value),
+    get: (profileId, field) => inv("secrets:get", profileId, field),
+    remove: (profileId) => inv("secrets:remove", profileId),
+  },
+
+  signing: {
+    chooseKeystore: () => inv("signing:chooseKeystore"),
+    chooseOutputFolder: () => inv("signing:chooseOutputFolder"),
+    keystoreList: (args) => inv("signing:keystoreList", args),
+    keystoreCreate: (args) => inv("signing:keystoreCreate", args),
+    scan: (roots) => inv("signing:scan", roots),
+  },
 });
 
 sendDiag({ level: "info", message: "preload loaded" });
