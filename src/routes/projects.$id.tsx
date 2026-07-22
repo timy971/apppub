@@ -15,6 +15,7 @@ import {
   Info,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { ProfilesStore as SigningProfilesStore } from "@/features/android-signing";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1103,6 +1104,73 @@ function InlineTextarea({
         rows={3}
         className="mt-1.5"
       />
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- */
+/* Signing profile selector                                          */
+/* ---------------------------------------------------------------- */
+
+function SigningProfileField({
+  project: _project,
+  value,
+  onChange,
+}: {
+  project: unknown;
+  value: string | undefined;
+  onChange: (id: string | undefined) => void;
+}) {
+  const profiles = SigningProfilesStore.list();
+  const linked = value ? profiles.find((p) => p.id === value) : undefined;
+  return (
+    <div data-cockpit-field="android.signingProfileId" className="rounded-lg border bg-muted/30 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <Label>Signature associée à ce projet</Label>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Recommandé — le mot de passe est protégé par le trousseau système.
+          </p>
+        </div>
+        <Link to="/signing" className="text-xs text-primary underline underline-offset-2">
+          Gérer les signatures
+        </Link>
+      </div>
+      <div className="mt-2">
+        <Select
+          value={value ?? "__none__"}
+          onValueChange={(v) => onChange(v === "__none__" ? undefined : v)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Aucune signature associée" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">Aucune (configuration manuelle ci-dessous)</SelectItem>
+            {profiles.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name} · alias {p.alias}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {linked && (
+        <div className="mt-2 text-xs text-muted-foreground">
+          <span className="font-mono">{linked.keystorePath}</span>
+          {linked.certificate?.validUntil && (
+            <> · expire le {linked.certificate.validUntil.slice(0, 10)}</>
+          )}
+        </div>
+      )}
+      {profiles.length === 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Aucune signature enregistrée pour l'instant.{" "}
+          <Link to="/signing" className="text-primary underline underline-offset-2">
+            En créer ou en importer une
+          </Link>
+          .
+        </p>
+      )}
     </div>
   );
 }
