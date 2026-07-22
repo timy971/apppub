@@ -103,13 +103,18 @@ export function classifyKeytoolError(stderr: string): KeytoolFailureCode {
 }
 
 /** Utilitaire d'affichage : renvoie true si le certificat expire sous N jours. */
-export function isExpiringSoon(info: CertificateInfo, days = 90): boolean {
+export function isExpiringSoon(info: CertificateInfo | undefined, days = 90): boolean {
+  if (!info) return false;
   const end = new Date(info.validUntil).getTime();
-  const now = Date.now();
-  return end - now < days * 24 * 3600 * 1000;
+  if (Number.isNaN(end)) return false;
+  return end - Date.now() < days * 24 * 3600 * 1000;
 }
 
 /** Utilitaire d'affichage : renvoie true si le certificat est déjà expiré. */
-export function isExpired(info: CertificateInfo): boolean {
-  return new Date(info.validUntil).getTime() < Date.now();
+export function isExpired(info: CertificateInfo | undefined): boolean {
+  if (!info) return false;
+  const end = new Date(info.validUntil).getTime();
+  if (Number.isNaN(end)) return false;
+  return end < Date.now();
 }
+
