@@ -172,4 +172,37 @@ export const webBridge: SystemBridge = {
       return navigator.onLine;
     },
   },
+
+  secrets: {
+    async supported() {
+      return { platform: "web", available: false, reason: "Aperçu Lovable : le trousseau système n'est disponible que dans l'application de bureau." };
+    },
+    async set() {
+      return false;
+    },
+    async get() {
+      return null;
+    },
+    async remove() {
+      return true;
+    },
+  },
+
+  signing: {
+    async chooseKeystore() {
+      return null;
+    },
+    async chooseOutputFolder() {
+      return null;
+    },
+    async keystoreList() {
+      return { ok: false, errorCode: "keytool-missing", errorHint: "Aperçu Lovable — keytool n'est disponible que dans l'application de bureau." };
+    },
+    async keystoreCreate() {
+      return { ok: false, errorCode: "keytool-missing", errorHint: "Aperçu Lovable — keytool n'est disponible que dans l'application de bureau." };
+    },
+    async scan() {
+      return [];
+    },
+  },
 };

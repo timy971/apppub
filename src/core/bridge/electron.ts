@@ -21,6 +21,8 @@ interface AppPublisherApi {
   fs: SystemBridge["fs"];
   shell: SystemBridge["shell"];
   net: SystemBridge["net"];
+  secrets: SystemBridge["secrets"];
+  signing: SystemBridge["signing"];
 }
 
 declare global {
@@ -86,5 +88,20 @@ export const electronBridge: SystemBridge = {
 
   net: {
     online: () => ensure().net.online(),
+  },
+
+  secrets: {
+    supported: () => ensure().secrets.supported(),
+    set: (id, field, value) => ensure().secrets.set(id, field, value),
+    get: (id, field) => ensure().secrets.get(id, field),
+    remove: (id) => ensure().secrets.remove(id),
+  },
+
+  signing: {
+    chooseKeystore: () => ensure().signing.chooseKeystore(),
+    chooseOutputFolder: () => ensure().signing.chooseOutputFolder(),
+    keystoreList: (args) => ensure().signing.keystoreList(args),
+    keystoreCreate: (args) => ensure().signing.keystoreCreate(args),
+    scan: (roots) => ensure().signing.scan(roots),
   },
 };
