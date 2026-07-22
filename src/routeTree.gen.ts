@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VersionRouteImport } from './routes/version'
+import { Route as SigningRouteImport } from './routes/signing'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PublishRouteImport } from './routes/publish'
@@ -25,6 +26,11 @@ import { Route as ProjectsIdRouteImport } from './routes/projects.$id'
 const VersionRoute = VersionRouteImport.update({
   id: '/version',
   path: '/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SigningRoute = SigningRouteImport.update({
+  id: '/signing',
+  path: '/signing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetupRoute = SetupRouteImport.update({
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/publish': typeof PublishRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
+  '/signing': typeof SigningRoute
   '/version': typeof VersionRoute
   '/projects/$id': typeof ProjectsIdRoute
 }
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/publish': typeof PublishRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
+  '/signing': typeof SigningRoute
   '/version': typeof VersionRoute
   '/projects/$id': typeof ProjectsIdRoute
 }
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/publish': typeof PublishRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
+  '/signing': typeof SigningRoute
   '/version': typeof VersionRoute
   '/projects/$id': typeof ProjectsIdRoute
 }
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/publish'
     | '/settings'
     | '/setup'
+    | '/signing'
     | '/version'
     | '/projects/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
     | '/publish'
     | '/settings'
     | '/setup'
+    | '/signing'
     | '/version'
     | '/projects/$id'
   id:
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
     | '/publish'
     | '/settings'
     | '/setup'
+    | '/signing'
     | '/version'
     | '/projects/$id'
   fileRoutesById: FileRoutesById
@@ -182,6 +194,7 @@ export interface RootRouteChildren {
   PublishRoute: typeof PublishRoute
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
+  SigningRoute: typeof SigningRoute
   VersionRoute: typeof VersionRoute
 }
 
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       path: '/version'
       fullPath: '/version'
       preLoaderRoute: typeof VersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signing': {
+      id: '/signing'
+      path: '/signing'
+      fullPath: '/signing'
+      preLoaderRoute: typeof SigningRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/setup': {
@@ -297,6 +317,7 @@ const rootRouteChildren: RootRouteChildren = {
   PublishRoute: PublishRoute,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,
+  SigningRoute: SigningRoute,
   VersionRoute: VersionRoute,
 }
 export const routeTree = rootRouteImport

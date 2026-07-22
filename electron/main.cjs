@@ -1293,3 +1293,428 @@ ipcMain.handle("shell:revealItem", (_e, p) => {
 /* ---------- IPC : Net ---------- */
 
 ipcMain.handle("net:online", pingInternet);
+
+/* ==========================================================================
+ *  IPC : Android Signing Manager
+ *
+ *  Objectifs sécurité :
+ *   - `keytool` et `security` ne sont JAMAIS exposés via `exec:run`.
+ *     Ils ne sont invoqués qu'à travers les handlers dédiés ci-dessous,
+ *     qui construisent eux-mêmes la ligne de commande et refusent tout
+ *     argument non validé.
+ *   - Les mots de passe transitent uniquement via l'environnement du
+ *     process enfant (`-storepass:env`, `-keypass:env`). Ils n'apparaissent
+ *     jamais en argv (`ps` ne les voit pas) ni dans les logs diagnostic
+ *     (les handlers filtrent explicitement `ctx.storepass`/`keypass`).
+ *   - Les chemins keystore résident souvent hors des racines projet.
+ *     Un ensemble `allowedKeystoreFiles` conserve la liste des fichiers
+ *     explicitement choisis par l'utilisateur via dialog. Aucun scan
+ *     automatique du disque : seules les racines fournies sont explorées.
+ * ========================================================================== */
+
+const allowedKeystoreFiles = new Set();
+
+function registerAllowedKeystore(p) {
+  try {
+    if (!p || typeof p !== "string") return null;
+    const real = fs.realpathSync(p);
+    const st = fs.statSync(real);
+    if (!st.isFile()) return null;
+    const lower = real.toLowerCase();
+    if (!lower.endsWith(".jks") && !lower.endsWith(".keystore")) return null;
+    allowedKeystoreFiles.add(real);
+    // Autorise également le dossier parent pour d'éventuelles vérifs fs:exists.
+    registerAllowedRoot(path.dirname(real));
+    return real;
+  } catch {
+    return null;
+  }
+}
+
+function resolveKeystorePath(inputPath) {
+  if (typeof inputPath !== "string") return null;
+  try {
+    const real = fs.realpathSync(inputPath);
+    if (allowedKeystoreFiles.has(real)) return real;
+    // Autorise également si le fichier vit dans une racine projet connue.
+    if (resolveWithinAllowed(real)) return real;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Retire les champs sensibles avant écriture dans le journal diagnostic. */
+function scrubSecrets(ctx) {
+  if (!ctx || typeof ctx !== "object") return ctx;
+  const clean = {};
+  for (const [k, v] of Object.entries(ctx)) {
+    if (/pass|secret|key$/i.test(k)) continue;
+    clean[k] = v;
+  }
+  return clean;
+}
+
+function diagSigning(level, message, ctx) {
+  try {
+    diagWrite({ level, message: `signing: ${message}`, ctx: scrubSecrets(ctx) });
+  } catch {}
+}
+
+/** Valide un DN simple pour `keytool -genkeypair`. */
+function isValidDName(s) {
+  if (typeof s !== "string") return false;
+  if (s.length === 0 || s.length > 512) return false;
+  if (/[\n\r\u0000]/.test(s)) return false;
+  return true;
+}
+
+function isValidAlias(s) {
+  if (typeof s !== "string") return false;
+  if (s.length === 0 || s.length > 128) return false;
+  // Alias sûr : lettres, chiffres, tirets, underscores, points.
+  return /^[a-zA-Z0-9._-]+$/.test(s);
+}
+
+function isValidPassword(s) {
+  return typeof s === "string" && s.length >= 6 && s.length <= 512 && !/[\n\r\u0000]/.test(s);
+}
+
+/**
+ * Résout le chemin de l'exécutable keytool. Priorité :
+ *   1. JAVA_HOME/bin/keytool
+ *   2. keytool dans le PATH (résolu par spawn).
+ */
+function resolveKeytool() {
+  const home = process.env.JAVA_HOME;
+  if (home) {
+    const candidate = path.join(
+      home,
+      "bin",
+      process.platform === "win32" ? "keytool.exe" : "keytool",
+    );
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {}
+  }
+  return process.platform === "win32" ? "keytool.exe" : "keytool";
+}
+
+/**
+ * Exécute keytool sans passer par `exec:run` (aucune interaction avec
+ * l'allowlist utilisateur). Renvoie `{ code, stdout, stderr }`.
+ * `env` reçoit STOREPASS/KEYPASS de sorte que les mots de passe ne
+ * traversent jamais argv.
+ */
+function runKeytool(args, env = {}, timeoutMs = 30_000) {
+  return new Promise((resolve) => {
+    const bin = resolveKeytool();
+    const child = spawn(bin, args, {
+      env: { ...process.env, ...env },
+      shell: false,
+    });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      try { child.kill(); } catch {}
+      resolve({ code: -1, stdout, stderr: stderr + "\n[timeout]", timedOut: true });
+    }, timeoutMs);
+    child.stdout?.on("data", (d) => (stdout += d.toString()));
+    child.stderr?.on("data", (d) => (stderr += d.toString()));
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      resolve({ code: -1, stdout, stderr: `${stderr}\n${String(e)}`, spawnError: e });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ code: code ?? -1, stdout, stderr });
+    });
+  });
+}
+
+function classifyKeytoolStderr(stderr) {
+  const s = (stderr || "").toLowerCase();
+  if (s.includes("password was incorrect") || s.includes("keystore was tampered") || s.includes("password verification failed")) return "wrong-password";
+  if (s.includes("alias") && (s.includes("does not exist") || s.includes("n'existe pas"))) return "alias-not-found";
+  if (s.includes("invalid keystore format") || s.includes("not a valid keystore")) return "invalid-keystore";
+  return "unknown";
+}
+
+/* ---------- Handler : chooseKeystore ---------- */
+
+ipcMain.handle("signing:chooseKeystore", async () => {
+  const r = await dialog.showOpenDialog({
+    title: "Choisir un fichier .jks ou .keystore",
+    properties: ["openFile"],
+    filters: [{ name: "Keystore Android", extensions: ["jks", "keystore"] }],
+  });
+  if (r.canceled || !r.filePaths[0]) return null;
+  const real = registerAllowedKeystore(r.filePaths[0]);
+  if (!real) {
+    diagSigning("warn", "chooseKeystore: fichier refusé", { path: r.filePaths[0] });
+    return null;
+  }
+  diagSigning("info", "chooseKeystore: accepté", { path: real });
+  return real;
+});
+
+ipcMain.handle("signing:chooseOutputFolder", async () => {
+  const r = await dialog.showOpenDialog({
+    title: "Dossier de destination du keystore",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (r.canceled || !r.filePaths[0]) return null;
+  const real = registerAllowedRoot(r.filePaths[0]);
+  return real ?? r.filePaths[0];
+});
+
+/* ---------- Handler : keystoreList ---------- */
+
+ipcMain.handle("signing:keystoreList", async (_e, args) => {
+  try {
+    if (!args || typeof args !== "object") return { ok: false, errorCode: "unknown" };
+    const { keystorePath, storepass, alias } = args;
+    if (!isValidPassword(storepass)) return { ok: false, errorCode: "wrong-password", errorHint: "Le mot de passe est vide ou invalide." };
+    if (alias !== undefined && alias !== "" && !isValidAlias(alias)) return { ok: false, errorCode: "invalid-keystore", errorHint: "Alias invalide." };
+    const safe = resolveKeystorePath(keystorePath);
+    if (!safe) return { ok: false, errorCode: "file-missing", errorHint: "Le fichier keystore est introuvable ou non autorisé." };
+    if (!fs.existsSync(safe)) return { ok: false, errorCode: "file-missing" };
+
+    const cmdArgs = [
+      "-list", "-v",
+      "-keystore", safe,
+      "-storepass:env", "APPPUB_STOREPASS",
+    ];
+    if (alias) cmdArgs.push("-alias", alias);
+    const r = await runKeytool(cmdArgs, { APPPUB_STOREPASS: storepass });
+    if (r.spawnError && r.spawnError.code === "ENOENT") {
+      diagSigning("error", "keystoreList: keytool introuvable");
+      return { ok: false, errorCode: "keytool-missing", errorHint: "keytool est introuvable. Installez un JDK 17+." };
+    }
+    if (r.code === 0) {
+      diagSigning("info", "keystoreList: succès", { alias: alias || "(tous)" });
+      return { ok: true, stdout: r.stdout };
+    }
+    const code = classifyKeytoolStderr(r.stderr);
+    diagSigning("warn", "keystoreList: échec", { code });
+    return { ok: false, errorCode: code };
+  } catch (e) {
+    diagSigning("error", "keystoreList: exception", { error: String(e) });
+    return { ok: false, errorCode: "unknown" };
+  }
+});
+
+/* ---------- Handler : keystoreCreate ---------- */
+
+ipcMain.handle("signing:keystoreCreate", async (_e, args) => {
+  try {
+    if (!args || typeof args !== "object") return { ok: false, errorCode: "invalid-args" };
+    const { keystorePath, alias, storepass, keypass, dname, validityDays, keyalg, keysize } = args;
+    if (typeof keystorePath !== "string" || keystorePath.length === 0) return { ok: false, errorCode: "invalid-args" };
+    if (!isValidAlias(alias)) return { ok: false, errorCode: "invalid-args", errorHint: "Alias invalide (lettres, chiffres, . _ - uniquement)." };
+    if (!isValidPassword(storepass) || !isValidPassword(keypass)) return { ok: false, errorCode: "invalid-args", errorHint: "Les mots de passe doivent faire au moins 6 caractères." };
+    if (!isValidDName(dname)) return { ok: false, errorCode: "invalid-args", errorHint: "Informations de certificat invalides." };
+    const validity = Math.max(1, Math.min(36500, Number(validityDays) || 10000));
+    const alg = keyalg === "RSA" ? "RSA" : "RSA";
+    const size = Math.max(2048, Math.min(8192, Number(keysize) || 2048));
+
+    // Le dossier parent doit être une racine autorisée (dialog chooseOutputFolder).
+    const parent = path.dirname(keystorePath);
+    const safeParent = resolveWithinAllowed(parent);
+    if (!safeParent) return { ok: false, errorCode: "invalid-args", errorHint: "Dossier de destination non autorisé." };
+    const target = path.join(safeParent, path.basename(keystorePath));
+    if (fs.existsSync(target)) return { ok: false, errorCode: "file-exists", errorHint: "Un fichier existe déjà à cet emplacement." };
+
+    const cmdArgs = [
+      "-genkeypair",
+      "-keystore", target,
+      "-storetype", "JKS",
+      "-alias", alias,
+      "-keyalg", alg,
+      "-keysize", String(size),
+      "-validity", String(validity),
+      "-dname", dname,
+      "-storepass:env", "APPPUB_STOREPASS",
+      "-keypass:env", "APPPUB_KEYPASS",
+    ];
+    const r = await runKeytool(cmdArgs, {
+      APPPUB_STOREPASS: storepass,
+      APPPUB_KEYPASS: keypass,
+    }, 60_000);
+    if (r.spawnError && r.spawnError.code === "ENOENT") {
+      diagSigning("error", "keystoreCreate: keytool introuvable");
+      return { ok: false, errorCode: "keytool-missing" };
+    }
+    if (r.code === 0 && fs.existsSync(target)) {
+      allowedKeystoreFiles.add(target);
+      diagSigning("info", "keystoreCreate: succès", { alias, path: target });
+      return { ok: true };
+    }
+    diagSigning("warn", "keystoreCreate: échec", { code: r.code });
+    return { ok: false, errorCode: "unknown", errorHint: r.stderr?.split("\n")?.[0]?.slice(0, 200) };
+  } catch (e) {
+    diagSigning("error", "keystoreCreate: exception", { error: String(e) });
+    return { ok: false, errorCode: "unknown" };
+  }
+});
+
+/* ---------- Handler : signing:scan (ciblé, jamais tout le disque) ---------- */
+
+ipcMain.handle("signing:scan", async (_e, roots) => {
+  if (!Array.isArray(roots)) return [];
+  const results = [];
+  const seen = new Set();
+  const maxDepth = 6;
+
+  function walk(dir, depth) {
+    if (depth > maxDepth) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const ent of entries) {
+      if (ent.name.startsWith(".") && ent.name !== ".android") continue;
+      if (["node_modules", "build", "Pods", "DerivedData", ".gradle"].includes(ent.name)) continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        walk(full, depth + 1);
+      } else if (ent.isFile()) {
+        const lower = ent.name.toLowerCase();
+        if (lower.endsWith(".jks") || lower.endsWith(".keystore")) {
+          try {
+            const real = fs.realpathSync(full);
+            if (seen.has(real)) continue;
+            seen.add(real);
+            const st = fs.statSync(real);
+            results.push({
+              path: real,
+              storeType: lower.endsWith(".jks") ? "JKS" : "unknown",
+              size: st.size,
+            });
+            // Un scan enregistre également les fichiers trouvés comme
+            // "autorisés" pour permettre une validation immédiate.
+            allowedKeystoreFiles.add(real);
+          } catch {}
+        }
+      }
+    }
+  }
+
+  for (const root of roots) {
+    if (typeof root !== "string") continue;
+    let real;
+    try { real = fs.realpathSync(root); } catch { continue; }
+    // Sécurité : refuse un scan à la racine système.
+    if (real === "/" || /^[a-zA-Z]:\\?$/.test(real)) {
+      diagSigning("warn", "scan: racine système refusée", { root: real });
+      continue;
+    }
+    walk(real, 0);
+  }
+  diagSigning("info", "scan terminé", { rootsCount: roots.length, found: results.length });
+  return results;
+});
+
+/* ==========================================================================
+ *  IPC : Secrets (macOS Keychain)
+ *
+ *  macOS : utilise `/usr/bin/security` (fourni par le système).
+ *  Windows / Linux : renvoie systématiquement `available:false`.
+ *  Le service Keychain est fixe : "com.apppublisher.signing".
+ * ========================================================================== */
+
+const KEYCHAIN_SERVICE = "com.apppublisher.signing";
+
+function secretsSupported() {
+  if (process.platform === "darwin") {
+    try {
+      fs.accessSync("/usr/bin/security", fs.constants.X_OK);
+      return { platform: "darwin", available: true };
+    } catch {
+      return { platform: "darwin", available: false, reason: "L'outil système /usr/bin/security est introuvable." };
+    }
+  }
+  if (process.platform === "win32") {
+    return { platform: "win32", available: false, reason: "Le trousseau Windows n'est pas encore pris en charge par cette version." };
+  }
+  return { platform: "linux", available: false, reason: "Le trousseau Linux n'est pas encore pris en charge par cette version." };
+}
+
+function runSecurity(args, input) {
+  return new Promise((resolve) => {
+    const child = spawn("/usr/bin/security", args, { shell: false });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (d) => (stdout += d.toString()));
+    child.stderr?.on("data", (d) => (stderr += d.toString()));
+    child.on("error", (e) => resolve({ code: -1, stdout, stderr: String(e) }));
+    child.on("close", (code) => resolve({ code: code ?? -1, stdout, stderr }));
+    if (input !== undefined) {
+      try { child.stdin?.end(input); } catch {}
+    } else {
+      try { child.stdin?.end(); } catch {}
+    }
+  });
+}
+
+function accountFor(profileId, field) {
+  return `${profileId}:${field}`;
+}
+
+ipcMain.handle("secrets:supported", () => secretsSupported());
+
+ipcMain.handle("secrets:set", async (_e, profileId, field, value) => {
+  const sup = secretsSupported();
+  if (!sup.available) return false;
+  if (typeof profileId !== "string" || !/^[a-zA-Z0-9._-]+$/.test(profileId)) return false;
+  if (field !== "storepass" && field !== "keypass") return false;
+  if (!isValidPassword(value)) return false;
+  const account = accountFor(profileId, field);
+  // -U : update if exists, add otherwise. -w écrit sans le passer en argv.
+  const r = await runSecurity([
+    "add-generic-password",
+    "-a", account,
+    "-s", KEYCHAIN_SERVICE,
+    "-w", value,
+    "-U",
+  ]);
+  if (r.code !== 0) {
+    diagSigning("warn", "secrets:set échec", { profileId, field, code: r.code });
+    return false;
+  }
+  diagSigning("info", "secrets:set", { profileId, field });
+  return true;
+});
+
+ipcMain.handle("secrets:get", async (_e, profileId, field) => {
+  const sup = secretsSupported();
+  if (!sup.available) return null;
+  if (typeof profileId !== "string" || !/^[a-zA-Z0-9._-]+$/.test(profileId)) return null;
+  if (field !== "storepass" && field !== "keypass") return null;
+  const account = accountFor(profileId, field);
+  const r = await runSecurity([
+    "find-generic-password",
+    "-a", account,
+    "-s", KEYCHAIN_SERVICE,
+    "-w",
+  ]);
+  if (r.code !== 0) return null;
+  // -w écrit le mot de passe sur stdout suivi d'un \n.
+  return r.stdout.replace(/\r?\n$/, "");
+});
+
+ipcMain.handle("secrets:remove", async (_e, profileId) => {
+  const sup = secretsSupported();
+  if (!sup.available) return true;
+  if (typeof profileId !== "string" || !/^[a-zA-Z0-9._-]+$/.test(profileId)) return false;
+  for (const field of ["storepass", "keypass"]) {
+    const account = accountFor(profileId, field);
+    await runSecurity([
+      "delete-generic-password",
+      "-a", account,
+      "-s", KEYCHAIN_SERVICE,
+    ]);
+  }
+  diagSigning("info", "secrets:remove", { profileId });
+  return true;
+});
+

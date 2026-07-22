@@ -28,6 +28,7 @@ export type TrackedFieldKey =
   | "android.applicationId"
   | "android.keystorePath"
   | "android.keystoreAlias"
+  | "android.signingProfileId"
   | "android.defaultTrack"
   | "android.primaryLanguage"
   | "ios.bundleId"

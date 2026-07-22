@@ -10,6 +10,7 @@ import {
   Rocket,
   LifeBuoy,
   Terminal,
+  KeyRound,
 } from "lucide-react";
 
 import {
@@ -42,6 +43,7 @@ const publication = [
 
 const utils = [
   { title: "Santé du projet", url: "/diagnostic", icon: HeartPulse },
+  { title: "Signatures Android", url: "/signing", icon: KeyRound },
   { title: "Journal", url: "/history", icon: History },
   { title: "Paramètres", url: "/settings", icon: SettingsIcon },
 ];
