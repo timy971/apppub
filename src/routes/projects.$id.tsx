@@ -688,11 +688,22 @@ function AndroidSection({
             )
           }
         />
+        <SigningProfileField
+          project={project}
+          value={cfg.signingProfileId}
+          onChange={(id) =>
+            save({ signingProfileId: id }, ["android.signingProfileId"])
+          }
+        />
         <div data-cockpit-field="android.keystorePath">
           <div className="flex items-center gap-2">
-            <Label>Clé de signature (keystore)</Label>
+            <Label>Clé de signature — chemin manuel (avancé)</Label>
             <SourceBadge source={sourceOf(project, "android.keystorePath")} />
           </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Utilisé uniquement si aucun profil de signature n'est associé ci-dessus. Préférez la
+            gestion via <b>Signatures Android</b> pour bénéficier du trousseau système.
+          </p>
           <div className="mt-1.5 flex gap-2">
             <Input
               value={cfg.keystorePath ?? ""}
@@ -710,6 +721,7 @@ function AndroidSection({
             </Button>
           </div>
         </div>
+
         <InlineText
           fieldKey="android.keystoreAlias"
           source={sourceOf(project, "android.keystoreAlias")}
