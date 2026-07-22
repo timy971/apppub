@@ -125,7 +125,6 @@ function SigningPage() {
       <PageHeader
         title="Signatures Android"
         subtitle="Vos clés de signature au même endroit. Mots de passe protégés par le trousseau système."
-        icon={KeyRound}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} disabled={!isElectron()}>
@@ -137,6 +136,7 @@ function SigningPage() {
           </div>
         }
       />
+
 
       {!isElectron() && (
         <Card className="border-dashed p-4 text-sm text-muted-foreground">
