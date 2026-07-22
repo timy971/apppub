@@ -16,6 +16,14 @@ export interface AndroidPublishingConfig {
   applicationId?: string;
   keystorePath?: string;
   keystoreAlias?: string;
+  /**
+   * Phase Signing — identifiant du `SigningProfile` (voir
+   * `src/features/android-signing`). Lorsqu'il est renseigné, le preflight
+   * délègue la validation (existence, mot de passe, alias, certificat) au
+   * `SigningValidator` plutôt qu'aux champs bruts `keystorePath` /
+   * `keystoreAlias`, qui restent lus en fallback pour les projets legacy.
+   */
+  signingProfileId?: string;
   defaultTrack?: "internal" | "alpha" | "beta" | "production";
   primaryLanguage?: string;
 }
