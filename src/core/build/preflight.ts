@@ -2,6 +2,8 @@ import type { Project } from "@/core/types";
 import { bridge } from "@/core/bridge";
 import { getAndroidConfig } from "@/core/projects/android-config";
 import { resolveGradle } from "./gradle";
+import { ProfilesStore } from "@/features/android-signing/storage/profiles-store";
+import { SigningValidator } from "@/features/android-signing/services/signing-validator";
 
 /**
  * Préflight de build Android — vérifie tout ce qui peut être détecté
@@ -227,64 +229,92 @@ export const PreflightService = {
         : { label: "Définir une version", kind: "open-cockpit", payload: { tab: "configuration", field: "currentVersion" } },
     });
 
-    // ---------- Keystore ----------
-    const keystorePath = android.keystorePath;
-    if (!keystorePath) {
+    // ---------- Keystore / Signature ----------
+    const profileId = android.signingProfileId;
+    const linkedProfile = profileId ? ProfilesStore.get(profileId) : undefined;
+
+    if (linkedProfile) {
+      // Nouveau chemin : profil de signature lié → validation complète
+      // (fichier + mot de passe trousseau + alias + certificat).
+      const val = await SigningValidator.validate(linkedProfile.id);
       checks.push({
-        id: "keystore-configured",
+        id: "signing-profile",
         category: "keystore",
-        status: "error",
-        title: "Clé de signature",
-        message: "Aucune clé de signature n'est configurée pour ce projet.",
-        fix: { label: "Configurer la clé", kind: "open-cockpit", payload: { tab: "publishing", field: "android.keystorePath" } },
+        status: val.ok ? "success" : "error",
+        title: `Signature : ${linkedProfile.name}`,
+        message: val.ok
+          ? `Signature validée (alias « ${linkedProfile.alias} »).`
+          : val.message,
+        technical: [
+          linkedProfile.keystorePath,
+          val.certificate?.sha256 ? `SHA-256 : ${val.certificate.sha256}` : undefined,
+          val.certificate?.validUntil ? `Expire le ${val.certificate.validUntil.slice(0, 10)}` : undefined,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        fix: val.ok
+          ? undefined
+          : { label: "Ouvrir les signatures", kind: "open-cockpit", payload: { tab: "publishing", field: "android.signingProfileId" } },
       });
     } else {
-      const keystoreExists = await b.fs.exists(keystorePath);
-      let candidate: string | undefined;
-      if (!keystoreExists) {
-        const wanted = basename(keystorePath);
-        const candidates = await searchKeystoreCandidates(projectPath);
-        candidate =
-          candidates.find((p) => basename(p) === wanted) ??
-          candidates[0];
-      }
-      checks.push({
-        id: "keystore-exists",
-        category: "keystore",
-        status: keystoreExists ? "success" : "error",
-        title: "Fichier de la clé de signature",
-        message: keystoreExists
-          ? "La clé de signature est présente à l'emplacement configuré."
-          : candidate
-            ? `La clé configurée est introuvable, mais un fichier similaire a été trouvé dans le projet.`
-            : "La clé configurée est introuvable dans le projet.",
-        technical: keystoreExists
-          ? keystorePath
-          : `Configuré : ${keystorePath}${candidate ? `\nCandidat : ${candidate}` : ""}`,
-        fix: keystoreExists
-          ? undefined
-          : candidate
-            ? {
-                label: "Utiliser le fichier trouvé",
-                kind: "adopt-keystore",
-                confirm: true,
-                payload: { path: candidate },
-              }
-            : { label: "Choisir un autre fichier", kind: "open-cockpit", payload: { tab: "publishing", field: "android.keystorePath" } },
-      });
+      const keystorePath = android.keystorePath;
+      if (!keystorePath) {
+        checks.push({
+          id: "keystore-configured",
+          category: "keystore",
+          status: "error",
+          title: "Clé de signature",
+          message: "Aucune clé de signature n'est associée à ce projet.",
+          fix: { label: "Configurer la signature", kind: "open-cockpit", payload: { tab: "publishing", field: "android.signingProfileId" } },
+        });
+      } else {
+        const keystoreExists = await b.fs.exists(keystorePath);
+        let candidate: string | undefined;
+        if (!keystoreExists) {
+          const wanted = basename(keystorePath);
+          const candidates = await searchKeystoreCandidates(projectPath);
+          candidate =
+            candidates.find((p) => basename(p) === wanted) ??
+            candidates[0];
+        }
+        checks.push({
+          id: "keystore-exists",
+          category: "keystore",
+          status: keystoreExists ? "success" : "error",
+          title: "Fichier de la clé de signature",
+          message: keystoreExists
+            ? "La clé de signature est présente à l'emplacement configuré."
+            : candidate
+              ? `La clé configurée est introuvable, mais un fichier similaire a été trouvé dans le projet.`
+              : "La clé configurée est introuvable dans le projet.",
+          technical: keystoreExists
+            ? keystorePath
+            : `Configuré : ${keystorePath}${candidate ? `\nCandidat : ${candidate}` : ""}`,
+          fix: keystoreExists
+            ? undefined
+            : candidate
+              ? {
+                  label: "Utiliser le fichier trouvé",
+                  kind: "adopt-keystore",
+                  confirm: true,
+                  payload: { path: candidate },
+                }
+              : { label: "Choisir un autre fichier", kind: "open-cockpit", payload: { tab: "publishing", field: "android.keystorePath" } },
+        });
 
-      checks.push({
-        id: "keystore-alias",
-        category: "keystore",
-        status: android.keystoreAlias ? "success" : "warning",
-        title: "Alias de signature",
-        message: android.keystoreAlias
-          ? `Alias : ${android.keystoreAlias}`
-          : "Aucun alias renseigné. Gradle demandera l'alias au moment de signer.",
-        fix: android.keystoreAlias
-          ? undefined
-          : { label: "Renseigner l'alias", kind: "open-cockpit", payload: { tab: "publishing", field: "android.keystoreAlias" } },
-      });
+        checks.push({
+          id: "keystore-alias",
+          category: "keystore",
+          status: android.keystoreAlias ? "success" : "warning",
+          title: "Alias de signature",
+          message: android.keystoreAlias
+            ? `Alias : ${android.keystoreAlias}`
+            : "Aucun alias renseigné. Gradle demandera l'alias au moment de signer.",
+          fix: android.keystoreAlias
+            ? undefined
+            : { label: "Renseigner l'alias", kind: "open-cockpit", payload: { tab: "publishing", field: "android.keystoreAlias" } },
+        });
+      }
     }
 
     // ---------- Environnement ----------
