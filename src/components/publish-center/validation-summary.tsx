@@ -94,12 +94,13 @@ export function ValidationSummaryCard({ project, score, categories }: Props) {
               <Link
                 to="/projects/$id"
                 params={{ id: project.id }}
-                search={{ tab: "overview" }}
+                search={targetField ? { tab: targetTab, field: targetField } : { tab: targetTab }}
               >
-                Ouvrir le cockpit projet
+                {firstActionable ? firstActionable.label : "Ouvrir le cockpit projet"}
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </Button>
+
             {score.level !== "blocked" && (
               <Button asChild size="sm" variant="ghost">
                 <Link to="/build">Voir le dernier build</Link>
