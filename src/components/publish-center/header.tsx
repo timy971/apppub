@@ -1,9 +1,10 @@
-import { Rocket, Loader2 } from "lucide-react";
+import { Rocket, Loader2, Wrench } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import type { Project, PublishRecord } from "@/core/types";
-import type { ProjectStatus } from "@/core/projects/status";
+import type { ProjectStatus, CockpitTab } from "@/core/projects/status";
 import type { PreparationScore } from "./shared";
 import { formatRelative } from "./shared";
 
@@ -14,7 +15,10 @@ interface Props {
   lastPublish?: PublishRecord;
   onPrepare: () => void;
   preparing: boolean;
+  /** Première action bloquante à corriger (calculée par le parent). */
+  firstBlocker?: { tab: CockpitTab; field?: string };
 }
+
 
 export function PublishHeader({
   project,
