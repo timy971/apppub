@@ -19,6 +19,14 @@ export function ValidationSummaryCard({ project, score, categories }: Props) {
     .flatMap((c) => c.entries)
     .filter((e) => e.severity === "warn");
 
+  // Cible du bouton principal : premier point bloquant (ou avertissement),
+  // sinon la vue d'ensemble du projet. Évite d'atterrir sur "overview"
+  // quand l'utilisateur vient de voir un blocage précis.
+  const firstActionable = (errors[0] ?? warnings[0])?.action;
+  const targetTab = firstActionable?.tab ?? "overview";
+  const targetField = firstActionable?.field;
+
+
   const tone =
     score.level === "ready"
       ? {
