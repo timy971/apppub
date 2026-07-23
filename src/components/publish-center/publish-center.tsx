@@ -145,7 +145,7 @@ export function PublishCenter({ project }: { project: Project }) {
   return (
     <div className="space-y-4">
       <PublishExplainer />
-      <PublishCopilotStrip plan={copilotPlan} />
+      <PublishCopilotStrip plan={copilotPlan} project={project} />
       <PublishHeader
         project={project}
         status={status}
