@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   FolderPlus,
@@ -444,6 +444,7 @@ function ProjectCard({
   onDelete: () => void;
 }) {
   const status = useMemo(() => ProjectStatusService.evaluate(project), [project]);
+  const navigate = useNavigate();
 
   function toggleFavorite(e: React.MouseEvent) {
     e.stopPropagation();
@@ -453,6 +454,14 @@ function ProjectCard({
   async function openInFinder(e: React.MouseEvent) {
     e.stopPropagation();
     await bridge().shell.openFolder(project.localPath);
+  }
+  function openIdentity(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigate({
+      to: "/projects/$id",
+      params: { id: project.id },
+      search: { tab: "identity" },
+    });
   }
 
   return (
@@ -508,15 +517,9 @@ function ProjectCard({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link
-                  to="/projects/$id"
-                  params={{ id: project.id }}
-                  search={{ tab: "identity" }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"
-                >
+                <Button variant="ghost" size="icon" onClick={openIdentity}>
                   <Pencil className="h-4 w-4 text-muted-foreground" />
-                </Link>
+                </Button>
               </TooltipTrigger>
               <TooltipContent>Modifier le projet</TooltipContent>
             </Tooltip>
@@ -529,7 +532,17 @@ function ProjectCard({
               </TooltipTrigger>
               <TooltipContent>Retirer</TooltipContent>
             </Tooltip>
-            <ChevronRight className="h-4 w-4 text-muted-foreground ml-1" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpen();
+              }}
+              aria-label="Ouvrir le projet"
+            >
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </Button>
           </div>
         </TooltipProvider>
       </div>

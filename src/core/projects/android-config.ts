@@ -13,6 +13,7 @@ export function getAndroidConfig(project: Project): AndroidPublishingConfig {
     keystoreAlias: inner.keystoreAlias,
     defaultTrack: inner.defaultTrack,
     primaryLanguage: inner.primaryLanguage,
+    signingProfileId: inner.signingProfileId,
   };
 }
 
