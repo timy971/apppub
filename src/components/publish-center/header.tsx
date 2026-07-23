@@ -1,9 +1,10 @@
-import { Rocket, Loader2 } from "lucide-react";
+import { Rocket, Loader2, Wrench } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import type { Project, PublishRecord } from "@/core/types";
-import type { ProjectStatus } from "@/core/projects/status";
+import type { ProjectStatus, CockpitTab } from "@/core/projects/status";
 import type { PreparationScore } from "./shared";
 import { formatRelative } from "./shared";
 
@@ -14,7 +15,10 @@ interface Props {
   lastPublish?: PublishRecord;
   onPrepare: () => void;
   preparing: boolean;
+  /** Première action bloquante à corriger (calculée par le parent). */
+  firstBlocker?: { tab: CockpitTab; field?: string };
 }
+
 
 export function PublishHeader({
   project,
@@ -23,7 +27,9 @@ export function PublishHeader({
   lastPublish,
   onPrepare,
   preparing,
+  firstBlocker,
 }: Props) {
+  const navigate = useNavigate();
   const ringColor =
     score.level === "ready"
       ? "text-success"
@@ -31,8 +37,26 @@ export function PublishHeader({
         ? "text-warning"
         : "text-danger";
 
-  const buttonLabel =
-    score.level === "blocked" ? "Corriger les points bloquants" : "Préparer la release";
+  const blocked = score.level === "blocked";
+  const buttonLabel = blocked ? "Corriger les points bloquants" : "Préparer la release";
+
+  const handleClick = () => {
+    if (blocked) {
+      // Amène l'utilisateur au premier blocage réel plutôt que d'être un
+      // bouton mort. Si aucun blocage n'est identifié, on ouvre le cockpit.
+      void navigate({
+        to: "/projects/$id",
+        params: { id: project.id },
+        search: firstBlocker
+          ? firstBlocker.field
+            ? { tab: firstBlocker.tab, field: firstBlocker.field }
+            : { tab: firstBlocker.tab }
+          : { tab: "overview" },
+      });
+      return;
+    }
+    onPrepare();
+  };
 
   return (
     <Card className="relative overflow-hidden p-6 shadow-soft">
@@ -75,11 +99,14 @@ export function PublishHeader({
           <ScoreRing score={score.score} colorClass={ringColor} label={score.label} />
           <Button
             size="lg"
-            onClick={onPrepare}
-            disabled={preparing || score.level === "blocked"}
+            variant={blocked ? "outline" : "default"}
+            onClick={handleClick}
+            disabled={preparing}
           >
             {preparing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
+            ) : blocked ? (
+              <Wrench className="h-4 w-4" />
             ) : (
               <Rocket className="h-4 w-4" />
             )}
@@ -88,6 +115,7 @@ export function PublishHeader({
         </div>
       </div>
     </Card>
+
   );
 }
 

@@ -19,6 +19,14 @@ export function ValidationSummaryCard({ project, score, categories }: Props) {
     .flatMap((c) => c.entries)
     .filter((e) => e.severity === "warn");
 
+  // Cible du bouton principal : premier point bloquant (ou avertissement),
+  // sinon la vue d'ensemble du projet. Évite d'atterrir sur "overview"
+  // quand l'utilisateur vient de voir un blocage précis.
+  const firstActionable = (errors[0] ?? warnings[0])?.action;
+  const targetTab = firstActionable?.tab ?? "overview";
+  const targetField = firstActionable?.field;
+
+
   const tone =
     score.level === "ready"
       ? {
@@ -86,12 +94,13 @@ export function ValidationSummaryCard({ project, score, categories }: Props) {
               <Link
                 to="/projects/$id"
                 params={{ id: project.id }}
-                search={{ tab: "overview" }}
+                search={targetField ? { tab: targetTab, field: targetField } : { tab: targetTab }}
               >
-                Ouvrir le cockpit projet
+                {firstActionable ? firstActionable.label : "Ouvrir le cockpit projet"}
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </Button>
+
             {score.level !== "blocked" && (
               <Button asChild size="sm" variant="ghost">
                 <Link to="/build">Voir le dernier build</Link>
