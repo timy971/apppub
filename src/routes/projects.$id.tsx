@@ -653,7 +653,7 @@ function AndroidSection({
     update(merged, touched);
   }
   async function chooseKeystore() {
-    const chosen = await bridge().projects.chooseFolder();
+    const chosen = await bridge().signing.chooseKeystore();
     if (chosen) save({ keystorePath: chosen }, ["android.keystorePath"]);
   }
   return (
