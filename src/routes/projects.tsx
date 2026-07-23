@@ -444,6 +444,7 @@ function ProjectCard({
   onDelete: () => void;
 }) {
   const status = useMemo(() => ProjectStatusService.evaluate(project), [project]);
+  const navigate = useNavigate();
 
   function toggleFavorite(e: React.MouseEvent) {
     e.stopPropagation();
@@ -453,6 +454,14 @@ function ProjectCard({
   async function openInFinder(e: React.MouseEvent) {
     e.stopPropagation();
     await bridge().shell.openFolder(project.localPath);
+  }
+  function openIdentity(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigate({
+      to: "/projects/$id",
+      params: { id: project.id },
+      search: { tab: "identity" },
+    });
   }
 
   return (
