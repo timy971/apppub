@@ -27,7 +27,9 @@ export function PublishHeader({
   lastPublish,
   onPrepare,
   preparing,
+  firstBlocker,
 }: Props) {
+  const navigate = useNavigate();
   const ringColor =
     score.level === "ready"
       ? "text-success"
@@ -35,8 +37,26 @@ export function PublishHeader({
         ? "text-warning"
         : "text-danger";
 
-  const buttonLabel =
-    score.level === "blocked" ? "Corriger les points bloquants" : "Préparer la release";
+  const blocked = score.level === "blocked";
+  const buttonLabel = blocked ? "Corriger les points bloquants" : "Préparer la release";
+
+  const handleClick = () => {
+    if (blocked) {
+      // Amène l'utilisateur au premier blocage réel plutôt que d'être un
+      // bouton mort. Si aucun blocage n'est identifié, on ouvre le cockpit.
+      void navigate({
+        to: "/projects/$id",
+        params: { id: project.id },
+        search: firstBlocker
+          ? firstBlocker.field
+            ? { tab: firstBlocker.tab, field: firstBlocker.field }
+            : { tab: firstBlocker.tab }
+          : { tab: "overview" },
+      });
+      return;
+    }
+    onPrepare();
+  };
 
   return (
     <Card className="relative overflow-hidden p-6 shadow-soft">
@@ -79,11 +99,14 @@ export function PublishHeader({
           <ScoreRing score={score.score} colorClass={ringColor} label={score.label} />
           <Button
             size="lg"
-            onClick={onPrepare}
-            disabled={preparing || score.level === "blocked"}
+            variant={blocked ? "outline" : "default"}
+            onClick={handleClick}
+            disabled={preparing}
           >
             {preparing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
+            ) : blocked ? (
+              <Wrench className="h-4 w-4" />
             ) : (
               <Rocket className="h-4 w-4" />
             )}
@@ -92,6 +115,7 @@ export function PublishHeader({
         </div>
       </div>
     </Card>
+
   );
 }
 
