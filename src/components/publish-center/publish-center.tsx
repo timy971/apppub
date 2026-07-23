@@ -153,6 +153,12 @@ export function PublishCenter({ project }: { project: Project }) {
         lastPublish={lastPublish}
         onPrepare={prepare}
         preparing={preparing}
+        firstBlocker={(() => {
+          const first = categories
+            .flatMap((c) => c.entries)
+            .find((e) => e.severity === "error")?.action;
+          return first ? { tab: first.tab, field: first.field } : undefined;
+        })()}
       />
 
       <ReleaseOverviewCard project={project} />
