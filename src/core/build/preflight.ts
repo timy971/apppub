@@ -150,8 +150,11 @@ export const PreflightService = {
       title: "Dossier Android",
       message: hasAndroidDir
         ? "Dossier android/ détecté."
-        : "Ce projet ne contient pas de dossier android/. Lancez `npx cap add android`.",
+        : "Ce projet ne contient pas encore de dossier android/. AppPublisher peut le créer pour vous.",
       technical: androidDir,
+      fix: hasAndroidDir
+        ? undefined
+        : { label: "Créer le projet Android", kind: "create-android", confirm: false },
     });
 
     // ---------- Gradle wrapper ----------
