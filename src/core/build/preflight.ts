@@ -27,7 +27,7 @@ export type BuildFixKind =
   | "adopt-keystore"
   | "open-cockpit"
   | "open-diagnostic"
-  | "open-android-folder";
+  | "create-android";
 
 export interface BuildFix {
   label: string;
