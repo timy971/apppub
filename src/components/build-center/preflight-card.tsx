@@ -104,9 +104,9 @@ export function PreflightCard({ project, onReady }: Props) {
             void navigate({ to: "/diagnostic" });
             return;
           }
-          case "open-android-folder": {
-            // Non exposé côté UI aujourd'hui.
-            break;
+          case "create-android": {
+            setCreateAndroidOpen(true);
+            return;
           }
         }
         await refresh();
