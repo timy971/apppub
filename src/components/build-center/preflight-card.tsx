@@ -31,6 +31,7 @@ export function PreflightCard({ project, onReady }: Props) {
   const [state, setState] = useState<BuildPreflight | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyCheckId, setBusyCheckId] = useState<string | null>(null);
+  const [createAndroidOpen, setCreateAndroidOpen] = useState(false);
   const navigate = useNavigate();
 
   const refresh = useCallback(async () => {
