@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CheckItem } from "./check-item";
+import { AndroidCreateDialog } from "./android-create-dialog";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -30,6 +31,7 @@ export function PreflightCard({ project, onReady }: Props) {
   const [state, setState] = useState<BuildPreflight | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyCheckId, setBusyCheckId] = useState<string | null>(null);
+  const [createAndroidOpen, setCreateAndroidOpen] = useState(false);
   const navigate = useNavigate();
 
   const refresh = useCallback(async () => {
@@ -102,9 +104,9 @@ export function PreflightCard({ project, onReady }: Props) {
             void navigate({ to: "/diagnostic" });
             return;
           }
-          case "open-android-folder": {
-            // Non exposé côté UI aujourd'hui.
-            break;
+          case "create-android": {
+            setCreateAndroidOpen(true);
+            return;
           }
         }
         await refresh();
@@ -122,60 +124,72 @@ export function PreflightCard({ project, onReady }: Props) {
       : "border-success/30";
 
   return (
-    <Card className={cn("p-5 shadow-soft", tone)}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5">
-            {loading ? (
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            ) : state?.hasBlockers ? (
-              <AlertTriangle className="h-5 w-5 text-danger" />
-            ) : state?.checks.some((c) => c.status === "warning") ? (
-              <ShieldCheck className="h-5 w-5 text-warning" />
-            ) : (
-              <CheckCircle2 className="h-5 w-5 text-success" />
-            )}
+    <>
+      <Card className={cn("p-5 shadow-soft", tone)}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5">
+              {loading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              ) : state?.hasBlockers ? (
+                <AlertTriangle className="h-5 w-5 text-danger" />
+              ) : state?.checks.some((c) => c.status === "warning") ? (
+                <ShieldCheck className="h-5 w-5 text-warning" />
+              ) : (
+                <CheckCircle2 className="h-5 w-5 text-success" />
+              )}
+            </div>
+            <div>
+              <div className="text-base font-semibold">Préparation du build</div>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {loading
+                  ? "AppPublisher vérifie votre environnement…"
+                  : state?.hasBlockers
+                    ? "Un ou plusieurs points bloquent le build. Corrigez-les avant de lancer."
+                    : state?.checks.some((c) => c.status === "warning")
+                      ? "Le build peut démarrer, mais des points méritent attention."
+                      : "Tout est prêt. Vous pouvez lancer le build en toute confiance."}
+              </p>
+            </div>
           </div>
-          <div>
-            <div className="text-base font-semibold">Préparation du build</div>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {loading
-                ? "AppPublisher vérifie votre environnement…"
-                : state?.hasBlockers
-                  ? "Un ou plusieurs points bloquent le build. Corrigez-les avant de lancer."
-                  : state?.checks.some((c) => c.status === "warning")
-                    ? "Le build peut démarrer, mais des points méritent attention."
-                    : "Tout est prêt. Vous pouvez lancer le build en toute confiance."}
-            </p>
-          </div>
+          <Button variant="ghost" size="sm" onClick={() => void refresh()} disabled={loading}>
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            Revérifier
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => void refresh()} disabled={loading}>
-          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          Revérifier
-        </Button>
-      </div>
 
-      {state && (
-        <div className="mt-4 space-y-4">
-          {grouped.map(([cat, items]) => (
-            <section key={cat}>
-              <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {CATEGORY_LABEL[cat] ?? cat}
-              </div>
-              <div className="space-y-1.5">
-                {items.map((c) => (
-                  <CheckItem
-                    key={c.id}
-                    check={c}
-                    running={busyCheckId === c.id}
-                    onFix={applyFix}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      )}
-    </Card>
+        {state && (
+          <div className="mt-4 space-y-4">
+            {grouped.map(([cat, items]) => (
+              <section key={cat}>
+                <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {CATEGORY_LABEL[cat] ?? cat}
+                </div>
+                <div className="space-y-1.5">
+                  {items.map((c) => (
+                    <CheckItem
+                      key={c.id}
+                      check={c}
+                      running={busyCheckId === c.id}
+                      onFix={applyFix}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <AndroidCreateDialog
+        project={project}
+        open={createAndroidOpen}
+        onOpenChange={setCreateAndroidOpen}
+        onSuccess={() => {
+          void refresh();
+          toast.success("Projet Android prêt.");
+        }}
+      />
+    </>
   );
 }
