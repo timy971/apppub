@@ -73,8 +73,16 @@ export function AppSidebar() {
             A
           </div>
           {!collapsed && (
-            <div className="leading-tight">
-              <div className="text-sm font-semibold">AppPublisher</div>
+            <div className="flex-1 leading-tight">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold">AppPublisher</div>
+                <kbd
+                  className="pointer-events-none hidden select-none rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-block"
+                  title="Ouvrir la palette de commandes"
+                >
+                  ⌘K
+                </kbd>
+              </div>
               <div className="text-[11px] text-muted-foreground">Assistant de publication</div>
             </div>
           )}
