@@ -50,6 +50,7 @@ export default defineConfig({
     __APP_DESCRIPTION__: JSON.stringify(
       appConfig.description ?? "Assistant de publication d'applications multiplateformes.",
     ),
+    __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
   },
   build: {
     outDir: "dist",
