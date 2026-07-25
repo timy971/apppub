@@ -149,6 +149,7 @@ function RootComponent() {
         <SetupAssistantProvider>
           <AppShell />
         </SetupAssistantProvider>
+        <CommandPalette />
         <Toaster position="bottom-right" />
       </ThemeProvider>
     </QueryClientProvider>
