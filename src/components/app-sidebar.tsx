@@ -27,7 +27,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ProjectSwitcher } from "./project-switcher";
-import { AppInfo } from "@/core/app-info";
+import { AppInfo, formatBuildTimestamp } from "@/core/app-info";
 import { useIsExpert } from "@/core/store/use-mode";
 
 const primary = [
@@ -73,8 +73,16 @@ export function AppSidebar() {
             A
           </div>
           {!collapsed && (
-            <div className="leading-tight">
-              <div className="text-sm font-semibold">AppPublisher</div>
+            <div className="flex-1 leading-tight">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold">AppPublisher</div>
+                <kbd
+                  className="pointer-events-none hidden select-none rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-block"
+                  title="Ouvrir la palette de commandes"
+                >
+                  ⌘K
+                </kbd>
+              </div>
               <div className="text-[11px] text-muted-foreground">Assistant de publication</div>
             </div>
           )}
@@ -95,6 +103,11 @@ export function AppSidebar() {
             {AppInfo.name} v{AppInfo.version}
           </div>
           <div>par {AppInfo.author}</div>
+          {formatBuildTimestamp() && (
+            <div className="mt-1 text-[10px] text-muted-foreground/70">
+              {formatBuildTimestamp()}
+            </div>
+          )}
         </SidebarFooter>
       )}
     </Sidebar>
