@@ -103,6 +103,11 @@ export function AppSidebar() {
             {AppInfo.name} v{AppInfo.version}
           </div>
           <div>par {AppInfo.author}</div>
+          {formatBuildTimestamp() && (
+            <div className="mt-1 text-[10px] text-muted-foreground/70">
+              {formatBuildTimestamp()}
+            </div>
+          )}
         </SidebarFooter>
       )}
     </Sidebar>
