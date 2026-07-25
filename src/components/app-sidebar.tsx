@@ -27,7 +27,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ProjectSwitcher } from "./project-switcher";
-import { AppInfo } from "@/core/app-info";
+import { AppInfo, formatBuildTimestamp } from "@/core/app-info";
 import { useIsExpert } from "@/core/store/use-mode";
 
 const primary = [
