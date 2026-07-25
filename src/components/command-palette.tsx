@@ -117,11 +117,11 @@ export function CommandPalette() {
               {projects.map((p) => (
                 <CommandItem
                   key={p.id}
-                  value={`Projet ${p.displayName ?? p.technicalName ?? p.id}`}
+                  value={`Projet ${p.name}`}
                   onSelect={() => go(`/projects/${p.id}`)}
                 >
                   <FolderOpen className="mr-2 h-4 w-4" />
-                  <span>Ouvrir {p.displayName ?? p.technicalName ?? p.id}</span>
+                  <span>Ouvrir {p.name}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
