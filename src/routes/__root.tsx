@@ -18,6 +18,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ModeBadge } from "@/components/mode-badge";
 import { Toaster } from "@/components/ui/sonner";
 import { SetupAssistantProvider } from "@/components/setup-assistant/setup-context";
+import { CommandPalette } from "@/components/command-palette";
 
 function NotFoundComponent() {
   return (
