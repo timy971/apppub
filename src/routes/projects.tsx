@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   FolderPlus,
@@ -460,7 +460,7 @@ function ProjectCard({
     navigate({
       to: "/projects/$id",
       params: { id: project.id },
-      search: { tab: "identity" },
+      search: { tab: "identity", field: "name" },
     });
   }
 
@@ -535,13 +535,16 @@ function ProjectCard({
             <Button
               variant="ghost"
               size="icon"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpen();
-              }}
+              asChild
               aria-label="Ouvrir le projet"
+              onClick={(e) => e.stopPropagation()}
             >
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <Link
+                to="/projects/$id"
+                params={{ id: project.id }}
+              >
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </Link>
             </Button>
           </div>
         </TooltipProvider>

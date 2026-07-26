@@ -1125,51 +1125,63 @@ function SigningProfileField({
   const linked = value ? profiles.find((p) => p.id === value) : undefined;
   return (
     <div data-cockpit-field="android.signingProfileId" className="rounded-lg border bg-muted/30 p-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         <div>
           <Label>Signature associée à ce projet</Label>
           <p className="mt-1 text-xs text-muted-foreground">
             Recommandé — le mot de passe est protégé par le trousseau système.
           </p>
         </div>
-        <Link to="/signing" className="text-xs text-primary underline underline-offset-2">
-          Gérer les signatures
-        </Link>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/signing">
+            <Package className="h-4 w-4" />
+            Gérer les signatures
+          </Link>
+        </Button>
       </div>
-      <div className="mt-2">
-        <Select
-          value={value ?? "__none__"}
-          onValueChange={(v) => onChange(v === "__none__" ? undefined : v)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Aucune signature associée" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">Aucune (configuration manuelle ci-dessous)</SelectItem>
-            {profiles.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name} · alias {p.alias}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {linked && (
-        <div className="mt-2 text-xs text-muted-foreground">
-          <span className="font-mono">{linked.keystorePath}</span>
-          {linked.certificate?.validUntil && (
-            <> · expire le {linked.certificate.validUntil.slice(0, 10)}</>
+      {profiles.length === 0 ? (
+        <div className="mt-3 rounded-md border border-dashed bg-background p-3">
+          <p className="text-sm">
+            Aucune signature n'est encore enregistrée dans AppPublisher.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Créez ou importez un keystore une seule fois : il sera ensuite
+            réutilisable pour tous vos projets Android.
+          </p>
+          <Button size="sm" className="mt-3" asChild>
+            <Link to="/signing">
+              <Package className="h-4 w-4" />
+              Créer ou importer une signature
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-2">
+          <Select
+            value={value ?? "__none__"}
+            onValueChange={(v) => onChange(v === "__none__" ? undefined : v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Aucune signature associée" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Aucune (configuration manuelle ci-dessous)</SelectItem>
+              {profiles.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name} · alias {p.alias}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {linked && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              <span className="font-mono">{linked.keystorePath}</span>
+              {linked.certificate?.validUntil && (
+                <> · expire le {linked.certificate.validUntil.slice(0, 10)}</>
+              )}
+            </div>
           )}
         </div>
-      )}
-      {profiles.length === 0 && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Aucune signature enregistrée pour l'instant.{" "}
-          <Link to="/signing" className="text-primary underline underline-offset-2">
-            En créer ou en importer une
-          </Link>
-          .
-        </p>
       )}
     </div>
   );
