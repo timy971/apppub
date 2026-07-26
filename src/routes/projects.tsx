@@ -460,7 +460,7 @@ function ProjectCard({
     navigate({
       to: "/projects/$id",
       params: { id: project.id },
-      search: { tab: "identity" },
+      search: { tab: "identity", field: "name" },
     });
   }
 
