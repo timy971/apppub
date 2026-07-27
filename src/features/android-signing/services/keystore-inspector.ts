@@ -39,12 +39,12 @@ function extractLine(text: string, prefix: string): string | undefined {
 
 export function parseKeytoolListOutput(stdout: string): CertificateInfo | null {
   const owner = extractLine(stdout, "Owner") ?? extractLine(stdout, "Propriétaire");
-  const issuer = extractLine(stdout, "Issuer") ?? extractLine(stdout, "Émetteur");
+  const issuer = extractLine(stdout, "Issuer") ?? extractLine(stdout, "Émetteur") ?? extractLine(stdout, "Emetteur");
   const validFromRaw =
-    stdout.match(/Valid from:\s*(.+?)\s+until:\s*(.+)$/mi) ??
-    stdout.match(/Valide du:\s*(.+?)\s+au:\s*(.+)$/mi);
-  const sha256 = extractLine(stdout, "SHA256")?.split(/\s+/)[0]?.trim();
-  const sha1 = extractLine(stdout, "SHA1")?.split(/\s+/)[0]?.trim();
+    stdout.match(/Valid from:?\s*(.+?)\s+until:?\s*(.+)$/mi) ??
+    stdout.match(/Valide du\s*:?\s*(.+?)\s+au\s*:?\s*(.+)$/mi);
+  const sha256 = stdout.match(/SHA[\s-]?256\s*:\s*([0-9A-Fa-f:]+)/i)?.[1]?.trim();
+  const sha1 = stdout.match(/(?<!\d)SHA[\s-]?1\s*:\s*([0-9A-Fa-f:]+)/i)?.[1]?.trim();
   const algorithm = extractLine(stdout, "Signature algorithm name")
     ?? extractLine(stdout, "Nom de l'algorithme de signature");
   const serial = extractLine(stdout, "Serial number") ?? extractLine(stdout, "Numéro de série");
