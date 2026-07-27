@@ -1,186 +1,159 @@
-## Phase UX 1.0 — AppPublisher devient un véritable assistant
+# Phase 1 — Stabilisation d'AppPublisher
 
-**Philosophie révisée** : AppPublisher n'est plus un ensemble d'écrans techniques agrémentés d'aides. C'est un assistant qui prend l'utilisateur par la main du premier lancement jusqu'à la première publication. Le Cockpit devient la vue avancée ; le Setup Assistant devient la vue normale.
+Objectif : rendre AppPublisher **totalement fiable**. Aucune nouvelle fonctionnalité. Aucun refactoring gratuit. Une fonctionnalité que je ne peux pas prouver comme fiable sera soit corrigée, soit retirée de l'UI.
 
-Aucun nouveau service métier. Aucune duplication. Tous les nouveaux composants lisent les services existants (`ProjectStatusService`, `CopilotService`, `HistoryService`, `BackupService`, `ProjectsService`).
+Règle transversale : **un bouton n'existe que s'il réalise une action réelle**. Sinon il est supprimé ou remplacé par un état informatif en lecture seule.
 
-### Audit préalable — redondances à supprimer
+---
 
-Avant tout code, une passe de suppression :
+## Lot 0 — Audit fonctionnel complet (obligatoire, aucune modification de code)
 
-| Information | Sources actuelles | Source unique retenue |
-|---|---|---|
-| Prochaine action | `NextStepCard` (dashboard) + `NextActionCard` (cockpit) + `CopilotHero` + `PublishCopilotStrip` | `CopilotService.plan().nextAction` — un seul composant `<NextAction />` réutilisé partout, jamais deux visibles simultanément |
-| Score / santé | `HealthScoreCard`, `GlobalHealthCard`, `HealthCard`, `ValidationSummaryCard` | `ProjectStatusService.evaluate()` — un composant `<HealthBadge />` (compact) + `<HealthPanel />` (détaillé) |
-| Timeline | `PlanTimelineCard`, `ActivityTimeline`, `TimelineCard`, `ReleaseHistoryCard` | `HistoryService` — un composant `<Timeline />` avec filtres selon le contexte |
-| Configuration Git | Cockpit onglet Identité + Publish checklist + Health card | Setup Assistant (étape unique) → écrit dans `ProjectsService.update`, le Cockpit reflète |
-| Configuration Android | Cockpit onglet Android + Publish store targets + Copilot | Setup Assistant étapes Android → même service |
-| Configuration iOS | idem | Setup Assistant étapes iOS |
+Je parcours statiquement tout le code (`src/routes/`, `src/components/`, `src/core/`, `electron/`) et je produis une **matrice d'état réel** de toutes les fonctionnalités visibles pour l'utilisateur.
 
-Livrable de cette phase : ces cartes redondantes disparaissent, remplacées par des références au Setup Assistant.
+Classification, une seule valeur par ligne :
+- ✅ Fonctionnelle — le code exécute réellement l'action de bout en bout.
+- ⚠ Partiellement fonctionnelle — l'action existe mais un maillon manque (pas de persistance, pas de refresh, dépend d'un champ absent…).
+- ❌ Cassée — le code est présent mais échoue en pratique (mauvais chemin, IPC absent, référence morte…).
+- ⛔ Placeholder — bouton/carte/onglet visible mais aucune logique derrière.
 
-### 1. Setup Assistant — fil conducteur de l'application
+Périmètre couvert par la matrice :
+- **Projets** (list + cockpit) : identité, description, notes, dépôt Git, package, versions Android/iOS, keystore, notes de release, signing profile lié.
+- **Dashboard 2.0** : TodayCard, CopilotHero, ProjectsGrid, ActivityTimeline, GlobalHealthCard, StatsStrip — chaque CTA.
+- **Build Center** : préflight, chaque check, correction automatique, création Android, build, sync, logs, annulation, timeline.
+- **Publish Center** : chaque onglet (dépôt Git, keystore, Android ID, version, release notes, checklist).
+- **Signing** : création, import, inspection, association profil↔projet.
+- **Support / Diagnostic / Journal / Logs / Historique / Version / Settings / Setup wizard**.
+- **Sidebar + Palette (Cmd+K)** : chaque entrée.
+- **Bridge Electron** : chaque IPC exposé (ouvrir Android Studio, dossier Android, dépôt Git, dossier projet, cap add android, gradlew, cap sync, keytool, security, backup, restore, fs.pickFile/Folder…).
 
-Nouveau module `src/components/setup-assistant/` :
+Livrable Lot 0 : un rapport tabulaire complet posté dans le chat, section par section, chaque ligne portant l'état + la preuve courte (référence `fichier:ligne`). Aucun fichier modifié.
 
-```text
-setup-assistant/
-  assistant-provider.tsx   → contexte global, ouvrable partout via useSetupAssistant()
-  assistant-sheet.tsx      → Sheet plein écran, une étape à la fois
-  step-registry.ts         → tableau ordonné SetupStep[] (extensible)
-  steps/
-    identity.tsx           → Nom + description
-    folder.tsx             → Dossier du projet (avec "Je ne sais pas" + exemple)
-    git.tsx                → Dépôt Git
-    android-id.tsx         → Identifiant Android
-    android-keystore.tsx   → Signature
-    android-language.tsx   → Langue principale
-    ios-id.tsx             → Identifiant iOS (dormant tant qu'iOS non détecté)
-    version.tsx            → Version initiale
-    ready.tsx              → "Projet prêt à construire"
-  step.ts                  → type SetupStep { id, domain, isRelevant, isDone, title, why, render }
+Je ne passe au Lot A qu'après ta validation de ce rapport.
+
+---
+
+## Lot A — Keystore : analyse d'abord, correction ensuite
+
+**Étape A.1 — Diagnostic factuel** (aucune modification de code).
+
+Je réponds précisément à chacune de ces questions, avec citations `fichier:ligne` :
+
+1. Comment `keystorePath` est-il stocké dans le `Project` et dans le `SigningProfile` ? Absolu ou relatif ? À quel moment est-il écrit ?
+2. Comment le `SigningProfile` est-il résolu au moment du build (via projet lié ? via `keystorePath` legacy ?) ?
+3. Que fait exactement `BuildService` avant l'appel Gradle ? Écrit-il quelque chose dans le projet Android ? Passe-t-il des `-P` à Gradle ?
+4. Que contient réellement le `build.gradle` généré par Capacitor pour ce projet ? (Je te fournis la commande précise à exécuter chez toi pour me remonter le fichier.)
+5. Existe-t-il déjà un `keystore.properties` dans `android/` ? Un bloc `signingConfigs.release` a-t-il été édité manuellement ?
+6. Le problème est-il :
+   - (a) un `storeFile` relatif dans un template Gradle historique, résolu depuis `android/app/`, alors que le fichier est dans `android/` ?
+   - (b) une valeur `keystorePath` incorrecte persistée par AppPublisher ?
+   - (c) une absence totale de pont entre AppPublisher et Gradle (le chemin stocké dans AppPublisher n'est jamais consommé par Gradle) ?
+
+**Étape A.2 — Décision**.
+
+En fonction du diagnostic :
+- Si (a) : je documente la correction à apporter au `build.gradle` du projet utilisateur et je propose un correctif automatique **ciblé** (réécriture du `storeFile` avec le bon chemin), sans créer d'injecteur global.
+- Si (b) : je corrige la logique de stockage/résolution du `keystorePath` dans AppPublisher (`android-config.ts`, `signing-profile.ts`, `projects.$id.tsx`), et j'ajoute la détection « fichier déplacé → proposer d'adopter le nouveau chemin ».
+- Si (c) : et seulement dans ce cas, je crée le `signing-injector` (écriture `keystore.properties` + bloc `signingConfigs` idempotent, mots de passe lus juste-à-temps depuis le Keychain, jamais persistés en clair).
+
+Le choix sera **justifié par le diagnostic**, pas anticipé.
+
+**Étape A.3 — Rapport de lot** (voir format ci-dessous).
+
+---
+
+## Lot B — Suppression des faux boutons (règle « pas de bouton mort »)
+
+Passe unique sur toutes les routes et tous les composants. Pour chaque `onClick`, `<Link>`, `<Button asChild>`, action de menu, action de palette, action de widget :
+
+- Si l'action est réelle → conservée.
+- Si l'action renvoie vers `/projects` sans destination utile → soit ciblée sur la bonne route/onglet/champ, soit supprimée.
+- Si l'action est un placeholder (« bientôt disponible », « à connecter ») → **le bouton est supprimé** et remplacé par un état en lecture seule discret, ou l'entrée disparaît complètement.
+
+Cibles déjà repérées à traiter dans ce lot :
+- `publication-card.tsx` L171 / L212 : CTA « À connecter (bientôt disponible) » pour Play Store et App Store Connect.
+- `projects.$id.tsx` L818 : encart iOS « Configuration disponible — publication à venir ».
+- Toute icône chevron / menu contextuel qui n'a pas d'action.
+
+---
+
+## Lot C — Cockpit : sauvegarde et deep-linking réellement vérifiés
+
+Pour chaque champ éditable du cockpit :
+1. Vérifier que l'édition appelle bien `ProjectsService.update` **et** invalide `CopilotBus`.
+2. Vérifier que `data-cockpit-field` correspond aux `field` produits par les recommandations Copilot (voir Lot D).
+3. Vérifier que le bouton crayon de `projects.tsx` amène réellement le focus sur `displayName`.
+
+Toute recommandation Copilot ciblant un champ inexistant est un défaut à corriger dans ce lot ou dans le Lot D.
+
+---
+
+## Lot D — Copilot : ne jamais proposer une action impossible
+
+Au moment de générer une recommandation, l'`engine` doit valider **avant émission** :
+1. La route ciblée existe (whitelist statique dérivée du routeur).
+2. L'onglet ciblé existe pour cette route.
+3. Le champ ciblé (`data-cockpit-field`) existe dans le DOM déclaré (whitelist statique dérivée du cockpit).
+4. Le prérequis de l'action est rempli (par exemple : ne pas proposer « lier un profil de signature » si aucun profil n'existe encore — proposer plutôt « créer un profil »).
+
+Toute recommandation qui ne passe pas ces contrôles est filtrée silencieusement.
+
+Widgets consommateurs (`CopilotHero`, `NextActionCard`, `copilot-strip`, `validation-summary`, `HealthCard`) sont alignés sur la même source filtrée.
+
+---
+
+## Lot E — Bridge Electron : validation du parcours utilisateur complet
+
+Pour chaque commande exposée par le bridge :
+1. J'identifie le bouton dans le renderer qui la déclenche.
+2. Je trace l'IPC (`electron/main.cjs` → handler).
+3. Je vérifie que le handler exécute réellement la commande système et renvoie un résultat exploité par l'UI.
+4. Je te fournis, en fin de lot, une checklist de tests manuels macOS à cocher : ouvrir Android Studio, dossier Android, dépôt Git, dossier projet, `cap add android`, `gradlew`, `cap sync`, `keytool`, Keychain (`security`), backup, restore, sélection fichier/dossier.
+
+Toute commande sans IPC réel côté main → bouton supprimé du renderer (règle Lot B).
+
+---
+
+## Lot F — Wizard de premier lancement
+
+Parcours complet, chaque bouton « Continuer » écrit réellement dans le store, `autoFocus` reste désactivé (correctif focus thrashing conservé), sortie propre vers `/`.
+
+---
+
+## Format de rapport imposé à chaque fin de lot
+
+```
+### Lot X — <titre>
+
+Problèmes détectés
+1. <symptôme observé>
+   Cause : <mécanisme précis, avec fichier:ligne>
+   Correction : <changement effectué, fichiers touchés>
+   Pourquoi cela résout réellement : <raisonnement>
+   Tests manuels à cocher :
+     □ …
+     □ …
+2. …
+
+Validation automatique
+- Typecheck ✅
+- Build ✅
+
+Validation fonctionnelle
+- Checklist ci-dessus à exécuter côté macOS.
+- Statut : en attente de ta validation.
 ```
 
-`SetupStep` : chaque étape est un fichier auto-contenu qui lit le projet, décide si elle s'applique, si elle est complète, et rend son propre formulaire (réutilise `EditableField` + `validators.ts`). Le moteur navigue automatiquement à la suivante après validation.
+Je n'enchaîne jamais deux lots sans ta validation explicite.
 
-**Extensibilité future** (Google Play, App Store Connect, GitHub, Fastlane, Firebase, Crashlytics, RevenueCat, Analytics) : ajouter un fichier dans `steps/`, l'enregistrer dans `step-registry.ts`. Zéro modification du moteur.
+---
 
-**Comportement** :
-- Chaque étape explique **pourquoi** (bloc pédagogique adapté au mode), puis propose le champ, puis avance seule quand c'est valide.
-- Bouton "Passer" (facultatif) → l'étape se rappelle plus tard.
-- Bouton "Ouvrir dans le Cockpit" → pour les experts qui veulent la vue technique.
-- Persistance : rien à sauvegarder côté Assistant — tout passe par `ProjectsService.update` avec `source: "user"`. L'ordre "où j'en suis" est dérivé de `ProjectStatusService` (source de vérité).
+## Ordre d'exécution
 
-**Déclencheurs** :
-- Bouton principal du `<NextAction />` du Copilot → ouvre l'Assistant sur la bonne étape.
-- Wizard `setup.tsx` : à la fin du premier lancement, ouvre directement l'Assistant sur l'étape courante.
-- Cockpit `HealthPanel` : chaque ligne d'erreur ouvre l'Assistant sur l'étape correspondante (au lieu de scroller vers un champ isolé).
-- Dashboard : bouton "Continuer la configuration" tant que `ProjectStatusService` n'est pas vert.
+Lot 0 (audit, aucune modif) → validation → Lot A → validation → Lot B → validation → Lot C → validation → Lot D → validation → Lot E → validation → Lot F → clôture.
 
-### 2. Dashboard — hiérarchie unique
+## Limites honnêtes
 
-Réordonnancement radical de `src/routes/index.tsx` :
+- Je ne peux pas cliquer réellement dans l'application Electron packagée depuis ce sandbox. Toute vérification « clic → système → UI » qui dépend de macOS te reviendra sous forme de checklist explicite.
+- Toute vérification statique (typecheck, build, grep exhaustif des liens et handlers, cohérence des `data-cockpit-field`, whitelist des routes/onglets) est intégrale de mon côté.
 
-```text
-┌────────────────────────────────────────────────┐
-│  Aujourd'hui (bandeau discret : date, projet)   │
-├────────────────────────────────────────────────┤
-│                                                 │
-│  COPILOT — dominant, plein largeur              │
-│  ┌──────────────────────────────────────────┐   │
-│  │ Prochaine action (gros bouton unique)    │   │
-│  │ + 1 phrase de justification              │   │
-│  └──────────────────────────────────────────┘   │
-│                                                 │
-├────────────────────────────────────────────────┤
-│  État du projet (HealthPanel compact)           │
-├────────────────────────────────────────────────┤
-│  Support : Mes projets · Activité récente       │
-└────────────────────────────────────────────────┘
-```
-
-Suppression sur le Dashboard : `BlockersCard`, `ReadyCard`, `StatsStrip`, `PlanTimelineCard` (leurs infos sont accessibles via l'Assistant ou le Cockpit — pas besoin d'un doublon en Home).
-
-### 3. Build Center — écran qui rassure
-
-`src/components/build-center/progress-panel.tsx` + nouveau `live-status.tsx` :
-
-- **Compteur vivant** : temps écoulé animé à la seconde + spinner permanent tant qu'une étape est active.
-- **Messages qui évoluent** : mapping statique par étape → phrase humaine rotative ("Gradle prépare les dépendances…", "Compilation des ressources Android…", "Optimisation du bundle…"). Rotation toutes les 4 s même si l'étape ne bouge pas.
-- **ETA visible** : bloc dédié "Écoulé · Restant · Moyenne" en typographie large.
-- **Conseils contextuels** (`build-tips.tsx`) : après 20 s, affichage d'un conseil rotatif ("Premier build ? Gradle télécharge ~200 Mo", "Vous pouvez continuer à utiliser AppPublisher", "Les prochains builds seront plus rapides").
-- **Étapes plus détaillées** : `steps-timeline.tsx` affiche sous-étapes actives (extraites des logs déjà présents — pas de nouveau parseur, juste un filtre d'affichage).
-- **Jamais figé** : animation pulse même sur étape "silencieuse".
-
-Aucun changement dans `OperationRunner` / `android-build.ts` / `estimator.ts`.
-
-### 4. Publish Center — écran qui explique
-
-Refonte texte, structure inchangée :
-
-- **Bandeau introduction persistant** : "Une release, c'est la version que vos utilisateurs verront. AppPublisher vous aide à préparer chaque élément demandé par les stores. La publication automatique arrivera prochainement."
-- Chaque section de la checklist reçoit un **`why`** court (1 phrase) : "Pourquoi un keystore ? Google Play exige une signature unique pour vérifier que les mises à jour viennent de vous."
-- Distinction visuelle **Requis / Recommandé / Facultatif** (issue de `ProjectRule.severity`).
-- Bandeau "Bientôt automatisé" sur les sections qui seront un jour couvertes par Play Console / App Store Connect (flag `PUBLISH_AUTOMATION_ENABLED` dans `src/core/app-info.ts`).
-- Suppression de `ValidationSummaryCard` (doublon de la checklist) et remplacement par un simple résumé "Prêt à publier · X éléments restants".
-
-### 5. Modes — vraie personnalité
-
-Refonte de `ModeGate` non nécessaire (déjà en place). Application systématique :
-
-**Découverte** :
-- Sur chaque étape du Setup Assistant : bloc "Pourquoi ?" toujours visible, ton pédagogique, boutons plus gros (`size="lg"`), exemples inline ("ex. `com.monentreprise.monapp`").
-- Vocabulaire : "Dossier du projet", "Dépôt Git", "Identifiant Android".
-- Sidebar : "Console" masquée, "Journal" affiché.
-- Copilot : formulations "Commençons par…", "Ensuite nous allons…".
-
-**Assistant** (défaut) :
-- Bloc "Pourquoi ?" repliable.
-- Vocabulaire humain, mais sans exemples systématiques.
-- Sidebar complète sauf "Console".
-- Ton neutre, direct.
-
-**Expert** :
-- Chaque champ affiche à côté sa **commande shell équivalente** (`git remote add origin …`), le **chemin réel** du fichier concerné, la **version détectée** (Node, Gradle, Java).
-- Sidebar complète, "Console" visible, logs bruts par défaut.
-- Setup Assistant : mode "table dense" — toutes les étapes visibles simultanément avec édition inline.
-- Header projet : Application ID, package name, chemin absolu, dernière commande exécutée.
-- Bouton "Copier" (chemins, commandes, IDs) systématique.
-
-Deux nouveaux composants légers :
-- `<ExpertCommand cmd="…" />` : ligne mono + bouton copier (Expert uniquement).
-- `<WhyBlock title="…" mode="collapsible|always|hidden" />` : gère automatiquement l'affichage selon le mode.
-
-### 6. Wizard premier lancement
-
-`src/routes/setup.tsx` reçoit :
-- Étape "Dossier du projet" : titre humanisé, sous-texte pédagogique, boutons "Je ne sais pas" (panneau explicatif) et "Ouvrir un exemple" (via `bridge().openExampleProject()` s'il existe, sinon guide texte).
-- À la fin : redirection vers le Dashboard + ouverture automatique du Setup Assistant sur la première étape manquante.
-
-### 7. Vocabulaire — passe globale
-
-Fichier unique `src/core/i18n/fr.ts` (constantes, pas de runtime i18n). Toutes les chaînes UI reformulées :
-
-| Ancien | Nouveau (Découverte/Assistant) | Expert (inchangé) |
-|---|---|---|
-| Chemin du projet | Dossier du projet | Chemin du projet |
-| Repository | Dépôt Git | Repository |
-| Application ID | Identifiant Android | applicationId |
-| Bundle ID | Identifiant iOS | bundleId |
-| Artifact | Fichier généré (.aab) | Artifact |
-| Working directory | Dossier utilisé | Working directory |
-
-Le mode Expert lit une variante technique quand elle existe.
-
-### 8. Hiérarchie diagnostics (sidebar)
-
-- "Santé du projet" (état actuel : prêt / à compléter)
-- "Support" (résoudre un problème)
-- "Journal" (historique)
-- "Console" (Expert uniquement, via `ExpertOnly`)
-
-Libellés + sous-titres alignés dans `src/components/app-sidebar.tsx`.
-
-### 9. Contraintes respectées
-
-- **Aucun nouveau service métier** — Setup Assistant lit `ProjectStatusService` et écrit via `ProjectsService.update`.
-- **Aucune duplication** — audit du §0 appliqué ; les cartes redondantes sont supprimées, pas dupliquées.
-- **Aucune logique métier dans les composants** — chaque étape du Setup délègue à un validateur existant.
-- **Aucun TODO, aucun placeholder, aucun faux workflow.**
-- Extensibilité : ajouter Google Play = 1 fichier `steps/google-play.tsx` + 1 ligne dans `step-registry.ts`.
-
-### 10. Validation finale
-
-```text
-bunx tsgo --noEmit
-bun run build
-```
-
-**Rapport de parcours utilisateur** simulant un débutant :
-1. Premier lancement → Wizard → Dashboard.
-2. Copilot propose "Continuer la configuration" → Setup Assistant s'ouvre sur la première étape manquante.
-3. L'utilisateur remplit chaque étape (dossier, Git, identifiant Android, keystore, langue, version) — chaque étape explique pourquoi.
-4. "Projet prêt à construire" → bouton "Lancer un build" → Build Center rassurant.
-5. Build terminé → Copilot propose "Préparer une release" → Publish Center explicatif.
-
-Pour chaque étape : friction observée, correction apportée, résultat. Aucune impasse. Aucun besoin de quitter AppPublisher.
+Confirme ce plan (ou ajuste-le) et je démarre le **Lot 0 — audit fonctionnel complet** immédiatement.
