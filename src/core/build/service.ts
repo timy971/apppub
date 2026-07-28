@@ -1,6 +1,8 @@
 import type { Project } from "@/core/types";
 import { bridge } from "@/core/bridge";
 import { JournalService } from "@/core/journal/logger";
+import { SigningInjector } from "./signing-injector";
+import { SigningValidator } from "@/features/android-signing/services/signing-validator";
 
 /**
  * BuildService — orchestre la construction Android.
@@ -19,6 +21,9 @@ export interface BuildResult {
   aabSize?: number;
   durationMs: number;
   succeeded: boolean;
+  /** true si le .aab a été signé avec le profil lié au projet. */
+  signed?: boolean;
+  signingProfileName?: string;
 }
 
 export interface StepReport {
@@ -44,10 +49,11 @@ async function run(
   cwd: string,
   onLine: ((l: string) => void) | undefined,
   signal: AbortSignal | undefined,
+  env?: Record<string, string>,
 ) {
   abortIfNeeded(signal);
   const b = bridge();
-  const result = await b.exec.run({ cmd, args, cwd, timeoutMs: 30 * 60_000 }, (l) =>
+  const result = await b.exec.run({ cmd, args, cwd, env, timeoutMs: 30 * 60_000 }, (l) =>
     onLine?.(l.line),
   );
   JournalService.logCommand({
@@ -61,6 +67,7 @@ async function run(
   });
   return result;
 }
+
 
 export const BuildService = {
   async build(project: Project, opts: BuildRunOptions): Promise<BuildResult> {
