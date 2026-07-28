@@ -1,6 +1,8 @@
 import type { Project } from "@/core/types";
 import { bridge } from "@/core/bridge";
 import { JournalService } from "@/core/journal/logger";
+import { SigningInjector } from "./signing-injector";
+import { SigningValidator } from "@/features/android-signing/services/signing-validator";
 
 /**
  * BuildService — orchestre la construction Android.
@@ -19,6 +21,9 @@ export interface BuildResult {
   aabSize?: number;
   durationMs: number;
   succeeded: boolean;
+  /** true si le .aab a été signé avec le profil lié au projet. */
+  signed?: boolean;
+  signingProfileName?: string;
 }
 
 export interface StepReport {
@@ -44,10 +49,11 @@ async function run(
   cwd: string,
   onLine: ((l: string) => void) | undefined,
   signal: AbortSignal | undefined,
+  env?: Record<string, string>,
 ) {
   abortIfNeeded(signal);
   const b = bridge();
-  const result = await b.exec.run({ cmd, args, cwd, timeoutMs: 30 * 60_000 }, (l) =>
+  const result = await b.exec.run({ cmd, args, cwd, env, timeoutMs: 30 * 60_000 }, (l) =>
     onLine?.(l.line),
   );
   JournalService.logCommand({
@@ -61,6 +67,7 @@ async function run(
   });
   return result;
 }
+
 
 export const BuildService = {
   async build(project: Project, opts: BuildRunOptions): Promise<BuildResult> {
@@ -129,12 +136,36 @@ export const BuildService = {
     }
     opts.onStep("sync", "success", "Application Android préparée.");
 
-    // 4. Gradle bundleRelease — sélection multi-plateforme centralisée.
+    // 4. Signature — injecte le keystore dans Gradle via env vars.
+    //    Aucun secret ne touche le disque : le mot de passe transite
+    //    exclusivement via ORG_GRADLE_PROJECT_* (env du process enfant).
     abortIfNeeded(signal);
     const { resolveGradle, ensureGradleExecutable, hasGlobalGradle } = await import("./gradle");
     const gradleRes = await resolveGradle(project.localPath);
     const androidDir = gradleRes.androidDir;
 
+    const prep = await SigningInjector.prepare(project);
+    if (!prep.ok) {
+      opts.onStep("gradle", "error", prep.error.message);
+      throw new Error(prep.error.message);
+    }
+    const patchStatus = await SigningInjector.ensureGradlePatched(androidDir);
+    if (patchStatus === "gradle-missing") {
+      opts.onStep("gradle", "error", "android/app/build.gradle est introuvable.");
+      throw new Error("android/app/build.gradle est introuvable.");
+    }
+    if (patchStatus === "write-failed") {
+      opts.onStep("gradle", "error", "Impossible d'écrire la configuration de signature dans build.gradle.");
+      throw new Error("Impossible d'écrire la configuration de signature dans build.gradle.");
+    }
+    if (patchStatus === "patched") {
+      opts.onLine?.(`Signature : bloc appPublisherRelease ajouté à app/build.gradle.`);
+    }
+    opts.onLine?.(
+      `Signature : profil « ${prep.preparation.profileName} » (alias ${prep.preparation.alias}) — keystore ${prep.preparation.keystorePath}`,
+    );
+
+    // 5. Gradle bundleRelease — sélection multi-plateforme centralisée.
     let invocation = gradleRes.invocation;
     if (!invocation) {
       // Repli : gradle installé globalement (dev averti).
@@ -150,7 +181,7 @@ export const BuildService = {
       await ensureGradleExecutable(project.localPath);
     }
 
-    opts.onStep("gradle", "running", "Fabrication du fichier Android…");
+    opts.onStep("gradle", "running", "Fabrication du fichier Android signé…");
     const gradle = await run(
       project,
       invocation.cmd,
@@ -158,15 +189,15 @@ export const BuildService = {
       invocation.cwd,
       opts.onLine,
       signal,
+      prep.preparation.env,
     );
     if (gradle.exitCode !== 0) {
       opts.onStep("gradle", "error", "La construction Android a échoué.");
       throw new Error(gradle.stderr || gradle.stdout);
     }
-    opts.onStep("gradle", "success", "Fichier Android fabriqué.");
+    opts.onStep("gradle", "success", `Fichier Android signé (« ${prep.preparation.profileName} »).`);
 
-
-    // 5. Localisation de l'artefact
+    // 6. Localisation de l'artefact
     abortIfNeeded(signal);
     opts.onStep("artifact", "running", "Recherche du fichier final…");
     const aabs = await b.fs.findByExtension(
@@ -176,17 +207,28 @@ export const BuildService = {
     );
     if (!aabs.length) {
       opts.onStep("artifact", "warning", "Fichier .aab introuvable après la construction.");
-      return { durationMs: performance.now() - start, succeeded: true };
+      return {
+        durationMs: performance.now() - start,
+        succeeded: true,
+        signed: true,
+        signingProfileName: prep.preparation.profileName,
+      };
     }
     const aab = aabs[0];
     const stat = await b.fs.stat(aab);
     opts.onStep("artifact", "success", "Fichier trouvé.");
+
+    // Trace la dernière utilisation du profil (aucun secret impliqué).
+    SigningValidator.markUsed(prep.preparation.profileId);
 
     return {
       aabPath: aab,
       aabSize: stat?.size,
       durationMs: performance.now() - start,
       succeeded: true,
+      signed: true,
+      signingProfileName: prep.preparation.profileName,
     };
   },
 };
+

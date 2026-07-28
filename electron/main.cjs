@@ -1086,10 +1086,23 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
     const cwd = resolveWithinAllowed(opts.cwd);
     if (!cwd) return fail("Dossier de travail non autorisé.");
 
+    // Env venant du renderer : on n'accepte QUE les clés préfixées
+    // `ORG_GRADLE_PROJECT_*` (utilisées par le signing-injector pour passer
+    // storepass/keypass à Gradle sans les faire transiter par argv).
+    // Toute autre clé est ignorée. Les valeurs sont validées comme des args.
+    const safeEnv = {};
+    if (opts.env && typeof opts.env === "object") {
+      for (const [k, v] of Object.entries(opts.env)) {
+        if (typeof k !== "string" || !/^ORG_GRADLE_PROJECT_[A-Z0-9_]+$/.test(k)) continue;
+        if (typeof v !== "string" || v.length > 4096 || /[\n\r\u0000]/.test(v)) continue;
+        safeEnv[k] = v;
+      }
+    }
+
     try {
       const child = spawn(opts.cmd, args, {
         cwd,
-        env: process.env, // renderer env ignoré volontairement
+        env: { ...process.env, ...safeEnv },
         shell: false,
       });
       const timer = setTimeout(() => {
