@@ -1675,6 +1675,11 @@ function accountFor(profileId, field) {
 
 ipcMain.handle("secrets:supported", () => secretsSupported());
 
+/** Échappe une valeur pour le parseur de la commande `security -i`. */
+function quoteForSecurityInteractive(value) {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
 ipcMain.handle("secrets:set", async (_e, profileId, field, value) => {
   const sup = secretsSupported();
   if (!sup.available) return false;
@@ -1682,15 +1687,29 @@ ipcMain.handle("secrets:set", async (_e, profileId, field, value) => {
   if (field !== "storepass" && field !== "keypass") return false;
   if (!isValidPassword(value)) return false;
   const account = accountFor(profileId, field);
-  // -U : update if exists, add otherwise. -w écrit sans le passer en argv.
-  const r = await runSecurity([
-    "add-generic-password",
+  // SÉCURITÉ : le mot de passe ne doit JAMAIS apparaître dans l'argv du
+  // process enfant (visible via `ps` par tout process local). On utilise le
+  // mode interactif de `security` : la commande complète (et donc le secret)
+  // est transmise uniquement via stdin. `-U` met à jour l'entrée existante.
+  const line =
+    [
+      "add-generic-password",
+      "-a", quoteForSecurityInteractive(account),
+      "-s", quoteForSecurityInteractive(KEYCHAIN_SERVICE),
+      "-w", quoteForSecurityInteractive(value),
+      "-U",
+    ].join(" ") + "\n";
+  const r = await runSecurity(["-i"], line);
+  // `security -i` renvoie 0 même sur erreur de sous-commande : on vérifie
+  // que la valeur est bien relisible depuis le trousseau.
+  const check = await runSecurity([
+    "find-generic-password",
     "-a", account,
     "-s", KEYCHAIN_SERVICE,
-    "-w", value,
-    "-U",
+    "-w",
   ]);
-  if (r.code !== 0) {
+  const stored = check.code === 0 ? check.stdout.replace(/\r?\n$/, "") : null;
+  if (stored !== value) {
     diagSigning("warn", "secrets:set échec", { profileId, field, code: r.code });
     return false;
   }
