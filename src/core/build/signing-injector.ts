@@ -28,7 +28,10 @@ ${MARKER_BEGIN}
 android {
     signingConfigs {
         appPublisherRelease {
-            if (project.hasProperty('APP_KEYSTORE_FILE')) {
+            if (project.hasProperty('APP_KEYSTORE_FILE') &&
+                project.hasProperty('APP_KEYSTORE_PASSWORD') &&
+                project.hasProperty('APP_KEY_ALIAS') &&
+                project.hasProperty('APP_KEY_PASSWORD')) {
                 storeFile file(APP_KEYSTORE_FILE)
                 storePassword APP_KEYSTORE_PASSWORD
                 keyAlias APP_KEY_ALIAS
@@ -38,7 +41,10 @@ android {
     }
     buildTypes {
         release {
-            if (project.hasProperty('APP_KEYSTORE_FILE')) {
+            if (project.hasProperty('APP_KEYSTORE_FILE') &&
+                project.hasProperty('APP_KEYSTORE_PASSWORD') &&
+                project.hasProperty('APP_KEY_ALIAS') &&
+                project.hasProperty('APP_KEY_PASSWORD')) {
                 signingConfig signingConfigs.appPublisherRelease
             }
         }
@@ -56,6 +62,7 @@ export interface GradleSigningInspection {
   releaseAssignments: string[];
   legacyStoreFiles: string[];
   releaseUsesAppPublisher: boolean;
+  hasDeferredSigningOverride: boolean;
 }
 
 export interface GradlePatchResult {
@@ -106,6 +113,7 @@ export const SigningInjector = {
       releaseAssignments,
       legacyStoreFiles,
       releaseUsesAppPublisher: releaseAssignments.at(-1) === "appPublisherRelease",
+      hasDeferredSigningOverride: /afterEvaluate\s*\{[\s\S]*?signingConfig/.test(content),
     };
   },
 

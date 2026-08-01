@@ -167,6 +167,7 @@ export const BuildService = {
     diagnostic(`Affectations signingConfig détectées : ${patch.inspection.releaseAssignments.join(" → ") || "aucune"}`);
     diagnostic(`Anciens storeFile détectés : ${patch.inspection.legacyStoreFiles.join(", ") || "aucun"}`);
     diagnostic(`${patch.inspection.releaseUsesAppPublisher ? "✓" : "✗"} Build type release → appPublisherRelease`);
+    diagnostic(`${patch.inspection.hasDeferredSigningOverride ? "✗" : "✓"} Aucune réaffectation différée de signingConfig`);
     diagnostic(`✓ Profil : ${prep.preparation.profileName}`);
     diagnostic(`✓ Alias : ${prep.preparation.alias}`);
     diagnostic(`✓ Keystore enregistré : ${prep.preparation.storedKeystorePath}`);
@@ -184,10 +185,18 @@ export const BuildService = {
       opts.onStep("gradle", "error", "Impossible d'écrire la configuration de signature dans build.gradle.");
       throw new Error("Impossible d'écrire la configuration de signature dans build.gradle.");
     }
-    if (!patch.inspection.hasAppPublisherRelease || !patch.inspection.releaseUsesAppPublisher) {
+    if (
+      !patch.inspection.hasAppPublisherRelease ||
+      !patch.inspection.releaseUsesAppPublisher ||
+      patch.inspection.hasDeferredSigningOverride
+    ) {
       diagnostic("✗ Le build type release n'utilise pas appPublisherRelease.", "error");
       opts.onStep("gradle", "error", "La configuration Gradle AppPublisher n'est pas active pour le build release.");
-      throw new Error("La configuration Gradle AppPublisher n'est pas active pour le build release.");
+      throw new Error(
+        patch.inspection.hasDeferredSigningOverride
+          ? "Une configuration Gradle différée (afterEvaluate) peut remplacer la signature AppPublisher. Retirez cette réaffectation avant de relancer."
+          : "La configuration Gradle AppPublisher n'est pas active pour le build release.",
+      );
     }
 
     const envKeys = Object.keys(prep.preparation.env);
