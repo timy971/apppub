@@ -259,7 +259,7 @@ export const BuildService = {
       opts.onStep("artifact", "error", "Fichier .aab introuvable après la construction.");
       throw new Error("Gradle a terminé sans produire de fichier AAB.");
     }
-    const aab = aabs[0];
+    const aab = aabs.find((candidate) => /[\\/]app-release\.aab$/i.test(candidate)) ?? aabs[0];
     const stat = await b.fs.stat(aab);
     if (!stat?.isFile || stat.size <= 0) {
       opts.onStep("artifact", "error", "Le fichier AAB produit est vide ou illisible.");

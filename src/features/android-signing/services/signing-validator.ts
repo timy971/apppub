@@ -16,7 +16,7 @@ import type {
  */
 
 export const SigningValidator = {
-  async validate(profileId: string): Promise<SigningValidationResult> {
+  async validate(profileId: string, projectPath?: string): Promise<SigningValidationResult> {
     const b = bridge();
     const profile = ProfilesStore.get(profileId);
     if (!profile) {
@@ -28,7 +28,13 @@ export const SigningValidator = {
       };
     }
 
-    const exists = await b.fs.exists(profile.keystorePath).catch(() => false);
+    const resolved = projectPath
+      ? await b.signing.resolveKeystore({ storedPath: profile.keystorePath, projectPath })
+      : null;
+    const keystorePath = resolved?.ok && resolved.resolvedPath
+      ? resolved.resolvedPath
+      : profile.keystorePath;
+    const exists = resolved?.ok ?? await b.fs.exists(keystorePath).catch(() => false);
     if (!exists) {
       return {
         code: "file-missing",
@@ -59,7 +65,7 @@ export const SigningValidator = {
     }
 
     const res = await b.signing.keystoreList({
-      keystorePath: profile.keystorePath,
+      keystorePath,
       storepass,
       alias: profile.alias,
     });
