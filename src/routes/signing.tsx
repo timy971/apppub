@@ -99,10 +99,17 @@ function SigningPage() {
 
   const validate = async (p: SigningProfile) => {
     setBusy(p.id);
-    const res = await SigningValidator.validate(p.id);
-    setBusy(null);
-    reload();
-    (res.ok ? toast.success : toast.error)(res.title, { description: res.message });
+    try {
+      const res = await SigningValidator.validate(p.id);
+      reload();
+      (res.ok ? toast.success : toast.error)(res.title, { description: res.message });
+    } catch (error) {
+      toast.error("Vérification impossible", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setBusy(null);
+    }
   };
 
   const remove = async (p: SigningProfile) => {
@@ -185,7 +192,15 @@ function SigningPage() {
               profile={p}
               busy={busy === p.id}
               onValidate={() => validate(p)}
-              onReveal={() => bridge().shell.revealItem(p.keystorePath).catch(() => {})}
+              onReveal={() =>
+                bridge()
+                  .shell.revealItem(p.keystorePath)
+                  .catch((error) =>
+                    toast.error("Impossible d'afficher le keystore", {
+                      description: error instanceof Error ? error.message : String(error),
+                    }),
+                  )
+              }
               onDelete={() => setToDelete(p)}
             />
           ))}
@@ -293,7 +308,13 @@ function ProfileRow({
           <Button variant="outline" size="sm" onClick={onReveal}>
             <FolderIcon className="mr-2 h-4 w-4" /> Voir le fichier
           </Button>
-          <Button variant="ghost" size="sm" onClick={onDelete} className="text-destructive hover:text-destructive">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDelete}
+            className="text-destructive hover:text-destructive"
+            aria-label="Supprimer la signature"
+          >
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
@@ -332,13 +353,19 @@ function ImportDialog({
   }, [open]);
 
   const choose = async () => {
-    const p = await bridge().signing.chooseKeystore();
-    if (p) {
-      setPath(p);
-      if (!name) {
-        const base = p.split(/[\\/]/).pop()?.replace(/\.(jks|keystore)$/i, "") ?? "";
-        setName(base);
+    try {
+      const p = await bridge().signing.chooseKeystore();
+      if (p) {
+        setPath(p);
+        if (!name) {
+          const base = p.split(/[\\/]/).pop()?.replace(/\.(jks|keystore)$/i, "") ?? "";
+          setName(base);
+        }
       }
+    } catch (error) {
+      toast.error("Sélection impossible", {
+        description: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 
@@ -433,8 +460,14 @@ function CreateDialog({
   }, [open]);
 
   const chooseFolder = async () => {
-    const f = await bridge().signing.chooseOutputFolder();
-    if (f) setFolder(f);
+    try {
+      const f = await bridge().signing.chooseOutputFolder();
+      if (f) setFolder(f);
+    } catch (error) {
+      toast.error("Sélection impossible", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
   };
 
   const submit = async () => {

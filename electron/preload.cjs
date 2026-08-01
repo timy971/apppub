@@ -104,7 +104,6 @@ contextBridge.exposeInMainWorld("appPublisher", {
     },
   },
 
-
   system: {
     detect: () => inv("system:detect"),
   },
@@ -116,8 +115,13 @@ contextBridge.exposeInMainWorld("appPublisher", {
     registerRoots: (paths) => inv("projects:registerRoots", paths),
   },
 
+  gradle: {
+    ensureExecutable: (projectPath) => inv("gradle:ensureExecutable", projectPath),
+  },
+
   exec: {
-    run: (opts, channel) => inv("exec:run", opts, channel),
+    run: (opts, channel, executionId) => inv("exec:run", opts, channel, executionId),
+    cancel: (executionId) => inv("exec:cancel", executionId),
     validateEnv: (keys) => inv("exec:validateEnv", keys),
     subscribeLines: (channel, cb) => {
       const listener = (_e, line) => cb(line);
@@ -146,6 +150,7 @@ contextBridge.exposeInMainWorld("appPublisher", {
   shell: {
     openFolder: (p) => inv("shell:openFolder", p),
     revealItem: (p) => inv("shell:revealItem", p),
+    openExternal: (url) => inv("shell:openExternal", url),
   },
 
   net: {

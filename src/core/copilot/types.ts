@@ -32,6 +32,8 @@ export interface CopilotAction {
   priority: CopilotPriority;
   /** Optionnel : onglet cockpit ciblé pour un deep-link intelligent. */
   cockpitTab?: CockpitTab;
+  /** Optionnel : champ précis à focaliser dans l'onglet cockpit. */
+  cockpitField?: string;
 }
 
 /** Une information positive, neutre ou d'alerte affichable telle quelle. */
@@ -41,6 +43,8 @@ export interface CopilotInsight {
   title: string;
   description?: string;
   route?: string;
+  cockpitTab?: CockpitTab;
+  cockpitField?: string;
 }
 
 /** Contexte d'entrée injecté au moteur. */

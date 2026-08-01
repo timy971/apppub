@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import {
-  ChevronDown,
-  AlertTriangle,
-  CircleX,
-  Check,
-  Info,
-  ArrowRight,
-} from "lucide-react";
+import { ChevronDown, AlertTriangle, CircleX, Check, Info, ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { Project } from "@/core/types";
@@ -47,13 +40,7 @@ export function ChecklistCard({ project, categories }: Props) {
   );
 }
 
-function CategoryRow({
-  project,
-  category,
-}: {
-  project: Project;
-  category: ChecklistCategory;
-}) {
+function CategoryRow({ project, category }: { project: Project; category: ChecklistCategory }) {
   const [open, setOpen] = useState(category.severity !== "ok");
   const okCount = category.entries.filter((e) => e.severity === "ok").length;
   const total = category.entries.length;
@@ -70,15 +57,12 @@ function CategoryRow({
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium">{category.title}</div>
           <div className="text-xs text-muted-foreground">
-            {total === 0
-              ? "Aucun contrôle applicable"
-              : `${okCount}/${total} conformes`}
+            {total === 0 ? "Aucun contrôle applicable" : `${okCount}/${total} conformes`}
           </div>
         </div>
         <ChevronDown
           className={
-            "h-4 w-4 text-muted-foreground transition-transform " +
-            (open ? "rotate-180" : "")
+            "h-4 w-4 text-muted-foreground transition-transform " + (open ? "rotate-180" : "")
           }
         />
       </button>
@@ -104,29 +88,32 @@ function EntryRow({ project, entry }: { project: Project; entry: ChecklistEntry 
       <SeverityIcon severity={entry.severity} />
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium">{entry.label}</div>
-        {entry.detail && (
-          <div className="mt-0.5 text-xs text-muted-foreground">{entry.detail}</div>
-        )}
+        {entry.detail && <div className="mt-0.5 text-xs text-muted-foreground">{entry.detail}</div>}
         {entry.explanation && entry.severity !== "ok" && (
-          <div className="mt-1 text-xs text-muted-foreground italic">
-            {entry.explanation}
-          </div>
+          <div className="mt-1 text-xs text-muted-foreground italic">{entry.explanation}</div>
         )}
       </div>
       {entry.action && entry.severity !== "ok" && (
         <Button asChild size="sm" variant="outline">
-          <Link
-            to="/projects/$id"
-            params={{ id: project.id }}
-            search={
-              entry.action.field
-                ? { tab: entry.action.tab, field: entry.action.field }
-                : { tab: entry.action.tab }
-            }
-          >
-            {entry.action.label}
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          {entry.action.kind === "route" ? (
+            <Link to={entry.action.to}>
+              {entry.action.label}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          ) : (
+            <Link
+              to="/projects/$id"
+              params={{ id: project.id }}
+              search={
+                entry.action.field
+                  ? { tab: entry.action.tab, field: entry.action.field }
+                  : { tab: entry.action.tab }
+              }
+            >
+              {entry.action.label}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
         </Button>
       )}
     </li>
@@ -143,9 +130,7 @@ function SeverityBadge({ severity }: { severity: PubSeverity }) {
           ? "bg-primary/10 text-primary"
           : "bg-success/15 text-success";
   return (
-    <span
-      className={"flex h-7 w-7 shrink-0 items-center justify-center rounded-md " + cls}
-    >
+    <span className={"flex h-7 w-7 shrink-0 items-center justify-center rounded-md " + cls}>
       <SeverityIcon severity={severity} />
     </span>
   );

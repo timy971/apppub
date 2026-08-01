@@ -12,8 +12,21 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { bridge } from "@/core/bridge";
 import { BackupService } from "@/core/backup/service";
+import { ProjectsService } from "@/core/projects/service";
+import { AppStore } from "@/core/store/app-store";
 import type { Project } from "@/core/types";
 import { toast } from "sonner";
 import { useCockpitNav } from "./cockpit-nav";
@@ -25,6 +38,8 @@ import { useCockpitNav } from "./cockpit-nav";
 export function ResourcesCard({ project }: { project: Project }) {
   const nav = useCockpitNav();
   const [backingUp, setBackingUp] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const latestBackup = BackupService.list(project.id)[0];
   const androidPath = `${project.localPath}/android`;
   const backupsPath = `${project.localPath}/.apppublisher-backups`;
   const distPath = `${project.localPath}/android/app/build/outputs`;
@@ -37,11 +52,19 @@ export function ResourcesCard({ project }: { project: Project }) {
     }
   }
 
-  function openRepo() {
+  async function openRepo() {
     if (!project.githubRepo) return;
     const url = toHttpsUrl(project.githubRepo);
-    if (url) window.open(url, "_blank", "noopener");
-    else void copy(project.githubRepo);
+    if (!url) {
+      await copy(project.githubRepo);
+      return;
+    }
+    try {
+      const opened = await bridge().shell.openExternal(url);
+      if (!opened) toast.error("Ce dépôt ne peut pas être ouvert automatiquement");
+    } catch {
+      toast.error("Ce dépôt ne peut pas être ouvert automatiquement");
+    }
   }
 
   async function copy(value: string) {
@@ -58,15 +81,41 @@ export function ResourcesCard({ project }: { project: Project }) {
     setBackingUp(true);
     try {
       const b = await BackupService.create(project, "manual");
-      toast.success(
-        `Sauvegarde créée · ${b.files.length} fichier(s) mémorisé(s)`,
-      );
+      toast.success(`Sauvegarde créée · ${b.files.length} fichier(s) mémorisé(s)`);
       // Rafraîchit Timeline + Activité sans recharger la page.
       nav.bumpRefresh();
     } catch {
       toast.error("La sauvegarde a échoué");
     } finally {
       setBackingUp(false);
+    }
+  }
+
+  async function restoreLatest() {
+    if (!latestBackup || restoring) return;
+    setRestoring(true);
+    try {
+      const restored = await BackupService.restore(project, latestBackup.id);
+      if (!restored) throw new Error("La restauration n'a pas pu être vérifiée.");
+
+      const refreshed = await ProjectsService.detectFromPath(project.localPath);
+      ProjectsService.update(project.id, {
+        currentVersion: refreshed.currentVersion,
+        currentBuild: refreshed.currentBuild,
+        packageName: refreshed.packageName,
+        detected: refreshed.detected,
+      });
+      AppStore.refreshProjects();
+      nav.bumpRefresh();
+      toast.success("Sauvegarde restaurée", {
+        description: `${latestBackup.files.length} fichier(s) restauré(s) et vérifié(s).`,
+      });
+    } catch (error) {
+      toast.error("La restauration a échoué", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setRestoring(false);
     }
   }
 
@@ -77,19 +126,44 @@ export function ResourcesCard({ project }: { project: Project }) {
           <Layers className="h-4 w-4 text-primary" />
           <h2 className="text-base font-semibold">Ressources</h2>
         </div>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={backupNow}
-          disabled={backingUp}
-        >
-          {backingUp ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          {backingUp ? "Sauvegarde…" : "Sauvegarder"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="outline" disabled={!latestBackup || restoring}>
+                {restoring ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArchiveRestore className="h-4 w-4" />
+                )}
+                Restaurer
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Restaurer la dernière sauvegarde ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Les fichiers actuels de version et de configuration Android seront remplacés par
+                  ceux de la sauvegarde du{" "}
+                  {latestBackup ? formatBackupDate(latestBackup.createdAt) : "—"}.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction onClick={restoreLatest}>
+                  Restaurer les fichiers
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button size="sm" variant="secondary" onClick={backupNow} disabled={backingUp}>
+            {backingUp ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {backingUp ? "Sauvegarde…" : "Sauvegarder"}
+          </Button>
+        </div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <ResourceButton
@@ -136,11 +210,21 @@ export function ResourcesCard({ project }: { project: Project }) {
               <Copy className="h-3.5 w-3.5" />
             ) : undefined
           }
-          onClick={openRepo}
+          onClick={() => void openRepo()}
         />
       </div>
     </Card>
   );
+}
+
+function formatBackupDate(iso: string): string {
+  return new Date(iso).toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function ResourceButton({
@@ -170,9 +254,7 @@ function ResourceButton({
         <span className="text-sm font-medium">{label}</span>
         {trailing && <span className="ml-auto text-muted-foreground">{trailing}</span>}
       </div>
-      <div className="w-full truncate text-xs font-normal text-muted-foreground">
-        {hint}
-      </div>
+      <div className="w-full truncate text-xs font-normal text-muted-foreground">{hint}</div>
     </Button>
   );
 }

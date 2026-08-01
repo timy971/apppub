@@ -1,9 +1,9 @@
-import { Link } from "@tanstack/react-router";
 import { Sparkles, ArrowRight, Clock } from "lucide-react";
 import type { CopilotSuggestion } from "@/core/types";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { WhyButton } from "./why-button";
+import { CopilotActionLink } from "./copilot-action-link";
 
 /**
  * CopilotCard — présente la prochaine action suggérée avec transparence.
@@ -11,9 +11,11 @@ import { WhyButton } from "./why-button";
  */
 export function CopilotCard({
   suggestion,
+  projectId,
   etaMinutes,
 }: {
   suggestion: CopilotSuggestion;
+  projectId?: string;
   etaMinutes?: number;
 }) {
   return (
@@ -29,16 +31,19 @@ export function CopilotCard({
           <div className="mt-1 text-lg font-semibold">{suggestion.title}</div>
           <p className="mt-1 text-sm text-muted-foreground">{suggestion.reason}</p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {suggestion.action.to ? (
-              <Button asChild>
-                <Link to={suggestion.action.to}>
-                  {suggestion.action.label}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            ) : (
-              <Button>{suggestion.action.label}</Button>
-            )}
+            <Button asChild>
+              <CopilotActionLink
+                action={{
+                  route: suggestion.action.to,
+                  cockpitTab: suggestion.action.cockpitTab,
+                  cockpitField: suggestion.action.cockpitField,
+                }}
+                projectId={projectId}
+              >
+                {suggestion.action.label}
+                <ArrowRight className="h-4 w-4" />
+              </CopilotActionLink>
+            </Button>
             {suggestion.why && (
               <WhyButton title="Pourquoi cette suggestion ?">{suggestion.why}</WhyButton>
             )}

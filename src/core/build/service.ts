@@ -55,8 +55,10 @@ async function run(
 ) {
   abortIfNeeded(signal);
   const b = bridge();
-  const result = await b.exec.run({ cmd, args, cwd, env, timeoutMs: 30 * 60_000 }, (l) =>
-    onLine?.(l.line),
+  const result = await b.exec.run(
+    { cmd, args, cwd, env, timeoutMs: 30 * 60_000 },
+    (l) => onLine?.(l.line),
+    signal,
   );
   JournalService.logCommand({
     command: [cmd, ...args].join(" "),
@@ -67,6 +69,9 @@ async function run(
     stderr: result.stderr,
     message: `[${project.name}] ${cmd} ${args.join(" ")}`,
   });
+  if (result.aborted || signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
   return result;
 }
 
@@ -297,4 +302,3 @@ export const BuildService = {
     };
   },
 };
-

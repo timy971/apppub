@@ -1,10 +1,10 @@
-import { Link } from "@tanstack/react-router";
 import { Sparkles, ArrowRight, Clock } from "lucide-react";
 import type { CopilotSuggestion } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WhyButton } from "@/components/why-button";
+import { CopilotActionLink } from "@/components/copilot-action-link";
 
 /**
  * Version "hero" du copilote — carte principale du Dashboard.
@@ -12,10 +12,12 @@ import { WhyButton } from "@/components/why-button";
  */
 export function CopilotHero({
   suggestion,
+  projectId,
   etaMinutes,
   loading,
 }: {
   suggestion: CopilotSuggestion | null;
+  projectId?: string;
   etaMinutes?: number;
   loading: boolean;
 }) {
@@ -45,16 +47,19 @@ export function CopilotHero({
                 {suggestion.reason}
               </p>
               <div className="mt-5 flex flex-wrap items-center gap-2.5">
-                {suggestion.action.to ? (
-                  <Button asChild size="lg">
-                    <Link to={suggestion.action.to}>
-                      {suggestion.action.label}
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button size="lg">{suggestion.action.label}</Button>
-                )}
+                <Button asChild size="lg">
+                  <CopilotActionLink
+                    action={{
+                      route: suggestion.action.to,
+                      cockpitTab: suggestion.action.cockpitTab,
+                      cockpitField: suggestion.action.cockpitField,
+                    }}
+                    projectId={projectId}
+                  >
+                    {suggestion.action.label}
+                    <ArrowRight className="h-4 w-4" />
+                  </CopilotActionLink>
+                </Button>
                 {suggestion.why && (
                   <WhyButton title="Pourquoi cette suggestion ?">
                     {suggestion.why}

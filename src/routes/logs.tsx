@@ -60,7 +60,7 @@ const LEVELS: Array<LogLevel | "watchdog" | "op:start" | "op:end" | "op:fail"> =
 ];
 
 function LogsPage() {
-  const [entries, setEntries] = useState<LogEntry[]>(() => Logger.snapshot());
+  const [entries, setEntries] = useState<LogEntry[]>([]);
   const [paused, setPaused] = useState(false);
   const [q, setQ] = useState("");
   const [selectedLevels, setSelectedLevels] = useState<Set<string>>(
@@ -71,6 +71,7 @@ function LogsPage() {
   const stickBottom = useRef(true);
 
   useEffect(() => {
+    setEntries(Logger.snapshot());
     if (paused) return;
     const off = Logger.subscribe((e) => {
       setEntries((prev) => {
@@ -168,9 +169,9 @@ function LogsPage() {
             {logDir && (
               <Button
                 variant="outline"
-                onClick={() => {
+                onClick={async () => {
                   try {
-                    navigator.clipboard.writeText(logDir);
+                    await navigator.clipboard.writeText(logDir);
                     toast.success("Chemin du dossier copié");
                   } catch {
                     toast.error("Copie impossible");

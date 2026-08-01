@@ -340,7 +340,9 @@ export interface CopilotSuggestion {
   action: {
     kind: CopilotActionKind;
     label: string;
-    to?: string;
+    to: string;
+    cockpitTab?: import("@/core/projects/status").CockpitTab;
+    cockpitField?: string;
   };
   /** Estimation en minutes pour la prochaine publication. */
   etaMinutes?: number;
@@ -356,7 +358,7 @@ export interface ChecklistItem {
   status: HealthStatus;
   detail?: string;
   /** Action pour corriger l'item si applicable. */
-  fix?: { label: string; to?: string; kind?: CopilotActionKind };
+  fix?: { label: string; to: string; kind?: CopilotActionKind };
 }
 
 export interface Checklist {

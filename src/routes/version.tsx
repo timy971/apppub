@@ -232,26 +232,31 @@ function VersionAssistant() {
             const p = VersionService.preview(project, c.type);
             const Icon = c.icon;
             return (
-              <button
+              <div
                 key={c.type}
-                onClick={() => {
-                  setChoice(c.type);
-                  setConfirmOpen(true);
-                }}
                 className="rounded-xl border bg-card p-5 text-left shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
               >
-                <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <div className="text-base font-semibold">{c.title}</div>
-                <div className="mt-1 text-sm text-muted-foreground">{c.desc}</div>
-                <div className="mt-3 text-sm tabular-nums">
-                  {p.from} → <strong>{p.to}</strong>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChoice(c.type);
+                    setConfirmOpen(true);
+                  }}
+                  className="block w-full text-left"
+                >
+                  <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="block text-base font-semibold">{c.title}</span>
+                  <span className="mt-1 block text-sm text-muted-foreground">{c.desc}</span>
+                  <span className="mt-3 block text-sm tabular-nums">
+                    {p.from} → <strong>{p.to}</strong>
+                  </span>
+                </button>
                 <div className="mt-3">
                   <WhyButton title={c.title}>{c.why}</WhyButton>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>

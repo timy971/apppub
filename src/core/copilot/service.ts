@@ -61,7 +61,13 @@ function planToSuggestion(plan: CopilotPlan): CopilotSuggestion {
     title: a.title,
     reason: plan.headline,
     why: plan.summary,
-    action: { kind, label: a.title, to: a.route },
+    action: {
+      kind,
+      label: a.title,
+      to: a.route,
+      cockpitTab: a.cockpitTab,
+      cockpitField: a.cockpitField,
+    },
     etaMinutes: plan.etaMinutes,
     priority,
   };

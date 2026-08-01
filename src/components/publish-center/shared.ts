@@ -1,6 +1,7 @@
 import type { Project, HealthCheck, PublishRecord } from "@/core/types";
 import type { ProjectStatus, RuleFinding, CockpitTab } from "@/core/projects/status";
 import { getAndroidConfig } from "@/core/projects/android-config";
+import type { PublishArtifactCheck } from "@/core/publish/artifact";
 
 export type PubSeverity = "ok" | "info" | "warn" | "error";
 
@@ -153,18 +154,27 @@ export function findLastPublish(
   );
 }
 
+export type ChecklistAction =
+  | {
+      kind: "project";
+      label: string;
+      tab: CockpitTab;
+      section?: string;
+      field?: string;
+    }
+  | {
+      kind: "route";
+      label: string;
+      to: "/build";
+    };
+
 export interface ChecklistEntry {
   id: string;
   label: string;
   severity: PubSeverity;
   detail: string;
   explanation?: string;
-  action?: {
-    label: string;
-    tab: CockpitTab;
-    section?: string;
-    field?: string;
-  };
+  action?: ChecklistAction;
 }
 
 export interface ChecklistCategory {
@@ -188,12 +198,8 @@ export function computePreparationScore(categories: ChecklistCategory[]): Prepar
   const passed = all.filter((e) => e.severity === "ok").length;
   const errors = all.filter((e) => e.severity === "error").length;
   const warns = all.filter((e) => e.severity === "warn").length;
-  const raw = Math.max(
-    0,
-    Math.round(((passed - errors * 0.5 - warns * 0.25) / total) * 100),
-  );
-  const level: PreparationScore["level"] =
-    errors > 0 ? "blocked" : warns > 0 ? "almost" : "ready";
+  const raw = Math.max(0, Math.round(((passed - errors * 0.5 - warns * 0.25) / total) * 100));
+  const level: PreparationScore["level"] = errors > 0 ? "blocked" : warns > 0 ? "almost" : "ready";
   const label =
     level === "ready"
       ? "Prêt à publier"
@@ -210,22 +216,20 @@ export function buildChecklist(input: {
   checks: HealthCheck[];
   history: PublishRecord[];
   notes: string;
+  artifact: PublishArtifactCheck;
 }): ChecklistCategory[] {
-  const { project, status, checks, history, notes } = input;
+  const { project, status, checks, notes, artifact } = input;
 
   const identity: ChecklistEntry[] = statusEntries(status, ["identity", "git"]);
   identity.unshift({
     id: "identity-name",
     label: "Nom de l'application",
     severity: project.name.trim().length > 0 ? "ok" : "error",
-    detail:
-      project.name.trim().length > 0
-        ? project.name
-        : "Le nom est requis pour publier.",
+    detail: project.name.trim().length > 0 ? project.name : "Le nom est requis pour publier.",
     action:
       project.name.trim().length > 0
         ? undefined
-        : { label: "Renseigner le nom", tab: "identity", field: "name" },
+        : { kind: "project", label: "Renseigner le nom", tab: "identity", field: "name" },
   });
 
   const versionCat: ChecklistEntry[] = statusEntries(status, ["version"]);
@@ -236,12 +240,8 @@ export function buildChecklist(input: {
     detail: `Version ${project.currentVersion} · build ${project.currentBuild}`,
   });
 
-  const envErrors = checks.filter(
-    (c) => c.category === "environment" && c.status === "error",
-  );
-  const envWarns = checks.filter(
-    (c) => c.category === "environment" && c.status === "warning",
-  );
+  const envErrors = checks.filter((c) => c.category === "environment" && c.status === "error");
+  const envWarns = checks.filter((c) => c.category === "environment" && c.status === "warning");
   const environment: ChecklistEntry[] = [
     {
       id: "env-tools",
@@ -260,20 +260,18 @@ export function buildChecklist(input: {
   const android: ChecklistEntry[] = statusEntries(status, ["android"]);
   const ios: ChecklistEntry[] = statusEntries(status, ["ios"]);
 
-  const fresh = findFreshBuild(history, project);
   const build: ChecklistEntry[] = statusEntries(status, ["build"]);
   build.unshift({
     id: "build-fresh",
     label: "Fichier d'application prêt",
-    severity: fresh ? "ok" : "warn",
-    detail: fresh
-      ? `Un fichier .aab est disponible pour la version ${project.currentVersion}.`
-      : "Aucun fichier .aab n'a encore été construit pour cette version.",
+    severity: artifact.status === "valid" ? "ok" : "error",
+    detail: artifact.detail,
     explanation:
-      "Google Play accepte uniquement les fichiers .aab construits pour la version en cours.",
-    action: fresh
-      ? undefined
-      : { label: "Construire", tab: "overview" },
+      "Google Play accepte uniquement un fichier .aab existant, non vide et correctement signé.",
+    action:
+      artifact.status === "valid"
+        ? undefined
+        : { kind: "route", label: "Construire l'application", to: "/build" },
   });
 
   const notesTrim = notes.trim();
@@ -286,8 +284,7 @@ export function buildChecklist(input: {
         notesTrim.length === 0
           ? "Rédigez quelques lignes pour vos utilisateurs."
           : `${notesTrim.length}/500 caractères`,
-      explanation:
-        "Les notes apparaissent sur la fiche de votre application dans le store.",
+      explanation: "Les notes apparaissent sur la fiche de votre application dans le store.",
     },
   ];
 
@@ -325,6 +322,7 @@ function statusEntries(status: ProjectStatus, domains: RuleFinding["domain"][]):
       explanation: f.explanation,
       action: f.action
         ? {
+            kind: "project" as const,
             label: f.action.label,
             tab: f.action.tab,
             section: f.action.section,

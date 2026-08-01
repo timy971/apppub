@@ -25,8 +25,21 @@ const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
 const os = require("os");
 const https = require("https");
+const {
+  sanitizeDiagnosticValue,
+  summarizeIpcArgs,
+} = require("./diagnostic-redaction.cjs");
+const { ensureGradleWrapperExecutable } = require("./gradle-executable.cjs");
+const {
+  ExecutionRegistry,
+  isValidExecutionId,
+  normalizeSpawnCommand,
+  terminateProcessTree,
+} = require("./process-manager.cjs");
+const { sanitizeExternalUrl } = require("./external-url.cjs");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
+const activeExecutions = new ExecutionRegistry();
 
 /* ---------- Bootstrap : PATH utilisateur (macOS/Linux) ----------
  *
@@ -168,9 +181,7 @@ try {
 
 function _safeJSON(v) {
   try {
-    return JSON.stringify(v, (_k, val) =>
-      typeof val === "string" && val.length > 500 ? val.slice(0, 500) + "…" : val,
-    );
+    return JSON.stringify(sanitizeDiagnosticValue(v));
   } catch {
     return String(v);
   }
@@ -240,7 +251,9 @@ if (_watchdog.unref) _watchdog.unref();
 const _origHandle = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = (channel, fn) => {
   _origHandle(channel, async (event, ...args) => {
-    const opId = diagStart(`ipc:${channel}`, { args });
+    const opId = diagStart(`ipc:${channel}`, {
+      args: summarizeIpcArgs(channel, args),
+    });
     try {
       const res = await fn(event, ...args);
       diagEnd(opId, `ipc:${channel}`, { returned: typeof res });
@@ -545,6 +558,7 @@ const COMMAND_ALLOWLIST = new Set([
   "npx.cmd",
   "git",
   "java",
+  "gradle",
   "gradlew",
   "gradlew.bat",
   "./gradlew",
@@ -669,6 +683,8 @@ function createWindow() {
     // les boucles. L'utilisateur peut relancer l'application.
     console.error(`[AppPublisher] chargement échoué (${code}) : ${desc}`);
   });
+  const senderId = win.webContents.id;
+  win.webContents.once("destroyed", () => activeExecutions.cancelSender(senderId));
 
   if (isDev) win.loadURL(process.env.APPPUBLISHER_DEV_URL);
   else win.loadFile(path.join(__dirname, "..", "dist", "index.html"));
@@ -802,6 +818,10 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  activeExecutions.cancelAll();
 });
 
 
@@ -1063,18 +1083,36 @@ ipcMain.handle("projects:registerRoots", (_e, paths) => {
   return ok;
 });
 
+/* ---------- IPC : Gradle (opérations dédiées) ---------- */
+
+ipcMain.handle("gradle:ensureExecutable", (_e, projectPath) =>
+  ensureGradleWrapperExecutable(projectPath, resolveWithinAllowed),
+);
+
 /* ---------- IPC : Exec (streaming) ---------- */
 
-ipcMain.handle("exec:run", (event, opts, channel) => {
+ipcMain.handle("exec:run", (event, opts, channel, executionId) => {
   return new Promise((resolve) => {
     const start = Date.now();
     let stdout = "";
     let stderr = "";
     let aborted = false;
+    let settled = false;
+    let timer = null;
     const timeoutMs = Math.min(Number(opts?.timeoutMs) || 10 * 60 * 1000, 30 * 60 * 1000);
 
+    const settle = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      if (isValidExecutionId(executionId)) {
+        activeExecutions.release(event.sender.id, executionId);
+      }
+      resolve(result);
+    };
+
     const fail = (msg) =>
-      resolve({
+      settle({
         exitCode: -1,
         stdout: "",
         stderr: msg,
@@ -1083,6 +1121,9 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
       });
 
     if (!opts || typeof opts !== "object") return fail("Requête invalide.");
+    if (executionId != null && !isValidExecutionId(executionId)) {
+      return fail("Identifiant d'exécution invalide.");
+    }
     if (!isAllowedCommand(opts.cmd)) return fail(`Commande non autorisée : ${String(opts.cmd)}`);
     const args = Array.isArray(opts.args) ? opts.args : [];
     const unsafe = findUnsafeArg(args);
@@ -1104,14 +1145,29 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
     }
 
     try {
-      const child = spawn(opts.cmd, args, {
+      const command = normalizeSpawnCommand(opts.cmd);
+      const child = spawn(command, args, {
         cwd,
         env: { ...process.env, ...safeEnv },
         shell: false,
+        detached: process.platform !== "win32",
       });
-      const timer = setTimeout(() => {
+      if (
+        isValidExecutionId(executionId) &&
+        !activeExecutions.register(event.sender.id, executionId, child, () => {
+          aborted = true;
+        })
+      ) {
+        terminateProcessTree(child);
+        return fail("Une exécution portant cet identifiant est déjà active.");
+      }
+      timer = setTimeout(() => {
         aborted = true;
-        child.kill();
+        if (isValidExecutionId(executionId)) {
+          activeExecutions.cancel(event.sender.id, executionId);
+        } else {
+          terminateProcessTree(child);
+        }
       }, timeoutMs);
 
       const push = (stream, data) => {
@@ -1128,8 +1184,7 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
       child.stdout?.on("data", (d) => push("stdout", d));
       child.stderr?.on("data", (d) => push("stderr", d));
       child.on("error", (e) => {
-        clearTimeout(timer);
-        resolve({
+        settle({
           exitCode: -1,
           stdout,
           stderr: stderr + "\n" + String(e),
@@ -1138,8 +1193,7 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
         });
       });
       child.on("close", (code) => {
-        clearTimeout(timer);
-        resolve({
+        settle({
           exitCode: code ?? 0,
           stdout,
           stderr,
@@ -1148,7 +1202,7 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
         });
       });
     } catch (e) {
-      resolve({
+      settle({
         exitCode: -1,
         stdout: "",
         stderr: String(e),
@@ -1157,6 +1211,10 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
       });
     }
   });
+});
+
+ipcMain.handle("exec:cancel", (event, executionId) => {
+  return activeExecutions.cancel(event.sender.id, executionId);
 });
 
 ipcMain.handle("exec:validateEnv", (_event, keys) => {
@@ -1298,22 +1356,35 @@ ipcMain.handle("fs:copyFile", (_e, src, dest) => {
 // openFolder accepte un dossier OU un fichier : dans ce dernier cas on ouvre
 // le dossier parent. Le renderer peut ainsi passer directement le chemin
 // du .aab produit par le build.
-ipcMain.handle("shell:openFolder", (_e, p) => {
+ipcMain.handle("shell:openFolder", async (_e, p) => {
   const safe = resolveWithinAllowed(p);
-  if (!safe) return "";
+  if (!safe) throw new Error("Chemin non autorisé.");
   try {
     const st = fs.statSync(safe);
     const target = st.isDirectory() ? safe : path.dirname(safe);
-    return shell.openPath(target);
-  } catch {
-    return "";
+    const error = await shell.openPath(target);
+    if (error) throw new Error(error);
+  } catch (error) {
+    throw new Error(`Impossible d'ouvrir le dossier : ${String(error?.message ?? error)}`);
   }
 });
 
 ipcMain.handle("shell:revealItem", (_e, p) => {
   const safe = resolveWithinAllowed(p);
-  if (!safe) return;
+  if (!safe) throw new Error("Chemin non autorisé.");
+  if (!fs.existsSync(safe)) throw new Error("Le fichier demandé n'existe plus.");
   shell.showItemInFolder(safe);
+});
+
+ipcMain.handle("shell:openExternal", async (_e, url) => {
+  const safeUrl = sanitizeExternalUrl(url);
+  if (!safeUrl) return false;
+  try {
+    await shell.openExternal(safeUrl);
+    return true;
+  } catch {
+    return false;
+  }
 });
 
 /* ---------- IPC : Net ---------- */
@@ -1882,4 +1953,3 @@ ipcMain.handle("secrets:remove", async (_e, profileId) => {
   diagSigning("info", "secrets:remove", { profileId });
   return true;
 });
-

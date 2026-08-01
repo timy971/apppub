@@ -35,14 +35,11 @@ export function CockpitNavProvider({
   children,
   initialTab,
   initialField,
-  onFieldConsumed,
 }: {
   children: ReactNode;
   initialTab?: CockpitTab;
   /** Champ à mettre en évidence au premier rendu (deep-linking). */
   initialField?: string;
-  /** Appelé une fois le champ initial focusé — pour purger l'URL. */
-  onFieldConsumed?: () => void;
 }) {
   const [tab, setTabState] = useState<CockpitTab>(initialTab ?? "overview");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -104,8 +101,8 @@ export function CockpitNavProvider({
   const bumpRefresh = useCallback(() => setRefreshKey((n) => n + 1), []);
 
   // Deep-linking : au premier montage, si un champ est demandé via l'URL,
-  // on exécute une action synthétique puis on notifie le parent pour purger
-  // le paramètre — évite qu'un refresh manuel réactive le focus.
+  // on exécute une action synthétique. La route purge ensuite le paramètre,
+  // une fois le délai de focus écoulé.
   const consumedRef = useRef(false);
   useEffect(() => {
     if (consumedRef.current) return;
@@ -116,12 +113,7 @@ export function CockpitNavProvider({
       tab: initialTab ?? tab,
       field: initialField,
     });
-    // Laisse le focus se produire avant de purger l'URL (halo visible).
-    const timer = window.setTimeout(() => {
-      onFieldConsumed?.();
-    }, 400);
-    return () => window.clearTimeout(timer);
-  }, [initialField, initialTab, runAction, onFieldConsumed, tab]);
+  }, [initialField, initialTab, runAction, tab]);
 
   const value = useMemo<CockpitNavContextValue>(
     () => ({ tab, setTab, runAction, bumpRefresh, refreshKey }),

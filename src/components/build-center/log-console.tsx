@@ -112,7 +112,14 @@ export function LogConsole({ logs, mode }: Props) {
               >
                 Auto-scroll
               </Button>
-              <Button type="button" size="icon" variant="ghost" onClick={copy} className="h-8 w-8">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={copy}
+                className="h-8 w-8"
+                aria-label="Copier les logs"
+              >
                 <Copy className="h-3.5 w-3.5" />
               </Button>
               <Button
@@ -122,6 +129,7 @@ export function LogConsole({ logs, mode }: Props) {
                 onClick={toggleHeight}
                 className="h-8 w-8"
                 title="Redimensionner"
+                aria-label={heightIdx === HEIGHTS.length - 1 ? "Réduire les logs" : "Agrandir les logs"}
               >
                 {heightIdx === HEIGHTS.length - 1 ? (
                   <Minimize2 className="h-3.5 w-3.5" />

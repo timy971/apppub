@@ -168,6 +168,8 @@ function toInsight(r: CopilotRecommendation): CopilotInsight {
     title: r.headline,
     description: r.description,
     route: r.action?.route,
+    cockpitTab: r.action?.cockpitTab,
+    cockpitField: r.action?.cockpitField,
   };
 }
 

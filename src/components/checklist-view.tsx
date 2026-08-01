@@ -30,7 +30,7 @@ export function ChecklistView({ checklist }: { checklist: Checklist }) {
             </div>
             {item.fix && item.status !== "ok" && (
               <Button asChild size="sm" variant="outline">
-                {item.fix.to ? <Link to={item.fix.to}>{item.fix.label}</Link> : <span>{item.fix.label}</span>}
+                <Link to={item.fix.to}>{item.fix.label}</Link>
               </Button>
             )}
           </li>

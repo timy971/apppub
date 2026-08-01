@@ -72,6 +72,7 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
     if (!checksum) return;
     void navigator.clipboard.writeText(checksum).then(
       () => toast.success("Empreinte copiée."),
+      () => toast.error("Impossible de copier l'empreinte."),
     );
   }
 

@@ -1,10 +1,10 @@
-import { Link } from "@tanstack/react-router";
 import { ArrowRight, Sparkles, Clock, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSetupAssistant } from "@/components/setup-assistant/setup-context";
 import type { CopilotPlan } from "@/core/copilot/types";
+import { CopilotActionLink } from "@/components/copilot-action-link";
 
 /**
  * NextStepCard — LA carte principale du Dashboard.
@@ -18,9 +18,11 @@ import type { CopilotPlan } from "@/core/copilot/types";
  */
 export function NextStepCard({
   plan,
+  projectId,
   loading,
 }: {
   plan: CopilotPlan | null;
+  projectId?: string;
   loading: boolean;
 }) {
   const tone =
@@ -73,10 +75,10 @@ export function NextStepCard({
               </p>
               <div className="mt-5 flex flex-wrap items-center gap-2.5">
                 <Button asChild size="lg">
-                  <Link to={plan.nextAction.route as never}>
+                  <CopilotActionLink action={plan.nextAction} projectId={projectId}>
                     {plan.nextAction.title}
                     <ArrowRight className="h-4 w-4" />
-                  </Link>
+                  </CopilotActionLink>
                 </Button>
                 <AssistantButton />
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-background/80 backdrop-blur px-3 py-1.5 text-xs text-muted-foreground ring-1 ring-border">

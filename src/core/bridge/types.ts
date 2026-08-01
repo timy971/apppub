@@ -78,7 +78,8 @@ export interface SigningAabVerifyResult {
   ok: boolean;
   sha256?: string;
   certificate?: string;
-  errorCode?: "file-missing" | "empty-file" | "jarsigner-missing" | "unsigned" | "verification-failed";
+  errorCode?:
+    "file-missing" | "empty-file" | "jarsigner-missing" | "unsigned" | "verification-failed";
   errorHint?: string;
 }
 
@@ -86,6 +87,17 @@ export interface SecretsSupportInfo {
   platform: "darwin" | "win32" | "linux" | "web";
   available: boolean;
   reason?: string;
+}
+
+export interface GradleEnsureExecutableResult {
+  ok: boolean;
+  path?: string;
+  errorCode?:
+    | "project-not-authorized"
+    | "wrapper-not-found"
+    | "wrapper-not-file"
+    | "chmod-failed"
+    | "internal-error";
 }
 
 export interface SystemBridge {
@@ -102,8 +114,12 @@ export interface SystemBridge {
     registerRoots(paths: string[]): Promise<string[]>;
   };
 
+  gradle: {
+    ensureExecutable(projectPath: string): Promise<GradleEnsureExecutableResult>;
+  };
+
   exec: {
-    run(opts: ExecOptions, onLine?: ExecLineHandler): Promise<ExecResult>;
+    run(opts: ExecOptions, onLine?: ExecLineHandler, signal?: AbortSignal): Promise<ExecResult>;
     validateEnv(keys: string[]): Promise<{ accepted: string[]; rejected: string[] }>;
   };
 
@@ -123,6 +139,7 @@ export interface SystemBridge {
   shell: {
     openFolder(path: string): Promise<void>;
     revealItem(path: string): Promise<void>;
+    openExternal(url: string): Promise<boolean>;
   };
 
   net: {
@@ -162,9 +179,11 @@ export interface SystemBridge {
     /** Scan ciblé : uniquement les racines fournies. Jamais tout le disque. */
     scan(roots: string[]): Promise<SigningScanResult[]>;
     /** Normalise et vérifie le chemin du keystore avant tout lancement Gradle. */
-    resolveKeystore(args: { storedPath: string; projectPath: string }): Promise<SigningKeystoreResolveResult>;
+    resolveKeystore(args: {
+      storedPath: string;
+      projectPath: string;
+    }): Promise<SigningKeystoreResolveResult>;
     /** Vérifie qu'un AAB non vide porte une signature JAR valide. */
     verifyAab(path: string): Promise<SigningAabVerifyResult>;
   };
 }
-

@@ -39,12 +39,15 @@ function Dashboard() {
   const projects = useProjects();
   const navigate = useNavigate();
   const { plan, loading: copilotLoading } = useCopilotPlan();
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => setHydrated(true), []);
 
   useEffect(() => {
-    if (!settings.onboardingCompleted) {
+    if (hydrated && !settings.onboardingCompleted) {
       navigate({ to: "/setup" });
     }
-  }, [settings.onboardingCompleted, navigate]);
+  }, [hydrated, settings.onboardingCompleted, navigate]);
 
   const [dataReady, setDataReady] = useState(false);
   useEffect(() => {
@@ -132,7 +135,7 @@ function Dashboard() {
     };
   }, [projects.length, globalHealth, history, plan.nextAction.title]);
 
-  if (!settings.onboardingCompleted) return null;
+  if (!hydrated || !settings.onboardingCompleted) return null;
 
   const loading = !dataReady;
   void activeProject; // read pour ré-évaluer si le projet actif change.
@@ -149,13 +152,21 @@ function Dashboard() {
           />
         </div>
         <div className="lg:col-span-3">
-          <NextStepCard plan={copilotLoading ? null : plan} loading={copilotLoading} />
+          <NextStepCard
+            plan={copilotLoading ? null : plan}
+            projectId={activeProject?.id}
+            loading={copilotLoading}
+          />
         </div>
       </div>
 
       {/* Ligne 2 : ce qui bloque + ce qui est prêt */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <BlockersCard plan={copilotLoading ? null : plan} loading={copilotLoading} />
+        <BlockersCard
+          plan={copilotLoading ? null : plan}
+          projectId={activeProject?.id}
+          loading={copilotLoading}
+        />
         <ReadyCard plan={copilotLoading ? null : plan} loading={copilotLoading} />
       </div>
 

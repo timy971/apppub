@@ -12,10 +12,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ProjectStatusService } from "@/core/projects/status";
-import {
-  ProjectLifecycleBadge,
-  LIFECYCLE_OPTIONS,
-} from "@/components/project-lifecycle-badge";
+import { ProjectLifecycleBadge, LIFECYCLE_OPTIONS } from "@/components/project-lifecycle-badge";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import {
   Select,
@@ -24,12 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,17 +74,28 @@ function ProjectsPage() {
 
   async function detect() {
     if (!path.trim()) return;
+    setPreview(null);
     setDetecting(true);
     try {
       setPreview(await ProjectsService.detectFromPath(path.trim()));
+    } catch (error) {
+      toast.error("Détection impossible", {
+        description: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setDetecting(false);
     }
   }
 
   async function chooseFolder(setter: (v: string) => void) {
-    const chosen = await bridge().projects.chooseFolder();
-    if (chosen) setter(chosen);
+    try {
+      const chosen = await bridge().projects.chooseFolder();
+      if (chosen) setter(chosen);
+    } catch (error) {
+      toast.error("Impossible d'ouvrir le sélecteur de dossier", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   function add() {
@@ -114,6 +117,10 @@ function ProjectsPage() {
       setScanned(res);
       setSelected(new Set(res.map((r) => r.path)));
       AppStore.updateSettings({ projectsRootPath: rootPath.trim() });
+    } catch (error) {
+      toast.error("Analyse du dossier impossible", {
+        description: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setScanning(false);
     }
@@ -355,9 +362,7 @@ function ProjectsList({
     return projects
       .filter((p) => (favoritesOnly ? p.favorite : true))
       .filter((p) =>
-        lifecycleFilter === "all"
-          ? true
-          : (p.lifecycle ?? "development") === lifecycleFilter,
+        lifecycleFilter === "all" ? true : (p.lifecycle ?? "development") === lifecycleFilter,
       )
       .filter(
         (p) =>
@@ -453,7 +458,13 @@ function ProjectCard({
   }
   async function openInFinder(e: React.MouseEvent) {
     e.stopPropagation();
-    await bridge().shell.openFolder(project.localPath);
+    try {
+      await bridge().shell.openFolder(project.localPath);
+    } catch (error) {
+      toast.error("Impossible d'ouvrir le dossier", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
   function openIdentity(e: React.MouseEvent) {
     e.stopPropagation();
@@ -495,7 +506,12 @@ function ProjectCard({
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={toggleFavorite}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleFavorite}
+                  aria-label={project.favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+                >
                   {project.favorite ? (
                     <Star className="h-4 w-4 fill-current text-warning" />
                   ) : (
@@ -509,7 +525,12 @@ function ProjectCard({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={openInFinder}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={openInFinder}
+                  aria-label="Ouvrir le dossier du projet"
+                >
                   <FolderOpen className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </TooltipTrigger>
@@ -517,7 +538,12 @@ function ProjectCard({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={openIdentity}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={openIdentity}
+                  aria-label="Modifier le projet"
+                >
                   <Pencil className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </TooltipTrigger>
@@ -526,7 +552,12 @@ function ProjectCard({
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={onDelete}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onDelete}
+                  aria-label="Supprimer le projet"
+                >
                   <Trash2 className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </TooltipTrigger>
@@ -539,10 +570,7 @@ function ProjectCard({
               aria-label="Ouvrir le projet"
               onClick={(e) => e.stopPropagation()}
             >
-              <Link
-                to="/projects/$id"
-                params={{ id: project.id }}
-              >
+              <Link to="/projects/$id" params={{ id: project.id }}>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </Link>
             </Button>
