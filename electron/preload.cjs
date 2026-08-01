@@ -118,6 +118,7 @@ contextBridge.exposeInMainWorld("appPublisher", {
 
   exec: {
     run: (opts, channel) => inv("exec:run", opts, channel),
+    validateEnv: (keys) => inv("exec:validateEnv", keys),
     subscribeLines: (channel, cb) => {
       const listener = (_e, line) => cb(line);
       ipcRenderer.on(channel, listener);
@@ -164,6 +165,8 @@ contextBridge.exposeInMainWorld("appPublisher", {
     keystoreList: (args) => inv("signing:keystoreList", args),
     keystoreCreate: (args) => inv("signing:keystoreCreate", args),
     scan: (roots) => inv("signing:scan", roots),
+    resolveKeystore: (args) => inv("signing:resolveKeystore", args),
+    verifyAab: (path) => inv("signing:verifyAab", path),
   },
 });
 

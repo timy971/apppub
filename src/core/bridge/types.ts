@@ -63,6 +63,25 @@ export interface SigningScanResult {
   size: number;
 }
 
+export interface SigningKeystoreResolveResult {
+  ok: boolean;
+  storedPath: string;
+  resolvedPath?: string;
+  testedPaths: string[];
+  isAbsolute: boolean;
+  readable: boolean;
+  errorCode?: "not-found" | "multiple-matches" | "not-a-file" | "not-readable" | "invalid-path";
+  candidates?: string[];
+}
+
+export interface SigningAabVerifyResult {
+  ok: boolean;
+  sha256?: string;
+  certificate?: string;
+  errorCode?: "file-missing" | "empty-file" | "jarsigner-missing" | "unsigned" | "verification-failed";
+  errorHint?: string;
+}
+
 export interface SecretsSupportInfo {
   platform: "darwin" | "win32" | "linux" | "web";
   available: boolean;
@@ -85,6 +104,7 @@ export interface SystemBridge {
 
   exec: {
     run(opts: ExecOptions, onLine?: ExecLineHandler): Promise<ExecResult>;
+    validateEnv(keys: string[]): Promise<{ accepted: string[]; rejected: string[] }>;
   };
 
   fs: {
@@ -141,6 +161,10 @@ export interface SystemBridge {
     keystoreCreate(args: SigningKeystoreCreateArgs): Promise<SigningKeystoreCreateResult>;
     /** Scan ciblé : uniquement les racines fournies. Jamais tout le disque. */
     scan(roots: string[]): Promise<SigningScanResult[]>;
+    /** Normalise et vérifie le chemin du keystore avant tout lancement Gradle. */
+    resolveKeystore(args: { storedPath: string; projectPath: string }): Promise<SigningKeystoreResolveResult>;
+    /** Vérifie qu'un AAB non vide porte une signature JAR valide. */
+    verifyAab(path: string): Promise<SigningAabVerifyResult>;
   };
 }
 

@@ -11,8 +11,9 @@ import { formatDuration, formatSize, formatRelativeDelta, shortChecksum } from "
 import { cn } from "@/lib/utils";
 
 interface Artifact {
-  path?: string;
-  size?: number;
+  aabPath?: string;
+  aabSize?: number;
+  signatureSha256?: string;
 }
 
 interface Props {
@@ -25,12 +26,13 @@ interface Props {
 export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
   const result = snap.result as Artifact | undefined;
   const artifact: Artifact = result ?? {};
-  const filename = artifact.path ? artifact.path.split(/[\\/]/).pop() : undefined;
+  const filename = artifact.aabPath ? artifact.aabPath.split(/[\\/]/).pop() : undefined;
 
   const checksum = useMemo(() => {
-    if (!artifact.path) return undefined;
-    return shortChecksum(`${artifact.path}|${artifact.size ?? 0}|${elapsedMs}`);
-  }, [artifact.path, artifact.size, elapsedMs]);
+    if (artifact.signatureSha256) return artifact.signatureSha256;
+    if (!artifact.aabPath) return undefined;
+    return shortChecksum(`${artifact.aabPath}|${artifact.aabSize ?? 0}|${elapsedMs}`);
+  }, [artifact.aabPath, artifact.aabSize, artifact.signatureSha256, elapsedMs]);
 
   const previous = stats.lastSuccess;
   const delta =
@@ -38,30 +40,30 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
       ? formatRelativeDelta(elapsedMs, previous.durationMs)
       : undefined;
   const sizeDelta =
-    previous && artifact.size && previous.artifactSizeBytes
-      ? formatRelativeDelta(artifact.size, previous.artifactSizeBytes)
+    previous && artifact.aabSize && previous.artifactSizeBytes
+      ? formatRelativeDelta(artifact.aabSize, previous.artifactSizeBytes)
       : undefined;
 
   async function reveal() {
-    if (!artifact.path) return;
+    if (!artifact.aabPath) return;
     try {
-      await bridge().shell.revealItem(artifact.path);
+      await bridge().shell.revealItem(artifact.aabPath);
     } catch {
       toast.info("Ouverture du dossier disponible dans l'application Desktop.");
     }
   }
   async function openFolder() {
-    if (!artifact.path) return;
+    if (!artifact.aabPath) return;
     try {
-      const parent = artifact.path.replace(/[\\/][^\\/]+$/, "");
+      const parent = artifact.aabPath.replace(/[\\/][^\\/]+$/, "");
       await bridge().shell.openFolder(parent);
     } catch {
       toast.info("Ouverture du dossier disponible dans l'application Desktop.");
     }
   }
   function copyPath() {
-    if (!artifact.path) return;
-    void navigator.clipboard.writeText(artifact.path).then(
+    if (!artifact.aabPath) return;
+    void navigator.clipboard.writeText(artifact.aabPath).then(
       () => toast.success("Chemin copié."),
       () => toast.error("Impossible de copier le chemin."),
     );
@@ -89,12 +91,12 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
 
       <div className="grid grid-cols-2 gap-4 p-5 md:grid-cols-4">
         <Metric label="Durée" value={formatDuration(elapsedMs)} delta={delta} />
-        <Metric label="Taille" value={formatSize(artifact.size)} delta={sizeDelta} />
+        <Metric label="Taille" value={formatSize(artifact.aabSize)} delta={sizeDelta} />
         <Metric label="Version" value={`v${project.currentVersion}`} />
         <Metric label="Build" value={`#${project.currentBuild}`} />
       </div>
 
-      {artifact.path && (
+      {artifact.aabPath && (
         <div className="border-t p-5">
           <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Artefact
@@ -102,7 +104,7 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
           <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
             <FileArchive className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
-              <div className="truncate font-mono text-sm">{artifact.path}</div>
+              <div className="truncate font-mono text-sm">{artifact.aabPath}</div>
               {checksum && (
                 <div className="mt-0.5 text-xs text-muted-foreground">
                   Empreinte : <span className="font-mono">{checksum}</span>
@@ -146,7 +148,7 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
             />
             <Compare
               label="Taille"
-              a={formatSize(artifact.size)}
+                a={formatSize(artifact.aabSize)}
               b={formatSize(previous.artifactSizeBytes)}
             />
           </div>

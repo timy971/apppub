@@ -17,6 +17,7 @@ interface AppPublisherApi {
       channel: string,
       cb: (line: { stream: "stdout" | "stderr"; line: string }) => void,
     ) => () => void;
+    validateEnv: SystemBridge["exec"]["validateEnv"];
   };
   fs: SystemBridge["fs"];
   shell: SystemBridge["shell"];
@@ -66,6 +67,7 @@ export const electronBridge: SystemBridge = {
         unsubscribe();
       }
     },
+    validateEnv: (keys) => ensure().exec.validateEnv(keys),
   },
 
   fs: {
@@ -103,5 +105,7 @@ export const electronBridge: SystemBridge = {
     keystoreList: (args) => ensure().signing.keystoreList(args),
     keystoreCreate: (args) => ensure().signing.keystoreCreate(args),
     scan: (roots) => ensure().signing.scan(roots),
+    resolveKeystore: (args) => ensure().signing.resolveKeystore(args),
+    verifyAab: (path) => ensure().signing.verifyAab(path),
   },
 };

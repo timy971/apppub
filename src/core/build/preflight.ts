@@ -239,7 +239,7 @@ export const PreflightService = {
     if (linkedProfile) {
       // Nouveau chemin : profil de signature lié → validation complète
       // (fichier + mot de passe trousseau + alias + certificat).
-      const val = await SigningValidator.validate(linkedProfile.id);
+      const val = await SigningValidator.validate(linkedProfile.id, project.localPath);
       checks.push({
         id: "signing-profile",
         category: "keystore",

@@ -3,6 +3,7 @@ import { bridge } from "@/core/bridge";
 import { JournalService } from "@/core/journal/logger";
 import { SigningInjector } from "./signing-injector";
 import { SigningValidator } from "@/features/android-signing/services/signing-validator";
+import { ProfilesStore } from "@/features/android-signing/storage/profiles-store";
 
 /**
  * BuildService — orchestre la construction Android.
@@ -24,6 +25,7 @@ export interface BuildResult {
   /** true si le .aab a été signé avec le profil lié au projet. */
   signed?: boolean;
   signingProfileName?: string;
+  signatureSha256?: string;
 }
 
 export interface StepReport {
@@ -143,27 +145,71 @@ export const BuildService = {
     const { resolveGradle, ensureGradleExecutable, hasGlobalGradle } = await import("./gradle");
     const gradleRes = await resolveGradle(project.localPath);
     const androidDir = gradleRes.androidDir;
+    const diagnostic = (line: string, level: "info" | "error" = "info") => {
+      opts.onLine?.(line);
+      JournalService.log(level, line);
+    };
+    diagnostic("### Diagnostic de signature");
+    diagnostic(`✓ Projet : ${project.localPath}`);
+    diagnostic(`✓ Dossier Android : ${androidDir}`);
 
     const prep = await SigningInjector.prepare(project);
     if (!prep.ok) {
+      diagnostic(`✗ ${prep.error.message}`, "error");
       opts.onStep("gradle", "error", prep.error.message);
       throw new Error(prep.error.message);
     }
-    const patchStatus = await SigningInjector.ensureGradlePatched(androidDir);
-    if (patchStatus === "gradle-missing") {
+    const patch = await SigningInjector.ensureGradlePatched(androidDir);
+    diagnostic(`${patch.exists ? "✓" : "✗"} build.gradle : ${patch.gradlePath}`);
+    diagnostic(`${patch.status === "write-failed" || patch.status === "gradle-missing" ? "✗" : "✓"} Statut du patch : ${patch.status}`);
+    diagnostic(`${patch.inspection.hasAppPublisherRelease ? "✓" : "✗"} Bloc appPublisherRelease après écriture`);
+    diagnostic(`Configurations détectées : ${patch.inspection.signingConfigs.join(", ") || "aucune"}`);
+    diagnostic(`Affectations signingConfig détectées : ${patch.inspection.releaseAssignments.join(" → ") || "aucune"}`);
+    diagnostic(`Anciens storeFile détectés : ${patch.inspection.legacyStoreFiles.join(", ") || "aucun"}`);
+    diagnostic(`${patch.inspection.releaseUsesAppPublisher ? "✓" : "✗"} Build type release → appPublisherRelease`);
+    diagnostic(`${patch.inspection.hasDeferredSigningOverride ? "✗" : "✓"} Aucune réaffectation différée de signingConfig`);
+    diagnostic(`✓ Profil : ${prep.preparation.profileName}`);
+    diagnostic(`✓ Alias : ${prep.preparation.alias}`);
+    diagnostic(`✓ Keystore enregistré : ${prep.preparation.storedKeystorePath}`);
+    diagnostic(`${prep.preparation.storedPathWasAbsolute ? "✓" : "!"} Chemin enregistré ${prep.preparation.storedPathWasAbsolute ? "absolu" : "relatif — normalisé avant Gradle"}`);
+    diagnostic(`✓ Chemin final transmis à Gradle : ${prep.preparation.keystorePath}`);
+    diagnostic(`✓ Fichier trouvé et lisible`);
+
+    if (patch.status === "gradle-missing") {
+      diagnostic("✗ build.gradle introuvable.", "error");
       opts.onStep("gradle", "error", "android/app/build.gradle est introuvable.");
       throw new Error("android/app/build.gradle est introuvable.");
     }
-    if (patchStatus === "write-failed") {
+    if (patch.status === "write-failed") {
+      diagnostic("✗ Écriture ou relecture du patch impossible.", "error");
       opts.onStep("gradle", "error", "Impossible d'écrire la configuration de signature dans build.gradle.");
       throw new Error("Impossible d'écrire la configuration de signature dans build.gradle.");
     }
-    if (patchStatus === "patched") {
-      opts.onLine?.(`Signature : bloc appPublisherRelease ajouté à app/build.gradle.`);
+    if (
+      !patch.inspection.hasAppPublisherRelease ||
+      !patch.inspection.releaseUsesAppPublisher ||
+      patch.inspection.hasDeferredSigningOverride
+    ) {
+      diagnostic("✗ Le build type release n'utilise pas appPublisherRelease.", "error");
+      opts.onStep("gradle", "error", "La configuration Gradle AppPublisher n'est pas active pour le build release.");
+      throw new Error(
+        patch.inspection.hasDeferredSigningOverride
+          ? "Une configuration Gradle différée (afterEvaluate) peut remplacer la signature AppPublisher. Retirez cette réaffectation avant de relancer."
+          : "La configuration Gradle AppPublisher n'est pas active pour le build release.",
+      );
     }
-    opts.onLine?.(
-      `Signature : profil « ${prep.preparation.profileName} » (alias ${prep.preparation.alias}) — keystore ${prep.preparation.keystorePath}`,
-    );
+
+    const envKeys = Object.keys(prep.preparation.env);
+    const envValidation = await b.exec.validateEnv(envKeys);
+    if (envValidation.rejected.length || envValidation.accepted.length !== envKeys.length) {
+      diagnostic("✗ Les propriétés Gradle requises sont refusées par l'IPC.", "error");
+      throw new Error(`L'IPC Electron refuse des propriétés Gradle requises : ${envValidation.rejected.join(", ") || "validation incomplète"}.`);
+    }
+    diagnostic(`✓ APP_KEYSTORE_FILE : présent (${prep.preparation.keystorePath})`);
+    diagnostic(`✓ APP_KEY_ALIAS : présent (${prep.preparation.alias})`);
+    diagnostic(`✓ APP_KEYSTORE_PASSWORD : présent`);
+    diagnostic(`✓ APP_KEY_PASSWORD : présent`);
+    diagnostic(`✓ Propriétés Gradle autorisées par l'IPC`);
 
     // 5. Gradle bundleRelease — sélection multi-plateforme centralisée.
     let invocation = gradleRes.invocation;
@@ -178,8 +224,12 @@ export const BuildService = {
       }
     } else if (invocation.wrapper === "unix") {
       // Idempotent : garantit gradlew exécutable sous Unix.
-      await ensureGradleExecutable(project.localPath);
+      const executable = await ensureGradleExecutable(project.localPath);
+      if (!executable) throw new Error(`Le wrapper Gradle n'est pas exécutable : ${gradleRes.expectedWrapperPath}`);
     }
+
+    diagnostic(`✓ Commande Gradle : ${invocation.cmd} ${invocation.args.join(" ")}`);
+    diagnostic(`✓ Gradle lancé depuis ${invocation.cwd}`);
 
     opts.onStep("gradle", "running", "Fabrication du fichier Android signé…");
     const gradle = await run(
@@ -206,17 +256,32 @@ export const BuildService = {
       3,
     );
     if (!aabs.length) {
-      opts.onStep("artifact", "warning", "Fichier .aab introuvable après la construction.");
-      return {
-        durationMs: performance.now() - start,
-        succeeded: true,
-        signed: true,
-        signingProfileName: prep.preparation.profileName,
-      };
+      opts.onStep("artifact", "error", "Fichier .aab introuvable après la construction.");
+      throw new Error("Gradle a terminé sans produire de fichier AAB.");
     }
-    const aab = aabs[0];
+    const aab = aabs.find((candidate) => /[\\/]app-release\.aab$/i.test(candidate)) ?? aabs[0];
     const stat = await b.fs.stat(aab);
-    opts.onStep("artifact", "success", "Fichier trouvé.");
+    if (!stat?.isFile || stat.size <= 0) {
+      opts.onStep("artifact", "error", "Le fichier AAB produit est vide ou illisible.");
+      throw new Error("Le fichier AAB produit est vide ou illisible.");
+    }
+    diagnostic(`✓ AAB trouvé : ${aab} (${stat.size} octets)`);
+    const verified = await b.signing.verifyAab(aab);
+    if (!verified.ok) {
+      opts.onStep("artifact", "error", "La vérification de signature du fichier AAB a échoué.");
+      throw new Error(verified.errorHint ?? "La signature du fichier AAB n'est pas valide.");
+    }
+    diagnostic(`✓ Signature AAB vérifiée avec jarsigner`);
+    if (verified.certificate) diagnostic(`✓ Certificat : ${verified.certificate}`);
+    if (verified.sha256) diagnostic(`✓ Empreinte SHA-256 : ${verified.sha256}`);
+    const profile = ProfilesStore.get(prep.preparation.profileId);
+    const expectedSha = profile?.certificate?.sha256?.replace(/\s+/g, "").toUpperCase();
+    if (expectedSha && verified.sha256 && expectedSha !== verified.sha256) {
+      opts.onStep("artifact", "error", "Le certificat de l'AAB ne correspond pas au profil de signature.");
+      throw new Error(`L'empreinte SHA-256 de l'AAB ne correspond pas au profil « ${prep.preparation.profileName} ».`);
+    }
+    if (expectedSha) diagnostic(`✓ Empreinte conforme au profil`);
+    opts.onStep("artifact", "success", "AAB trouvé et signature vérifiée.");
 
     // Trace la dernière utilisation du profil (aucun secret impliqué).
     SigningValidator.markUsed(prep.preparation.profileId);
@@ -228,6 +293,7 @@ export const BuildService = {
       succeeded: true,
       signed: true,
       signingProfileName: prep.preparation.profileName,
+      signatureSha256: verified.sha256,
     };
   },
 };
