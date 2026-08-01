@@ -1356,21 +1356,23 @@ ipcMain.handle("fs:copyFile", (_e, src, dest) => {
 // openFolder accepte un dossier OU un fichier : dans ce dernier cas on ouvre
 // le dossier parent. Le renderer peut ainsi passer directement le chemin
 // du .aab produit par le build.
-ipcMain.handle("shell:openFolder", (_e, p) => {
+ipcMain.handle("shell:openFolder", async (_e, p) => {
   const safe = resolveWithinAllowed(p);
-  if (!safe) return "";
+  if (!safe) throw new Error("Chemin non autorisé.");
   try {
     const st = fs.statSync(safe);
     const target = st.isDirectory() ? safe : path.dirname(safe);
-    return shell.openPath(target);
-  } catch {
-    return "";
+    const error = await shell.openPath(target);
+    if (error) throw new Error(error);
+  } catch (error) {
+    throw new Error(`Impossible d'ouvrir le dossier : ${String(error?.message ?? error)}`);
   }
 });
 
 ipcMain.handle("shell:revealItem", (_e, p) => {
   const safe = resolveWithinAllowed(p);
-  if (!safe) return;
+  if (!safe) throw new Error("Chemin non autorisé.");
+  if (!fs.existsSync(safe)) throw new Error("Le fichier demandé n'existe plus.");
   shell.showItemInFolder(safe);
 });
 

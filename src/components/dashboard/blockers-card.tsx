@@ -1,8 +1,8 @@
-import { Link } from "@tanstack/react-router";
 import { AlertTriangle, CircleX, ArrowRight, Shield } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CopilotPlan } from "@/core/copilot/types";
+import { CopilotActionLink } from "@/components/copilot-action-link";
 
 /**
  * BlockersCard — au plus 3 points bloquants ou en attention.
@@ -10,9 +10,11 @@ import type { CopilotPlan } from "@/core/copilot/types";
  */
 export function BlockersCard({
   plan,
+  projectId,
   loading,
 }: {
   plan: CopilotPlan | null;
+  projectId?: string;
   loading: boolean;
 }) {
   if (loading || !plan) {
@@ -79,12 +81,17 @@ export function BlockersCard({
           return (
             <li key={it.id}>
               {it.route ? (
-                <Link
-                  to={it.route as never}
+                <CopilotActionLink
+                  action={{
+                    route: it.route,
+                    cockpitTab: it.cockpitTab,
+                    cockpitField: it.cockpitField,
+                  }}
+                  projectId={projectId}
                   className="block rounded-lg p-2 -mx-2 transition-colors hover:bg-muted/60"
                 >
                   {inner}
-                </Link>
+                </CopilotActionLink>
               ) : (
                 <div className="p-2 -mx-2">{inner}</div>
               )}

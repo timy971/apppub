@@ -81,6 +81,11 @@ export function CommandPalette() {
     void navigate({ to: url });
   };
 
+  const goProject = (id: string) => {
+    setOpen(false);
+    void navigate({ to: "/projects/$id", params: { id } });
+  };
+
   const support = isExpert ? [...supportBase, ...expertOnly] : supportBase;
 
   const renderGroup = (heading: string, items: NavItem[]) => (
@@ -118,7 +123,7 @@ export function CommandPalette() {
                 <CommandItem
                   key={p.id}
                   value={`Projet ${p.name}`}
-                  onSelect={() => go(`/projects/${p.id}`)}
+                  onSelect={() => goProject(p.id)}
                 >
                   <FolderOpen className="mr-2 h-4 w-4" />
                   <span>Ouvrir {p.name}</span>

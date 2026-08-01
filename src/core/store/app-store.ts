@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { Project, Settings } from "@/core/types";
-import { SettingsService } from "@/core/settings/service";
+import { DEFAULT_SETTINGS, SettingsService } from "@/core/settings/service";
 import { ProjectsService } from "@/core/projects/service";
 
 /**
@@ -13,12 +13,21 @@ const emit = () => listeners.forEach((l) => l());
 
 let cachedSettings: Settings = SettingsService.load();
 let cachedProjects: Project[] = ProjectsService.list();
+const serverSettings: Settings = DEFAULT_SETTINGS;
+const serverProjects: Project[] = [];
 
 export const AppStore = {
   getSettings: () => cachedSettings,
   getProjects: () => cachedProjects,
   getActiveProject: () =>
     cachedProjects.find((p) => p.id === cachedSettings.activeProjectId),
+
+  /** Recharge explicitement l'état navigateur après l'hydratation SSR. */
+  hydrate() {
+    cachedSettings = SettingsService.load();
+    cachedProjects = ProjectsService.list();
+    emit();
+  },
 
   updateSettings(patch: Partial<Settings>) {
     cachedSettings = SettingsService.update(patch);
@@ -45,7 +54,7 @@ export function useSettings(): Settings {
   return useSyncExternalStore(
     AppStore.subscribe,
     AppStore.getSettings,
-    AppStore.getSettings,
+    () => serverSettings,
   );
 }
 
@@ -53,7 +62,7 @@ export function useProjects(): Project[] {
   return useSyncExternalStore(
     AppStore.subscribe,
     AppStore.getProjects,
-    AppStore.getProjects,
+    () => serverProjects,
   );
 }
 
@@ -61,6 +70,6 @@ export function useActiveProject(): Project | undefined {
   return useSyncExternalStore(
     AppStore.subscribe,
     AppStore.getActiveProject,
-    AppStore.getActiveProject,
+    () => undefined,
   );
 }

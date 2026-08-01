@@ -1,8 +1,8 @@
-import { useNavigate } from "@tanstack/react-router";
 import { Sparkles, AlertTriangle, CircleX, ArrowRight, Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { CopilotPlan } from "@/core/copilot/types";
 import type { Project } from "@/core/types";
+import { CopilotActionLink } from "@/components/copilot-action-link";
 
 /**
  * Bandeau supérieur du Publish Center alimenté exclusivement par le Copilot.
@@ -20,7 +20,6 @@ export function PublishCopilotStrip({
   plan: CopilotPlan;
   project?: Project;
 }) {
-  const navigate = useNavigate();
   const tone =
     plan.overallStatus === "blocked"
       ? {
@@ -40,23 +39,6 @@ export function PublishCopilotStrip({
             Icon: Check,
           };
 
-  const goNext = () => {
-    const route = plan.nextAction.route;
-    // Résout les segments dynamiques connus (uniquement `$id` pour le moment).
-    if (route.includes("$id")) {
-      if (!project) return;
-      void navigate({
-        to: "/projects/$id",
-        params: { id: project.id },
-        search: plan.nextAction.cockpitTab
-          ? { tab: plan.nextAction.cockpitTab }
-          : undefined,
-      });
-      return;
-    }
-    void navigate({ to: route as never });
-  };
-
   return (
     <Card className={"p-4 shadow-soft border " + tone.bg}>
       <div className="flex flex-wrap items-center gap-4">
@@ -71,16 +53,15 @@ export function PublishCopilotStrip({
           <div className="mt-0.5 text-sm font-semibold truncate">{plan.headline}</div>
           <div className="text-xs text-muted-foreground truncate">{plan.summary}</div>
         </div>
-        <button
-          type="button"
-          onClick={goNext}
+        <CopilotActionLink
+          action={plan.nextAction}
+          projectId={project?.id}
           className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-3 py-1.5 text-xs font-medium hover:opacity-90 shrink-0"
         >
           {plan.nextAction.title}
           <ArrowRight className="h-3.5 w-3.5" />
-        </button>
+        </CopilotActionLink>
       </div>
     </Card>
   );
 }
-

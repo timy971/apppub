@@ -41,6 +41,7 @@ export const configurationRule: CopilotRule = {
               route: "/projects/$id",
               priority: f.severity === "error" ? "high" : "medium",
               cockpitTab: f.action.tab,
+              cockpitField: f.action.field,
             }
           : undefined,
       });

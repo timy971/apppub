@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { ArrowRight, CheckCircle2, ChevronRight, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,6 +6,7 @@ import { CopilotService } from "@/core/copilot/service";
 import type { HealthCheck, Project, PublishRecord } from "@/core/types";
 import type { ProjectStatus, RuleFinding } from "@/core/projects/status";
 import { useCockpitNav } from "./cockpit-nav";
+import { CopilotActionLink } from "@/components/copilot-action-link";
 
 /**
  * Carte principale du cockpit. Priorité à une règle bloquante avec action
@@ -141,16 +141,19 @@ export function NextActionCard({
             {suggestion.reason}
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {suggestion.action.to ? (
-              <Button asChild>
-                <Link to={suggestion.action.to as never}>
-                  {suggestion.action.label}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            ) : (
-              <Button>{suggestion.action.label}</Button>
-            )}
+            <Button asChild>
+              <CopilotActionLink
+                action={{
+                  route: suggestion.action.to,
+                  cockpitTab: suggestion.action.cockpitTab,
+                  cockpitField: suggestion.action.cockpitField,
+                }}
+                projectId={project.id}
+              >
+                {suggestion.action.label}
+                <ArrowRight className="h-4 w-4" />
+              </CopilotActionLink>
+            </Button>
             {suggestion.why && (
               <WhyButton title="Pourquoi cette suggestion ?">
                 {suggestion.why}

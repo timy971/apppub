@@ -19,6 +19,7 @@ import { ModeBadge } from "@/components/mode-badge";
 import { Toaster } from "@/components/ui/sonner";
 import { SetupAssistantProvider } from "@/components/setup-assistant/setup-context";
 import { CommandPalette } from "@/components/command-palette";
+import { AppStore } from "@/core/store/app-store";
 
 function NotFoundComponent() {
   return (
@@ -68,12 +69,12 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           >
             Réessayer
           </button>
-          <a
-            href="/"
+          <Link
+            to="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
             Tableau de bord
-          </a>
+          </Link>
         </div>
       </div>
     </div>
@@ -136,6 +137,7 @@ function RootComponent() {
   // Phase 3 — au démarrage sous Electron, on ré-enregistre les racines des
   // projets connus afin que le confinement fs:* autorise leur lecture.
   useEffect(() => {
+    AppStore.hydrate();
     void (async () => {
       const { bridge } = await import("@/core/bridge");
       const { ProjectsService } = await import("@/core/projects/service");

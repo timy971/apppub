@@ -1,14 +1,14 @@
-import { Link } from "@tanstack/react-router";
 import { Sparkles, ArrowRight, Check, AlertTriangle, CircleX } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { CopilotPlan } from "@/core/copilot/types";
+import { CopilotActionLink } from "@/components/copilot-action-link";
 
 /**
  * PlanCard — carte "Plan d'action" affichée dans le Cockpit projet.
  * Consomme exactement les mêmes données que le Dashboard (aucune duplication).
  */
-export function PlanCard({ plan }: { plan: CopilotPlan }) {
+export function PlanCard({ plan, projectId }: { plan: CopilotPlan; projectId: string }) {
   const ring =
     plan.overallStatus === "blocked"
       ? "bg-danger text-danger-foreground"
@@ -73,10 +73,10 @@ export function PlanCard({ plan }: { plan: CopilotPlan }) {
 
           <div className="mt-4">
             <Button asChild size="sm">
-              <Link to={plan.nextAction.route as never}>
+              <CopilotActionLink action={plan.nextAction} projectId={projectId}>
                 {plan.nextAction.title}
                 <ArrowRight className="h-4 w-4" />
-              </Link>
+              </CopilotActionLink>
             </Button>
           </div>
         </div>

@@ -32,8 +32,12 @@ export function PublishHandoffCard({ release }: { release: PublishRecord }) {
   }
 
   async function openPlayConsole() {
-    const opened = await bridge().shell.openExternal(PLAY_CONSOLE_URL);
-    if (!opened) toast.error("Impossible d'ouvrir Google Play Console");
+    try {
+      const opened = await bridge().shell.openExternal(PLAY_CONSOLE_URL);
+      if (!opened) toast.error("Impossible d'ouvrir Google Play Console");
+    } catch {
+      toast.error("Impossible d'ouvrir Google Play Console");
+    }
   }
 
   return (

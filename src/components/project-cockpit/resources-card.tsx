@@ -59,8 +59,12 @@ export function ResourcesCard({ project }: { project: Project }) {
       await copy(project.githubRepo);
       return;
     }
-    const opened = await bridge().shell.openExternal(url);
-    if (!opened) toast.error("Ce dépôt ne peut pas être ouvert automatiquement");
+    try {
+      const opened = await bridge().shell.openExternal(url);
+      if (!opened) toast.error("Ce dépôt ne peut pas être ouvert automatiquement");
+    } catch {
+      toast.error("Ce dépôt ne peut pas être ouvert automatiquement");
+    }
   }
 
   async function copy(value: string) {

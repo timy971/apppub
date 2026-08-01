@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, Copy } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,9 @@ export const Route = createFileRoute("/journal")({
 });
 
 function JournalPage() {
-  const [entries, setEntries] = useState<JournalEntry[]>(() => JournalService.list());
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+
+  useEffect(() => setEntries(JournalService.list()), []);
 
   function refresh() {
     setEntries(JournalService.list());

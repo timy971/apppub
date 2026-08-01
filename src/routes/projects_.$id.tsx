@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   FolderOpen,
@@ -98,7 +98,7 @@ interface CockpitSearch {
   field?: string;
 }
 
-export const Route = createFileRoute("/projects/$id")({
+export const Route = createFileRoute("/projects_/$id")({
   validateSearch: (search: Record<string, unknown>): CockpitSearch => {
     const rawTab =
       typeof search.tab === "string" ? (search.tab as string) : undefined;
@@ -125,20 +125,25 @@ function ProjectCockpitRoute() {
 
   // Purge le paramètre `field` de l'URL une fois le focus consommé, sans
   // toucher au `tab` : un refresh manuel ne réactivera pas le halo.
-  const clearField = () => {
+  const clearField = useCallback(() => {
     navigate({
       to: "/projects/$id",
       params: { id },
       search: tab ? { tab } : {},
       replace: true,
     });
-  };
+  }, [id, navigate, tab]);
+
+  useEffect(() => {
+    if (!field) return;
+    const timer = window.setTimeout(clearField, 800);
+    return () => window.clearTimeout(timer);
+  }, [clearField, field]);
 
   return (
     <CockpitNavProvider
       initialTab={tab}
       initialField={field}
-      onFieldConsumed={clearField}
     >
       <ProjectCockpit />
     </CockpitNavProvider>
@@ -152,8 +157,12 @@ function ProjectCockpit() {
   const navigate = useNavigate();
   const nav = useCockpitNav();
   const project = projects.find((p) => p.id === id);
+  const status = useMemo(
+    () => (project ? ProjectStatusService.evaluate(project) : null),
+    [project],
+  );
 
-  if (!project) {
+  if (!project || !status) {
     return (
       <div>
         <PageHeader
@@ -169,7 +178,6 @@ function ProjectCockpit() {
   }
 
   const isActive = settings.activeProjectId === project.id;
-  const status = useMemo(() => ProjectStatusService.evaluate(project), [project]);
 
   function updateProject(
     patch: Partial<Project>,
@@ -184,7 +192,13 @@ function ProjectCockpit() {
   }
 
   async function openFolder() {
-    await bridge().shell.openFolder(project!.localPath);
+    try {
+      await bridge().shell.openFolder(project!.localPath);
+    } catch (error) {
+      toast.error("Impossible d'ouvrir le dossier", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   return (
@@ -334,7 +348,7 @@ function OverviewTab({
 
   return (
     <div className="space-y-4">
-      <PlanCard plan={plan} />
+      <PlanCard plan={plan} projectId={project.id} />
       <NextActionCard
         project={project}
         status={status}
@@ -511,6 +525,16 @@ function ConfigurationTab({
   project: Project;
   update: UpdateFn;
 }) {
+  async function openProjectFolder() {
+    try {
+      await bridge().shell.openFolder(project.localPath);
+    } catch (error) {
+      toast.error("Impossible d'ouvrir le dossier", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   return (
     <Card className="p-6 shadow-soft space-y-5 max-w-3xl">
       <DiscoveryHint title="Configuration du dépôt et du build">
@@ -525,7 +549,7 @@ function ConfigurationTab({
           <Input value={project.localPath} readOnly className="font-mono" />
           <Button
             variant="secondary"
-            onClick={() => bridge().shell.openFolder(project.localPath)}
+            onClick={openProjectFolder}
           >
             <FolderOpen className="h-4 w-4" />
             Ouvrir
@@ -653,8 +677,14 @@ function AndroidSection({
     update(merged, touched);
   }
   async function chooseKeystore() {
-    const chosen = await bridge().signing.chooseKeystore();
-    if (chosen) save({ keystorePath: chosen }, ["android.keystorePath"]);
+    try {
+      const chosen = await bridge().signing.chooseKeystore();
+      if (chosen) save({ keystorePath: chosen }, ["android.keystorePath"]);
+    } catch (error) {
+      toast.error("Impossible de sélectionner le keystore", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
   return (
     <Card className="p-6 shadow-soft max-w-3xl" data-cockpit-field="android">
@@ -1006,6 +1036,12 @@ function InlineText({
 
   function attemptSave() {
     if (!dirty) return;
+    const validationError = validate?.(local) ?? null;
+    if (validationError) {
+      setError(validationError);
+      toast.error("Valeur invalide", { description: validationError });
+      return;
+    }
     try {
       onSave(local);
       // Le state parent va rafraîchir `value` — reset via l'effet ci-dessus.
