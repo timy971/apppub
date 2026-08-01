@@ -122,6 +122,9 @@ export const webBridge: SystemBridge = {
 
   exec: {
     run: fakeExec,
+    async validateEnv(keys) {
+      return { accepted: [...keys], rejected: [] };
+    },
   },
 
   fs: {
@@ -203,6 +206,19 @@ export const webBridge: SystemBridge = {
     },
     async scan() {
       return [];
+    },
+    async resolveKeystore({ storedPath }) {
+      return {
+        ok: false,
+        storedPath,
+        testedPaths: [storedPath],
+        isAbsolute: false,
+        readable: false,
+        errorCode: "not-found",
+      };
+    },
+    async verifyAab() {
+      return { ok: false, errorCode: "file-missing" };
     },
   },
 };

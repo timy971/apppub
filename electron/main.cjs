@@ -593,6 +593,10 @@ function isAllowedCommand(cmd) {
   return COMMAND_ALLOWLIST.has(base) || COMMAND_ALLOWLIST.has(cmd);
 }
 
+function isAllowedGradleEnvKey(key) {
+  return typeof key === "string" && /^ORG_GRADLE_PROJECT_[A-Z0-9_]+$/.test(key);
+}
+
 /* ---------- Persistance des dimensions de la fenêtre ---------- */
 
 const windowStatePath = path.join(app.getPath("userData"), "window-state.json");
@@ -1093,7 +1097,7 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
     const safeEnv = {};
     if (opts.env && typeof opts.env === "object") {
       for (const [k, v] of Object.entries(opts.env)) {
-        if (typeof k !== "string" || !/^ORG_GRADLE_PROJECT_[A-Z0-9_]+$/.test(k)) continue;
+        if (!isAllowedGradleEnvKey(k)) continue;
         if (typeof v !== "string" || v.length > 4096 || /[\n\r\u0000]/.test(v)) continue;
         safeEnv[k] = v;
       }
@@ -1153,6 +1157,15 @@ ipcMain.handle("exec:run", (event, opts, channel) => {
       });
     }
   });
+});
+
+ipcMain.handle("exec:validateEnv", (_event, keys) => {
+  if (!Array.isArray(keys)) return { accepted: [], rejected: [] };
+  const unique = [...new Set(keys.filter((key) => typeof key === "string"))];
+  return {
+    accepted: unique.filter(isAllowedGradleEnvKey),
+    rejected: unique.filter((key) => !isAllowedGradleEnvKey(key)),
+  };
 });
 
 /* ---------- IPC : FS (lecture confinée) ---------- */
@@ -1625,6 +1638,124 @@ ipcMain.handle("signing:scan", async (_e, roots) => {
   }
   diagSigning("info", "scan terminé", { rootsCount: roots.length, found: results.length });
   return results;
+});
+
+ipcMain.handle("signing:resolveKeystore", (_e, args) => {
+  const storedPath = typeof args?.storedPath === "string" ? args.storedPath.trim() : "";
+  const projectPath = resolveWithinAllowed(args?.projectPath);
+  const result = {
+    ok: false,
+    storedPath,
+    testedPaths: [],
+    isAbsolute: false,
+    readable: false,
+  };
+  if (!storedPath || !projectPath) return { ...result, errorCode: "invalid-path" };
+
+  const expanded = storedPath === "~"
+    ? app.getPath("home")
+    : storedPath.startsWith(`~${path.sep}`)
+      ? path.join(app.getPath("home"), storedPath.slice(2))
+      : storedPath;
+  const candidates = path.isAbsolute(expanded)
+    ? [path.normalize(expanded)]
+    : [
+        path.resolve(projectPath, expanded),
+        path.resolve(projectPath, "android", expanded),
+        path.resolve(projectPath, "android", "app", expanded),
+      ];
+  result.testedPaths = [...new Set(candidates)];
+
+  const matches = [];
+  for (const candidate of result.testedPaths) {
+    try {
+      const real = fs.realpathSync(candidate);
+      const stat = fs.statSync(real);
+      if (stat.isFile() && !matches.includes(real)) matches.push(real);
+    } catch {}
+  }
+  if (matches.length > 1) {
+    return { ...result, errorCode: "multiple-matches", candidates: matches };
+  }
+  if (matches.length === 0) return { ...result, errorCode: "not-found" };
+
+  const resolvedPath = matches[0];
+  try {
+    const stat = fs.statSync(resolvedPath);
+    if (!stat.isFile()) return { ...result, resolvedPath, errorCode: "not-a-file" };
+    fs.accessSync(resolvedPath, fs.constants.R_OK);
+  } catch {
+    return { ...result, resolvedPath, errorCode: "not-readable" };
+  }
+  allowedKeystoreFiles.add(resolvedPath);
+  return {
+    ...result,
+    ok: true,
+    resolvedPath,
+    isAbsolute: path.isAbsolute(resolvedPath),
+    readable: true,
+  };
+});
+
+function resolveJdkTool(name) {
+  const home = process.env.JAVA_HOME;
+  if (home) {
+    const candidate = path.join(home, "bin", process.platform === "win32" ? `${name}.exe` : name);
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {}
+  }
+  return process.platform === "win32" ? `${name}.exe` : name;
+}
+
+function runJdkTool(tool, args, timeoutMs = 60_000) {
+  return new Promise((resolve) => {
+    const child = spawn(resolveJdkTool(tool), args, { shell: false });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      try { child.kill(); } catch {}
+      finish({ code: -1, stdout, stderr: `${stderr}\n[timeout]` });
+    }, timeoutMs);
+    child.stdout?.on("data", (data) => (stdout += data.toString()));
+    child.stderr?.on("data", (data) => (stderr += data.toString()));
+    child.on("error", (error) => finish({ code: -1, stdout, stderr: `${stderr}\n${String(error)}`, spawnError: error }));
+    child.on("close", (code) => finish({ code: code ?? -1, stdout, stderr }));
+  });
+}
+
+ipcMain.handle("signing:verifyAab", async (_e, inputPath) => {
+  const safe = resolveWithinAllowed(inputPath);
+  if (!safe) return { ok: false, errorCode: "file-missing", errorHint: "Le fichier AAB est introuvable." };
+  let stat;
+  try { stat = fs.statSync(safe); } catch { return { ok: false, errorCode: "file-missing" }; }
+  if (!stat.isFile()) return { ok: false, errorCode: "file-missing" };
+  if (stat.size <= 0) return { ok: false, errorCode: "empty-file", errorHint: "Le fichier AAB est vide." };
+
+  const verified = await runJdkTool("jarsigner", ["-verify", "-strict", "-certs", safe]);
+  if (verified.spawnError?.code === "ENOENT") {
+    return { ok: false, errorCode: "jarsigner-missing", errorHint: "jarsigner est introuvable. Installez un JDK 17+." };
+  }
+  if (verified.code !== 0 || !/jar verified\.|jar vérifié\./i.test(`${verified.stdout}\n${verified.stderr}`)) {
+    return { ok: false, errorCode: "verification-failed", errorHint: "La signature JAR du fichier AAB n'est pas valide." };
+  }
+
+  const certificate = await runJdkTool("keytool", ["-printcert", "-jarfile", safe]);
+  const output = `${certificate.stdout}\n${certificate.stderr}`;
+  const sha256 = output.match(/SHA[\s-]?256\s*:\s*([0-9A-Fa-f: ]+)/i)?.[1]?.replace(/\s+/g, "").toUpperCase();
+  const owner = output.match(/^\s*(?:Owner|Propriétaire)\s*:\s*(.+)$/mi)?.[1]?.trim();
+  if (certificate.code !== 0 || !sha256) {
+    return { ok: false, errorCode: "verification-failed", errorHint: "Le certificat de signature de l'AAB est illisible." };
+  }
+  return { ok: true, sha256, certificate: owner };
 });
 
 /* ==========================================================================
