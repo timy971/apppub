@@ -24,11 +24,11 @@ export const androidRules: ProjectRule[] = [
       return project.detected.hasGradleWrapper
         ? null
         : {
-            severity: "error",
+            severity: "warn",
             message: "Le wrapper Gradle est absent du projet Android.",
             explanation:
-              "Sans le wrapper Gradle, aucune commande de build Android ne peut être exécutée.",
-            hint: "Réinstallez la plateforme Android depuis Capacitor.",
+              "AppPublisher peut utiliser une installation globale de Gradle, mais le wrapper local reste plus fiable et reproductible.",
+            hint: "Le préflight vérifiera automatiquement si Gradle est disponible globalement.",
           };
     },
   },

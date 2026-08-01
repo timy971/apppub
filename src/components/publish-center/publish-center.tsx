@@ -8,6 +8,7 @@ import { BackupService } from "@/core/backup/service";
 import { ProjectStatusService } from "@/core/projects/status";
 import type { ProjectStatus } from "@/core/projects/status";
 import { ReleaseNotesService } from "@/core/release-notes/service";
+import { verifyPublishArtifact, type PublishArtifactCheck } from "@/core/publish/artifact";
 import type { HealthCheck, Project, PublishRecord } from "@/core/types";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { PublishHeader } from "./header";
 import { PublishCopilotStrip } from "./copilot-strip";
 import { PublishExplainer } from "./publish-explainer";
+import { PublishHandoffCard } from "./handoff-card";
 import { ReleaseOverviewCard } from "./release-overview";
 import { ChecklistCard } from "./checklist";
 import { ReleaseNotesCard } from "./release-notes";
@@ -24,11 +26,7 @@ import { StoreTargetsCard } from "./store-targets";
 import { ValidationSummaryCard } from "./validation-summary";
 import { ReleaseHistoryCard } from "./release-history";
 import { CopilotService } from "@/core/copilot/service";
-import {
-  buildChecklist,
-  computePreparationScore,
-  findLastPublish,
-} from "./shared";
+import { buildChecklist, computePreparationScore, findLastPublish } from "./shared";
 
 /**
  * Publish Center — centre de préparation d'une release.
@@ -45,6 +43,7 @@ import {
 export function PublishCenter({ project }: { project: Project }) {
   const settings = useSettings();
   const [checks, setChecks] = useState<HealthCheck[] | null>(null);
+  const [artifact, setArtifact] = useState<PublishArtifactCheck | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
   const [preparing, setPreparing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -52,48 +51,61 @@ export function PublishCenter({ project }: { project: Project }) {
   useEffect(() => {
     let cancelled = false;
     setChecks(null);
-    void DiagnosticService.run(project).then((c) => {
-      if (!cancelled) setChecks(c);
+    setArtifact(null);
+    void Promise.all([
+      DiagnosticService.run(project),
+      verifyPublishArtifact(project, HistoryService.list()),
+    ]).then(([nextChecks, nextArtifact]) => {
+      if (cancelled) return;
+      setChecks(nextChecks);
+      setArtifact(nextArtifact);
     });
     return () => {
       cancelled = true;
     };
-  }, [project.id]);
+  }, [project, refreshKey]);
 
-  const status: ProjectStatus = useMemo(
-    () => ProjectStatusService.evaluate(project),
-    [project, refreshKey],
-  );
-  const history: PublishRecord[] = useMemo(
-    () => HistoryService.list(),
-    [project.id, refreshKey],
-  );
+  const status: ProjectStatus = useMemo(() => ProjectStatusService.evaluate(project), [project]);
+  const history: PublishRecord[] = HistoryService.list();
 
-  const notesFormatted = useMemo(
-    () => ReleaseNotesService.format(notesDraft),
-    [notesDraft],
-  );
+  const notesFormatted = useMemo(() => ReleaseNotesService.format(notesDraft), [notesDraft]);
 
-  const categories = useMemo(
-    () =>
-      buildChecklist({
-        project,
-        status,
-        checks: checks ?? [],
-        history,
-        notes: notesFormatted,
-      }),
-    [project, status, checks, history, notesFormatted],
-  );
+  const categories = useMemo(() => {
+    if (!artifact) return [];
+    return buildChecklist({
+      project,
+      status,
+      checks: checks ?? [],
+      history,
+      notes: notesFormatted,
+      artifact,
+    });
+  }, [project, status, checks, history, notesFormatted, artifact]);
 
   const score = useMemo(() => computePreparationScore(categories), [categories]);
   const lastPublish = useMemo(() => findLastPublish(history, project), [history, project]);
+  const preparedRelease =
+    lastPublish &&
+    lastPublish.version === project.currentVersion &&
+    lastPublish.build === project.currentBuild &&
+    artifact?.status === "valid" &&
+    lastPublish.artifactPath === artifact.path
+      ? lastPublish
+      : undefined;
 
   const prepare = useCallback(async () => {
     if (score.level === "blocked") return;
     setPreparing(true);
     const started = performance.now();
     try {
+      const verifiedArtifact = await verifyPublishArtifact(project, HistoryService.list());
+      setArtifact(verifiedArtifact);
+      if (verifiedArtifact.status !== "valid" || !verifiedArtifact.path) {
+        toast.error("Le fichier AAB n'est pas publiable", {
+          description: verifiedArtifact.detail,
+        });
+        return;
+      }
       if (settings.autoBackupEnabled) {
         try {
           await BackupService.create(project, "publish");
@@ -111,6 +123,8 @@ export function PublishCenter({ project }: { project: Project }) {
         outcome: "success",
         message: "Release préparée",
         kind: "publish",
+        artifactPath: verifiedArtifact.path,
+        artifactSizeBytes: verifiedArtifact.size,
         notes: notesFormatted || undefined,
       });
       AppStore.refreshProjects();
@@ -123,15 +137,9 @@ export function PublishCenter({ project }: { project: Project }) {
     } finally {
       setPreparing(false);
     }
-  }, [
-    project,
-    score.level,
-    settings.autoBackupEnabled,
-    settings.userName,
-    notesFormatted,
-  ]);
+  }, [project, score.level, settings.autoBackupEnabled, settings.userName, notesFormatted]);
 
-  if (checks === null) {
+  if (checks === null || artifact === null) {
     return <PublishCenterSkeleton />;
   }
 
@@ -157,20 +165,18 @@ export function PublishCenter({ project }: { project: Project }) {
           const first = categories
             .flatMap((c) => c.entries)
             .find((e) => e.severity === "error")?.action;
-          return first ? { tab: first.tab, field: first.field } : undefined;
+          return first;
         })()}
       />
+
+      {preparedRelease && <PublishHandoffCard release={preparedRelease} />}
 
       <ReleaseOverviewCard project={project} />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
           <ChecklistCard project={project} categories={categories} />
-          <ReleaseNotesCard
-            project={project}
-            draft={notesDraft}
-            onDraftChange={setNotesDraft}
-          />
+          <ReleaseNotesCard project={project} draft={notesDraft} onDraftChange={setNotesDraft} />
           <StoreTargetsCard project={project} status={status} />
         </div>
 

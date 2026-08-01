@@ -9,8 +9,9 @@ import { CopilotBus } from "@/core/copilot/bus";
  *
  * Phase 3 : sous Electron, on écrit un vrai snapshot sur disque dans
  * `<projet>/.apppublisher-backups/<timestamp>/`. Les fichiers critiques
- * (version.json, package.json, CHANGELOG.md quand présents) sont copiés
- * à l'identique. `restore()` permet de remettre le projet dans cet état.
+ * (version, métadonnées et configuration Gradle modifiée par AppPublisher)
+ * sont copiés à l'identique. `restore()` permet de remettre le projet dans
+ * cet état.
  *
  * Sous Web (preview Lovable), on garde uniquement une trace mémoire
  * (métadonnées + contenu texte) pour continuer à faire fonctionner l'UI.
@@ -23,7 +24,13 @@ interface StoredBackup extends ProjectBackup {
   contents?: Record<string, string>;
 }
 
-const CRITICAL = ["version.json", "package.json", "CHANGELOG.md"];
+const SNAPSHOT_FILES = [
+  "version.json",
+  "package.json",
+  "CHANGELOG.md",
+  "android/app/build.gradle",
+  "android/app/build.gradle.kts",
+];
 
 function uid(): UUID {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -49,16 +56,22 @@ export const BackupService = {
       // Snapshot réel sur disque, sous la racine du projet (donc autorisé
       // par le confinement fs:*).
       location = `${project.localPath}/${BACKUPS_FOLDER}/${stamp()}-${reason}`;
-      await b.fs.mkdir(location);
-      for (const rel of CRITICAL) {
+      const created = await b.fs.mkdir(location);
+      if (!created) throw new Error("Impossible de créer le dossier de sauvegarde.");
+      for (const rel of SNAPSHOT_FILES) {
         const src = `${project.localPath}/${rel}`;
         const stat = await b.fs.stat(src);
         if (!stat?.isFile) continue;
         const copied = await b.fs.copyFile(src, `${location}/${rel}`);
-        if (copied) files.push({ path: rel, size: stat.size });
+        if (!copied) throw new Error(`Impossible de sauvegarder ${rel}.`);
+        const saved = await b.fs.stat(`${location}/${rel}`);
+        if (!saved?.isFile || saved.size !== stat.size) {
+          throw new Error(`La copie de sauvegarde de ${rel} est incomplète.`);
+        }
+        files.push({ path: rel, size: stat.size });
       }
     } else {
-      for (const rel of CRITICAL) {
+      for (const rel of SNAPSHOT_FILES) {
         const p = `${project.localPath}/${rel}`;
         const stat = await b.fs.stat(p);
         if (!stat?.isFile) continue;
@@ -107,7 +120,8 @@ export const BackupService = {
         const src = `${backup.location}/${f.path}`;
         const dest = `${project.localPath}/${f.path}`;
         const done = await b.fs.copyFile(src, dest);
-        if (!done) ok = false;
+        const restored = done ? await b.fs.stat(dest) : null;
+        if (!restored?.isFile || restored.size !== f.size) ok = false;
       }
       JournalService.log(ok ? "info" : "warn", "Restauration de sauvegarde", {
         project: project.name,

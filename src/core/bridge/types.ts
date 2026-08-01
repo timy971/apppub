@@ -119,7 +119,7 @@ export interface SystemBridge {
   };
 
   exec: {
-    run(opts: ExecOptions, onLine?: ExecLineHandler): Promise<ExecResult>;
+    run(opts: ExecOptions, onLine?: ExecLineHandler, signal?: AbortSignal): Promise<ExecResult>;
     validateEnv(keys: string[]): Promise<{ accepted: string[]; rejected: string[] }>;
   };
 
@@ -139,6 +139,7 @@ export interface SystemBridge {
   shell: {
     openFolder(path: string): Promise<void>;
     revealItem(path: string): Promise<void>;
+    openExternal(url: string): Promise<boolean>;
   };
 
   net: {

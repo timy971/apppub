@@ -4,8 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import type { Project, PublishRecord } from "@/core/types";
-import type { ProjectStatus, CockpitTab } from "@/core/projects/status";
-import type { PreparationScore } from "./shared";
+import type { ProjectStatus } from "@/core/projects/status";
+import type { ChecklistAction, PreparationScore } from "./shared";
 import { formatRelative } from "./shared";
 
 interface Props {
@@ -16,9 +16,8 @@ interface Props {
   onPrepare: () => void;
   preparing: boolean;
   /** Première action bloquante à corriger (calculée par le parent). */
-  firstBlocker?: { tab: CockpitTab; field?: string };
+  firstBlocker?: ChecklistAction;
 }
-
 
 export function PublishHeader({
   project,
@@ -42,16 +41,21 @@ export function PublishHeader({
 
   const handleClick = () => {
     if (blocked) {
+      if (firstBlocker?.kind === "route") {
+        void navigate({ to: firstBlocker.to });
+        return;
+      }
       // Amène l'utilisateur au premier blocage réel plutôt que d'être un
       // bouton mort. Si aucun blocage n'est identifié, on ouvre le cockpit.
       void navigate({
         to: "/projects/$id",
         params: { id: project.id },
-        search: firstBlocker
-          ? firstBlocker.field
-            ? { tab: firstBlocker.tab, field: firstBlocker.field }
-            : { tab: firstBlocker.tab }
-          : { tab: "overview" },
+        search:
+          firstBlocker?.kind === "project"
+            ? firstBlocker.field
+              ? { tab: firstBlocker.tab, field: firstBlocker.field }
+              : { tab: firstBlocker.tab }
+            : { tab: "overview" },
       });
       return;
     }
@@ -68,23 +72,16 @@ export function PublishHeader({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-semibold tracking-tight truncate">
-                {project.name}
-              </h1>
+              <h1 className="text-2xl font-semibold tracking-tight truncate">{project.name}</h1>
               <ProjectStatusBadge status={status} />
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span>
                 Version{" "}
-                <span className="font-medium text-foreground">
-                  {project.currentVersion}
-                </span>
+                <span className="font-medium text-foreground">{project.currentVersion}</span>
               </span>
               <span>
-                Build{" "}
-                <span className="font-medium text-foreground">
-                  {project.currentBuild}
-                </span>
+                Build <span className="font-medium text-foreground">{project.currentBuild}</span>
               </span>
               {lastPublish ? (
                 <span>Dernière préparation {formatRelative(lastPublish.createdAt)}</span>
@@ -115,7 +112,6 @@ export function PublishHeader({
         </div>
       </div>
     </Card>
-
   );
 }
 
@@ -161,9 +157,7 @@ function ScoreRing({
         </div>
       </div>
       <div className="hidden sm:block">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-          Préparation
-        </div>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">Préparation</div>
         <div className={"text-sm font-medium " + colorClass}>{label}</div>
       </div>
     </div>

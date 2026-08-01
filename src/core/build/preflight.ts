@@ -1,7 +1,7 @@
 import type { Project } from "@/core/types";
 import { bridge } from "@/core/bridge";
 import { getAndroidConfig } from "@/core/projects/android-config";
-import { resolveGradle } from "./gradle";
+import { hasGlobalGradle, resolveGradle } from "./gradle";
 import { ProfilesStore } from "@/features/android-signing/storage/profiles-store";
 import { SigningValidator } from "@/features/android-signing/services/signing-validator";
 
@@ -159,15 +159,21 @@ export const PreflightService = {
 
     // ---------- Gradle wrapper ----------
     const gradle = await resolveGradle(projectPath);
+    const globalGradleAvailable = gradle.wrapperExists ? false : await hasGlobalGradle(androidDir);
     checks.push({
       id: "gradle-wrapper",
       category: "android",
-      status: gradle.wrapperExists ? "success" : "error",
-      title: gradle.platform === "win32" ? "Wrapper Gradle (gradlew.bat)" : "Wrapper Gradle (gradlew)",
+      status: gradle.wrapperExists ? "success" : globalGradleAvailable ? "warning" : "error",
+      title:
+        gradle.platform === "win32" ? "Wrapper Gradle (gradlew.bat)" : "Wrapper Gradle (gradlew)",
       message: gradle.wrapperExists
         ? "Wrapper Gradle trouvé."
-        : "Le wrapper Gradle attendu est introuvable dans le projet Android.",
-      technical: gradle.expectedWrapperPath,
+        : globalGradleAvailable
+          ? "Wrapper absent : AppPublisher utilisera l'installation globale de Gradle."
+          : "Le wrapper Gradle attendu est introuvable et aucune installation globale n'est disponible.",
+      technical: globalGradleAvailable
+        ? `Repli : gradle bundleRelease depuis ${androidDir}`
+        : gradle.expectedWrapperPath,
     });
 
     // Exécutable sous Unix

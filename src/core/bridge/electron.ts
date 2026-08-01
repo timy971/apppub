@@ -13,7 +13,9 @@ interface AppPublisherApi {
     run: (
       opts: Parameters<SystemBridge["exec"]["run"]>[0],
       onLineChannel?: string,
+      executionId?: string,
     ) => Promise<Awaited<ReturnType<SystemBridge["exec"]["run"]>>>;
+    cancel: (executionId: string) => Promise<boolean>;
     subscribeLines: (
       channel: string,
       cb: (line: { stream: "stdout" | "stderr"; line: string }) => void,
@@ -62,13 +64,22 @@ export const electronBridge: SystemBridge = {
   },
 
   exec: {
-    async run(opts, onLine) {
+    async run(opts, onLine, signal) {
       const api = ensure();
       const channel = `exec-${Math.random().toString(36).slice(2)}`;
+      const executionId = createExecutionId();
       const unsubscribe = onLine ? api.exec.subscribeLines(channel, onLine) : () => {};
+      const cancel = () => {
+        void api.exec.cancel(executionId);
+      };
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      signal?.addEventListener("abort", cancel, { once: true });
       try {
-        return await api.exec.run(opts, onLine ? channel : undefined);
+        const result = await api.exec.run(opts, onLine ? channel : undefined, executionId);
+        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        return result;
       } finally {
+        signal?.removeEventListener("abort", cancel);
         unsubscribe();
       }
     },
@@ -91,6 +102,7 @@ export const electronBridge: SystemBridge = {
   shell: {
     openFolder: (p) => ensure().shell.openFolder(p),
     revealItem: (p) => ensure().shell.revealItem(p),
+    openExternal: (url) => ensure().shell.openExternal(url),
   },
 
   net: {
@@ -114,3 +126,10 @@ export const electronBridge: SystemBridge = {
     verifyAab: (path) => ensure().signing.verifyAab(path),
   },
 };
+
+function createExecutionId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `exec_${crypto.randomUUID().replace(/-/g, "")}`;
+  }
+  return `exec_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}

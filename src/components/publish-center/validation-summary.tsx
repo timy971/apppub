@@ -12,20 +12,16 @@ interface Props {
 }
 
 export function ValidationSummaryCard({ project, score, categories }: Props) {
-  const errors = categories
-    .flatMap((c) => c.entries)
-    .filter((e) => e.severity === "error");
-  const warnings = categories
-    .flatMap((c) => c.entries)
-    .filter((e) => e.severity === "warn");
+  const errors = categories.flatMap((c) => c.entries).filter((e) => e.severity === "error");
+  const warnings = categories.flatMap((c) => c.entries).filter((e) => e.severity === "warn");
 
   // Cible du bouton principal : premier point bloquant (ou avertissement),
   // sinon la vue d'ensemble du projet. Évite d'atterrir sur "overview"
   // quand l'utilisateur vient de voir un blocage précis.
   const firstActionable = (errors[0] ?? warnings[0])?.action;
-  const targetTab = firstActionable?.tab ?? "overview";
-  const targetField = firstActionable?.field;
-
+  const projectAction = firstActionable?.kind === "project" ? firstActionable : undefined;
+  const targetTab = projectAction?.tab ?? "overview";
+  const targetField = projectAction?.field;
 
   const tone =
     score.level === "ready"
@@ -62,8 +58,7 @@ export function ValidationSummaryCard({ project, score, categories }: Props) {
       <div className="flex items-start gap-4">
         <div
           className={
-            "flex h-14 w-14 shrink-0 items-center justify-center rounded-full " +
-            tone.circle
+            "flex h-14 w-14 shrink-0 items-center justify-center rounded-full " + tone.circle
           }
         >
           <tone.Icon className="h-7 w-7" />
@@ -91,14 +86,21 @@ export function ValidationSummaryCard({ project, score, categories }: Props) {
           )}
           <div className="mt-4 flex flex-wrap gap-2">
             <Button asChild size="sm" variant="outline">
-              <Link
-                to="/projects/$id"
-                params={{ id: project.id }}
-                search={targetField ? { tab: targetTab, field: targetField } : { tab: targetTab }}
-              >
-                {firstActionable ? firstActionable.label : "Ouvrir le cockpit projet"}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+              {firstActionable?.kind === "route" ? (
+                <Link to={firstActionable.to}>
+                  {firstActionable.label}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              ) : (
+                <Link
+                  to="/projects/$id"
+                  params={{ id: project.id }}
+                  search={targetField ? { tab: targetTab, field: targetField } : { tab: targetTab }}
+                >
+                  {firstActionable ? firstActionable.label : "Ouvrir le cockpit projet"}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              )}
             </Button>
 
             {score.level !== "blocked" && (
