@@ -17,6 +17,7 @@ interface AppPublisherApi {
       channel: string,
       cb: (line: { stream: "stdout" | "stderr"; line: string }) => void,
     ) => () => void;
+    validateEnv: SystemBridge["exec"]["validateEnv"];
   };
   fs: SystemBridge["fs"];
   shell: SystemBridge["shell"];

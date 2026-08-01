@@ -3,6 +3,7 @@ import { bridge } from "@/core/bridge";
 import { JournalService } from "@/core/journal/logger";
 import { SigningInjector } from "./signing-injector";
 import { SigningValidator } from "@/features/android-signing/services/signing-validator";
+import { ProfilesStore } from "@/features/android-signing/storage/profiles-store";
 
 /**
  * BuildService — orchestre la construction Android.
