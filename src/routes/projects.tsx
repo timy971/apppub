@@ -12,10 +12,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ProjectStatusService } from "@/core/projects/status";
-import {
-  ProjectLifecycleBadge,
-  LIFECYCLE_OPTIONS,
-} from "@/components/project-lifecycle-badge";
+import { ProjectLifecycleBadge, LIFECYCLE_OPTIONS } from "@/components/project-lifecycle-badge";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import {
   Select,
@@ -24,12 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,9 +74,14 @@ function ProjectsPage() {
 
   async function detect() {
     if (!path.trim()) return;
+    setPreview(null);
     setDetecting(true);
     try {
       setPreview(await ProjectsService.detectFromPath(path.trim()));
+    } catch (error) {
+      toast.error("Détection impossible", {
+        description: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setDetecting(false);
     }
@@ -355,9 +352,7 @@ function ProjectsList({
     return projects
       .filter((p) => (favoritesOnly ? p.favorite : true))
       .filter((p) =>
-        lifecycleFilter === "all"
-          ? true
-          : (p.lifecycle ?? "development") === lifecycleFilter,
+        lifecycleFilter === "all" ? true : (p.lifecycle ?? "development") === lifecycleFilter,
       )
       .filter(
         (p) =>
@@ -539,10 +534,7 @@ function ProjectCard({
               aria-label="Ouvrir le projet"
               onClick={(e) => e.stopPropagation()}
             >
-              <Link
-                to="/projects/$id"
-                params={{ id: project.id }}
-              >
+              <Link to="/projects/$id" params={{ id: project.id }}>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </Link>
             </Button>

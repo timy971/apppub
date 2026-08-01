@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppStore } from "@/core/store/app-store";
 import { ProjectsService } from "@/core/projects/service";
+import { bridge } from "@/core/bridge";
 import type { ProjectDraft } from "@/core/types";
 import { diag } from "@/core/diag/logger";
 
@@ -20,6 +21,7 @@ function SetupWizard() {
   const [projectPath, setProjectPath] = useState("");
   const [detecting, setDetecting] = useState(false);
   const [detected, setDetected] = useState<ProjectDraft | null>(null);
+  const [detectionError, setDetectionError] = useState<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const projectPathInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -60,6 +62,7 @@ function SetupWizard() {
       diag("wizard", "detect:skip:emptyPath");
       return;
     }
+    setDetectionError(null);
     setDetecting(true);
     try {
       const draft = await ProjectsService.detectFromPath(projectPath.trim());
@@ -67,9 +70,26 @@ function SetupWizard() {
       setDetected(draft);
       go(2, "detect:success");
     } catch (e) {
-      diag("wizard", "detect:error", { error: String((e as Error)?.message ?? e) });
+      const message = String((e as Error)?.message ?? e);
+      diag("wizard", "detect:error", { error: message });
+      setDetected(null);
+      setDetectionError(message);
     } finally {
       setDetecting(false);
+    }
+  }
+
+  async function chooseProjectFolder() {
+    setDetectionError(null);
+    try {
+      const selected = await bridge().projects.chooseFolder();
+      if (!selected) return;
+      setProjectPath(selected);
+      setDetected(null);
+    } catch (error) {
+      setDetectionError(
+        error instanceof Error ? error.message : "Impossible d'ouvrir le sélecteur de dossier.",
+      );
     }
   }
 
@@ -182,31 +202,49 @@ function SetupWizard() {
               icon={<FolderOpen className="h-6 w-6" />}
             >
               <div className="space-y-4">
-                <Input
-                  ref={projectPathInputRef}
-                  placeholder="Exemple : /Users/tim/Projets/CranioScan"
-                  value={projectPath}
-                  onChange={(e) => setProjectPath(e.target.value)}
-                  className="h-12 text-base font-mono"
-                  onKeyDown={(e) => e.key === "Enter" && runDetection()}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    ref={projectPathInputRef}
+                    placeholder="Exemple : /Users/tim/Projets/CranioScan"
+                    value={projectPath}
+                    onChange={(e) => {
+                      setProjectPath(e.target.value);
+                      setDetected(null);
+                      setDetectionError(null);
+                    }}
+                    className="h-12 text-base font-mono"
+                    onKeyDown={(e) => e.key === "Enter" && runDetection()}
+                  />
+                  <Button type="button" variant="secondary" onClick={chooseProjectFolder}>
+                    Parcourir
+                  </Button>
+                </div>
+                {detectionError && (
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                  >
+                    {detectionError}
+                  </div>
+                )}
                 <details className="group rounded-xl border bg-muted/40 p-4 text-sm">
                   <summary className="cursor-pointer select-none font-medium text-foreground">
                     Je ne sais pas où se trouve mon projet
                   </summary>
                   <div className="mt-3 space-y-2 text-muted-foreground leading-relaxed">
                     <p>
-                      Un projet Lovable est un dossier téléchargé sur votre
-                      ordinateur, contenant un fichier <code className="rounded bg-background px-1">package.json</code>.
+                      Un projet Lovable est un dossier téléchargé sur votre ordinateur, contenant un
+                      fichier <code className="rounded bg-background px-1">package.json</code>.
+                    </p>
+                    <p>
+                      Cliquez sur <strong>Parcourir</strong>, puis sélectionnez directement le
+                      dossier contenant votre projet. Cette confirmation autorise AppPublisher à
+                      lire uniquement ce dossier.
                     </p>
                     <p>
                       Sur macOS, il se trouve généralement dans <em>Documents</em>,
-                      <em> Développement</em> ou <em>GitHub</em>. Ouvrez le Finder,
-                      cliquez droit sur le dossier, puis choisissez « Copier … comme chemin d'accès ».
-                    </p>
-                    <p>
-                      Sur Windows, ouvrez l'Explorateur de fichiers, sélectionnez
-                      le dossier, puis copiez le chemin depuis la barre d'adresse.
+                      <em> Développement</em> ou <em>GitHub</em>. Sur Windows, recherchez-le dans
+                      <em> Documents</em> ou dans votre dossier de développement.
                     </p>
                   </div>
                 </details>
@@ -218,7 +256,11 @@ function SetupWizard() {
                   >
                     Ajouter un projet plus tard
                   </button>
-                  <Button size="lg" onClick={runDetection} disabled={!projectPath.trim() || detecting}>
+                  <Button
+                    size="lg"
+                    onClick={runDetection}
+                    disabled={!projectPath.trim() || detecting}
+                  >
                     {detecting ? "Détection…" : "Détecter le projet"}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
@@ -240,7 +282,9 @@ function SetupWizard() {
                   </div>
                   <div>
                     <div className="text-lg font-semibold">{detected.name}</div>
-                    <div className="text-sm text-muted-foreground truncate">{detected.localPath}</div>
+                    <div className="text-sm text-muted-foreground truncate">
+                      {detected.localPath}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
@@ -299,7 +343,12 @@ function Progress({ step }: { step: number }) {
     <div className="flex items-center gap-2">
       {steps.map((label, i) => (
         <div key={label} className="flex flex-1 items-center gap-2">
-          <div className={"h-1.5 flex-1 rounded-full transition-colors " + (i <= step ? "bg-primary" : "bg-muted")} />
+          <div
+            className={
+              "h-1.5 flex-1 rounded-full transition-colors " +
+              (i <= step ? "bg-primary" : "bg-muted")
+            }
+          />
         </div>
       ))}
     </div>
@@ -325,7 +374,9 @@ function Screen({
         </div>
       )}
       <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-      {subtitle && <p className="mt-3 text-base text-muted-foreground leading-relaxed">{subtitle}</p>}
+      {subtitle && (
+        <p className="mt-3 text-base text-muted-foreground leading-relaxed">{subtitle}</p>
+      )}
       <div className="mt-8">{children}</div>
     </div>
   );

@@ -116,6 +116,10 @@ contextBridge.exposeInMainWorld("appPublisher", {
     registerRoots: (paths) => inv("projects:registerRoots", paths),
   },
 
+  gradle: {
+    ensureExecutable: (projectPath) => inv("gradle:ensureExecutable", projectPath),
+  },
+
   exec: {
     run: (opts, channel) => inv("exec:run", opts, channel),
     validateEnv: (keys) => inv("exec:validateEnv", keys),

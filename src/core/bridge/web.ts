@@ -120,6 +120,12 @@ export const webBridge: SystemBridge = {
     },
   },
 
+  gradle: {
+    async ensureExecutable(projectPath) {
+      return { ok: true, path: `${projectPath}/android/gradlew` };
+    },
+  },
+
   exec: {
     run: fakeExec,
     async validateEnv(keys) {
@@ -178,7 +184,12 @@ export const webBridge: SystemBridge = {
 
   secrets: {
     async supported() {
-      return { platform: "web", available: false, reason: "Aperçu Lovable : le trousseau système n'est disponible que dans l'application de bureau." };
+      return {
+        platform: "web",
+        available: false,
+        reason:
+          "Aperçu Lovable : le trousseau système n'est disponible que dans l'application de bureau.",
+      };
     },
     async set() {
       return false;
@@ -199,10 +210,18 @@ export const webBridge: SystemBridge = {
       return null;
     },
     async keystoreList() {
-      return { ok: false, errorCode: "keytool-missing", errorHint: "Aperçu Lovable — keytool n'est disponible que dans l'application de bureau." };
+      return {
+        ok: false,
+        errorCode: "keytool-missing",
+        errorHint: "Aperçu Lovable — keytool n'est disponible que dans l'application de bureau.",
+      };
     },
     async keystoreCreate() {
-      return { ok: false, errorCode: "keytool-missing", errorHint: "Aperçu Lovable — keytool n'est disponible que dans l'application de bureau." };
+      return {
+        ok: false,
+        errorCode: "keytool-missing",
+        errorHint: "Aperçu Lovable — keytool n'est disponible que dans l'application de bureau.",
+      };
     },
     async scan() {
       return [];

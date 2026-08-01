@@ -8,6 +8,7 @@ interface AppPublisherApi {
   runtime: "electron";
   system: SystemBridge["system"];
   projects: SystemBridge["projects"];
+  gradle: SystemBridge["gradle"];
   exec: {
     run: (
       opts: Parameters<SystemBridge["exec"]["run"]>[0],
@@ -54,6 +55,10 @@ export const electronBridge: SystemBridge = {
     scan: (root) => ensure().projects.scan(root),
     chooseFolder: () => ensure().projects.chooseFolder(),
     registerRoots: (paths) => ensure().projects.registerRoots(paths),
+  },
+
+  gradle: {
+    ensureExecutable: (projectPath) => ensure().gradle.ensureExecutable(projectPath),
   },
 
   exec: {

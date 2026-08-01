@@ -25,6 +25,11 @@ const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
 const os = require("os");
 const https = require("https");
+const {
+  sanitizeDiagnosticValue,
+  summarizeIpcArgs,
+} = require("./diagnostic-redaction.cjs");
+const { ensureGradleWrapperExecutable } = require("./gradle-executable.cjs");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
 
@@ -168,9 +173,7 @@ try {
 
 function _safeJSON(v) {
   try {
-    return JSON.stringify(v, (_k, val) =>
-      typeof val === "string" && val.length > 500 ? val.slice(0, 500) + "…" : val,
-    );
+    return JSON.stringify(sanitizeDiagnosticValue(v));
   } catch {
     return String(v);
   }
@@ -240,7 +243,9 @@ if (_watchdog.unref) _watchdog.unref();
 const _origHandle = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = (channel, fn) => {
   _origHandle(channel, async (event, ...args) => {
-    const opId = diagStart(`ipc:${channel}`, { args });
+    const opId = diagStart(`ipc:${channel}`, {
+      args: summarizeIpcArgs(channel, args),
+    });
     try {
       const res = await fn(event, ...args);
       diagEnd(opId, `ipc:${channel}`, { returned: typeof res });
@@ -545,6 +550,7 @@ const COMMAND_ALLOWLIST = new Set([
   "npx.cmd",
   "git",
   "java",
+  "gradle",
   "gradlew",
   "gradlew.bat",
   "./gradlew",
@@ -1062,6 +1068,12 @@ ipcMain.handle("projects:registerRoots", (_e, paths) => {
   }
   return ok;
 });
+
+/* ---------- IPC : Gradle (opérations dédiées) ---------- */
+
+ipcMain.handle("gradle:ensureExecutable", (_e, projectPath) =>
+  ensureGradleWrapperExecutable(projectPath, resolveWithinAllowed),
+);
 
 /* ---------- IPC : Exec (streaming) ---------- */
 
@@ -1882,4 +1894,3 @@ ipcMain.handle("secrets:remove", async (_e, profileId) => {
   diagSigning("info", "secrets:remove", { profileId });
   return true;
 });
-

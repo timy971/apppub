@@ -77,16 +77,17 @@ export const ProjectsService = {
     return diagOp(`ProjectsService.detectFromPath`, async () => {
       diag("service", "detectFromPath:begin", { path });
       JournalService.log("command", "detect", { path });
-      const detected = (await bridge().projects.detect(path)) ?? {
-        hasPackageJson: false,
-        hasVersionJson: false,
-        hasCapacitorConfig: false,
-        hasAndroid: false,
-        hasIos: false,
-        hasVersionScript: false,
-        hasGradleWrapper: false,
-        hasChangelog: false,
-      };
+      const detected = await bridge().projects.detect(path);
+      if (!detected) {
+        throw new Error(
+          "Ce dossier n'est pas encore autorisé. Utilisez le bouton « Parcourir » pour le sélectionner.",
+        );
+      }
+      if (!detected.hasPackageJson) {
+        throw new Error(
+          "Ce dossier ne contient pas de fichier package.json et ne semble pas être un projet d'application.",
+        );
+      }
       diag("service", "detectFromPath:bridgeReturned", {
         hasPackageJson: detected.hasPackageJson,
         hasAndroid: detected.hasAndroid,
@@ -110,7 +111,6 @@ export const ProjectsService = {
           hasChangelog: detected.hasChangelog,
         },
       };
-
     });
   },
 
@@ -152,5 +152,4 @@ export const ProjectsService = {
       fieldSources,
     });
   },
-
 };

@@ -46,7 +46,12 @@ export async function resolveGradle(projectPath: string): Promise<GradleResoluti
 
   let invocation: GradleInvocation | null = null;
   if (isWindows && hasWrapperWin) {
-    invocation = { cmd: "gradlew.bat", args: ["bundleRelease"], cwd: androidDir, wrapper: "windows" };
+    invocation = {
+      cmd: "gradlew.bat",
+      args: ["bundleRelease"],
+      cwd: androidDir,
+      wrapper: "windows",
+    };
   } else if (!isWindows && hasWrapperUnix) {
     invocation = { cmd: "./gradlew", args: ["bundleRelease"], cwd: androidDir, wrapper: "unix" };
   }
@@ -73,13 +78,8 @@ export async function ensureGradleExecutable(projectPath: string): Promise<boole
   if (res.platform === "win32") return true;
   if (!res.hasWrapperUnix) return false;
   try {
-    const r = await b.exec.run({
-      cmd: "chmod",
-      args: ["+x", "gradlew"],
-      cwd: res.androidDir,
-      timeoutMs: 10_000,
-    });
-    return r.exitCode === 0;
+    const result = await b.gradle.ensureExecutable(projectPath);
+    return result.ok;
   } catch {
     return false;
   }
