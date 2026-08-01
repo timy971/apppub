@@ -169,8 +169,9 @@ export const BuildService = {
     diagnostic(`${patch.inspection.releaseUsesAppPublisher ? "✓" : "✗"} Build type release → appPublisherRelease`);
     diagnostic(`✓ Profil : ${prep.preparation.profileName}`);
     diagnostic(`✓ Alias : ${prep.preparation.alias}`);
-    diagnostic(`✓ Keystore enregistré : ${prep.preparation.keystorePath}`);
-    diagnostic(`✓ Chemin absolu`);
+    diagnostic(`✓ Keystore enregistré : ${prep.preparation.storedKeystorePath}`);
+    diagnostic(`${prep.preparation.storedPathWasAbsolute ? "✓" : "!"} Chemin enregistré ${prep.preparation.storedPathWasAbsolute ? "absolu" : "relatif — normalisé avant Gradle"}`);
+    diagnostic(`✓ Chemin final transmis à Gradle : ${prep.preparation.keystorePath}`);
     diagnostic(`✓ Fichier trouvé et lisible`);
 
     if (patch.status === "gradle-missing") {

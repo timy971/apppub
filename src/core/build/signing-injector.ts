@@ -70,6 +70,9 @@ export interface SigningPreparation {
   profileName: string;
   alias: string;
   keystorePath: string;
+  storedKeystorePath: string;
+  storedPathWasAbsolute: boolean;
+  testedKeystorePaths: string[];
   /** Variables d'environnement à injecter au process Gradle. */
   env: Record<string, string>;
 }
@@ -113,7 +116,7 @@ export const SigningInjector = {
     if (content == null) {
       return { status: "gradle-missing", gradlePath, exists: false, inspection: this.inspect("") };
     }
-    const markerPattern = new RegExp(`${MARKER_BEGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${MARKER_END.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g");
+    const markerPattern = new RegExp(`${MARKER_BEGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?(?:${MARKER_END.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|$)`, "g");
     const withoutManaged = content.replace(markerPattern, "").replace(/\s*$/, "");
     const next = `${withoutManaged}\n${GRADLE_PATCH}\n`;
     const unchanged = next === content;
@@ -221,6 +224,9 @@ export const SigningInjector = {
         profileName: profile.name,
         alias: profile.alias,
         keystorePath: resolved.resolvedPath,
+        storedKeystorePath: profile.keystorePath,
+        storedPathWasAbsolute: resolved.isAbsolute && profile.keystorePath === resolved.resolvedPath,
+        testedKeystorePaths: resolved.testedPaths,
         env: {
           ORG_GRADLE_PROJECT_APP_KEYSTORE_FILE: resolved.resolvedPath,
           ORG_GRADLE_PROJECT_APP_KEYSTORE_PASSWORD: storepass,
