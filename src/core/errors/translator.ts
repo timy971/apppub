@@ -13,6 +13,17 @@ interface Pattern {
 
 const PATTERNS: Pattern[] = [
   {
+    test: (r) => /Keystore introuvable ou ambigu/.test(r),
+    error: {
+      title: "Keystore introuvable ou ambigu",
+      explanation:
+        "AppPublisher a arrêté le build avant Gradle car le fichier de signature ne peut pas être identifié de façon certaine.",
+      solution:
+        "Consultez le Diagnostic de signature dans la console, puis sélectionnez de nouveau le fichier keystore dans le profil.",
+      retryable: true,
+    },
+  },
+  {
     test: (r) => /ENOENT/.test(r) && /version\.mjs/.test(r),
     error: {
       title: "Le script de version est introuvable",

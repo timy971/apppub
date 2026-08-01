@@ -145,20 +145,21 @@ export const BuildService = {
     const { resolveGradle, ensureGradleExecutable, hasGlobalGradle } = await import("./gradle");
     const gradleRes = await resolveGradle(project.localPath);
     const androidDir = gradleRes.androidDir;
-
-    const prep = await SigningInjector.prepare(project);
-    if (!prep.ok) {
-      opts.onStep("gradle", "error", prep.error.message);
-      throw new Error(prep.error.message);
-    }
-    const patch = await SigningInjector.ensureGradlePatched(androidDir);
-    const diagnostic = (line: string) => {
+    const diagnostic = (line: string, level: "info" | "error" = "info") => {
       opts.onLine?.(line);
-      JournalService.log("info", line);
+      JournalService.log(level, line);
     };
     diagnostic("### Diagnostic de signature");
     diagnostic(`✓ Projet : ${project.localPath}`);
     diagnostic(`✓ Dossier Android : ${androidDir}`);
+
+    const prep = await SigningInjector.prepare(project);
+    if (!prep.ok) {
+      diagnostic(`✗ ${prep.error.message}`, "error");
+      opts.onStep("gradle", "error", prep.error.message);
+      throw new Error(prep.error.message);
+    }
+    const patch = await SigningInjector.ensureGradlePatched(androidDir);
     diagnostic(`${patch.exists ? "✓" : "✗"} build.gradle : ${patch.gradlePath}`);
     diagnostic(`${patch.status === "write-failed" || patch.status === "gradle-missing" ? "✗" : "✓"} Statut du patch : ${patch.status}`);
     diagnostic(`${patch.inspection.hasAppPublisherRelease ? "✓" : "✗"} Bloc appPublisherRelease après écriture`);
@@ -173,14 +174,17 @@ export const BuildService = {
     diagnostic(`✓ Fichier trouvé et lisible`);
 
     if (patch.status === "gradle-missing") {
+      diagnostic("✗ build.gradle introuvable.", "error");
       opts.onStep("gradle", "error", "android/app/build.gradle est introuvable.");
       throw new Error("android/app/build.gradle est introuvable.");
     }
     if (patch.status === "write-failed") {
+      diagnostic("✗ Écriture ou relecture du patch impossible.", "error");
       opts.onStep("gradle", "error", "Impossible d'écrire la configuration de signature dans build.gradle.");
       throw new Error("Impossible d'écrire la configuration de signature dans build.gradle.");
     }
     if (!patch.inspection.hasAppPublisherRelease || !patch.inspection.releaseUsesAppPublisher) {
+      diagnostic("✗ Le build type release n'utilise pas appPublisherRelease.", "error");
       opts.onStep("gradle", "error", "La configuration Gradle AppPublisher n'est pas active pour le build release.");
       throw new Error("La configuration Gradle AppPublisher n'est pas active pour le build release.");
     }
@@ -188,6 +192,7 @@ export const BuildService = {
     const envKeys = Object.keys(prep.preparation.env);
     const envValidation = await b.exec.validateEnv(envKeys);
     if (envValidation.rejected.length || envValidation.accepted.length !== envKeys.length) {
+      diagnostic("✗ Les propriétés Gradle requises sont refusées par l'IPC.", "error");
       throw new Error(`L'IPC Electron refuse des propriétés Gradle requises : ${envValidation.rejected.join(", ") || "validation incomplète"}.`);
     }
     diagnostic(`✓ APP_KEYSTORE_FILE : présent (${prep.preparation.keystorePath})`);

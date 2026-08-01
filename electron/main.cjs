@@ -1740,11 +1740,13 @@ ipcMain.handle("signing:verifyAab", async (_e, inputPath) => {
   if (!stat.isFile()) return { ok: false, errorCode: "file-missing" };
   if (stat.size <= 0) return { ok: false, errorCode: "empty-file", errorHint: "Le fichier AAB est vide." };
 
-  const verified = await runJdkTool("jarsigner", ["-verify", "-strict", "-certs", safe]);
+  const verified = await runJdkTool("jarsigner", ["-verify", "-verbose", "-certs", safe]);
   if (verified.spawnError?.code === "ENOENT") {
     return { ok: false, errorCode: "jarsigner-missing", errorHint: "jarsigner est introuvable. Installez un JDK 17+." };
   }
-  if (verified.code !== 0 || !/jar verified\.|jar vérifié\./i.test(`${verified.stdout}\n${verified.stderr}`)) {
+  const verificationOutput = `${verified.stdout}\n${verified.stderr}`;
+  const explicitlyUnsigned = /jar is unsigned|jar n'est pas signé|non signé/i.test(verificationOutput);
+  if (verified.code !== 0 || explicitlyUnsigned || !/jar verified\.|jar vérifié\./i.test(verificationOutput)) {
     return { ok: false, errorCode: "verification-failed", errorHint: "La signature JAR du fichier AAB n'est pas valide." };
   }
 
