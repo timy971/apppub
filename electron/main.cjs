@@ -1,11 +1,11 @@
-/* eslint-disable */
 /**
  * AppPublisher — Electron main process (Phase 3).
  *
- * Sécurité (rappel Phase 2)
- *  - `exec:run` : allowlist stricte de commandes, arguments validés,
- *    `shell:false`, env du renderer ignoré, cwd confiné aux racines projet.
- *  - `fs:*` et `shell:*` : chemins canonicalisés + containment obligatoire.
+ * Sécurité
+ *  - `exec:run` : workflows exacts, confirmation native, `shell:false` et
+ *    session opaque pour injecter les secrets Gradle depuis le main process.
+ *  - Les chemins sont canonicalisés et confinés aux projets choisis via un
+ *    dialogue natif ; le renderer n'expose aucune primitive générique d'écriture.
  *
  * Nouveautés Phase 3
  *  - `bootstrapPath()` : au démarrage, on importe le PATH d'un login shell
@@ -13,19 +13,28 @@
  *    exactement comme si l'utilisateur ouvrait un Terminal. Sans ça, une
  *    application lancée depuis le Finder ne trouve ni `node`, ni `npm`,
  *    ni `java`, ni `git`.
- *  - `projects:registerRoots` : ré-enregistre en une fois les racines des
- *    projets déjà connus (persistés côté renderer), sinon toute lecture
- *    disque est refusée au 2ᵉ lancement.
- *  - Écritures disque confinées : `fs:writeText`, `fs:writeJson`,
- *    `fs:mkdir`, `fs:copyFile` — indispensables pour de vraies sauvegardes.
+ *  - Les racines projet ne peuvent être approuvées que par un dialogue natif.
+ *  - Les écritures génériques sont absentes du preload : sauvegardes et patch
+ *    Gradle passent par des opérations métier dédiées dans le main process.
  */
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, clipboard } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  shell,
+  Menu,
+  clipboard,
+  session,
+} = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
 const os = require("os");
 const https = require("https");
 const {
+  RedactedOutputCollector,
+  redactSensitiveText,
   sanitizeDiagnosticValue,
   summarizeIpcArgs,
 } = require("./diagnostic-redaction.cjs");
@@ -37,9 +46,21 @@ const {
   terminateProcessTree,
 } = require("./process-manager.cjs");
 const { sanitizeExternalUrl } = require("./external-url.cjs");
+const { FileAccessRegistry, ProjectAccessRegistry } = require("./path-security.cjs");
+const { DurableStore, validateDocument } = require("./durable-store.cjs");
+const { BackupManager } = require("./backup-manager.cjs");
+const { validateExecutionRequest, findProjectRoot } = require("./execution-policy.cjs");
+const { ProjectTrustStore, ensureProjectTrusted } = require("./project-trust.cjs");
+const { installWindowGuards } = require("./window-security.cjs");
+const { SigningSessionRegistry } = require("./signing-session.cjs");
+const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
 const activeExecutions = new ExecutionRegistry();
+const signingSessions = new SigningSessionRegistry();
+const trustedWebContentsIds = new Set();
+const knownSecretValues = new Set();
+let mainWindow = null;
 
 /* ---------- Bootstrap : PATH utilisateur (macOS/Linux) ----------
  *
@@ -178,12 +199,11 @@ try {
   );
 } catch {}
 
-
 function _safeJSON(v) {
   try {
-    return JSON.stringify(sanitizeDiagnosticValue(v));
+    return JSON.stringify(sanitizeDiagnosticValue(v, "", new WeakSet(), 0, [...knownSecretValues]));
   } catch {
-    return String(v);
+    return redactSensitiveText(String(v), [...knownSecretValues]);
   }
 }
 
@@ -249,8 +269,15 @@ if (_watchdog.unref) _watchdog.unref();
 
 /* Wrap ipcMain.handle : chaque handler existant est automatiquement tracé. */
 const _origHandle = ipcMain.handle.bind(ipcMain);
+function isTrustedIpcSender(event) {
+  return Boolean(event?.sender && trustedWebContentsIds.has(event.sender.id));
+}
+
 ipcMain.handle = (channel, fn) => {
   _origHandle(channel, async (event, ...args) => {
+    if (!isTrustedIpcSender(event)) {
+      throw new Error("Émetteur IPC non autorisé.");
+    }
     const opId = diagStart(`ipc:${channel}`, {
       args: summarizeIpcArgs(channel, args),
     });
@@ -266,7 +293,8 @@ ipcMain.handle = (channel, fn) => {
 };
 
 /* Réception des logs renderer/preload — non wrapé (send/on, pas invoke). */
-ipcMain.on("diag:log", (_e, entry) => {
+ipcMain.on("diag:log", (event, entry) => {
+  if (!isTrustedIpcSender(event)) return;
   if (entry && typeof entry === "object") {
     diagWrite({ ...entry, source: entry.source || "renderer" });
   }
@@ -342,13 +370,21 @@ ipcMain.handle("diag:exportBundle", async (_e, extra) => {
     parts.push(`Version: ${app.getVersion()}`);
     parts.push(`Plateforme: ${process.platform} ${os.release()} (${process.arch})`);
     parts.push(`Node: ${process.versions.node} · Electron: ${process.versions.electron}`);
-    parts.push(`Mémoire libre/total (Mo): ${Math.round(os.freemem() / 1048576)}/${Math.round(os.totalmem() / 1048576)}`);
+    parts.push(
+      `Mémoire libre/total (Mo): ${Math.round(os.freemem() / 1048576)}/${Math.round(os.totalmem() / 1048576)}`,
+    );
     parts.push(`Répertoire de logs: ${DIAG_LOG_DIR}`);
     if (extra && typeof extra === "object") {
       parts.push("");
       parts.push("## Contexte renderer");
       try {
-        parts.push(JSON.stringify(extra, null, 2));
+        parts.push(
+          JSON.stringify(
+            sanitizeDiagnosticValue(extra, "", new WeakSet(), 0, [...knownSecretValues]),
+            null,
+            2,
+          ),
+        );
       } catch {}
     }
     parts.push("");
@@ -365,7 +401,11 @@ ipcMain.handle("diag:exportBundle", async (_e, extra) => {
       parts.push("");
       parts.push(`### ${f}`);
       try {
-        parts.push(fs.readFileSync(path.join(DIAG_LOG_DIR, f), "utf8"));
+        parts.push(
+          redactSensitiveText(fs.readFileSync(path.join(DIAG_LOG_DIR, f), "utf8"), [
+            ...knownSecretValues,
+          ]),
+        );
       } catch (e) {
         parts.push(`(lecture impossible: ${String(e)})`);
       }
@@ -384,84 +424,140 @@ ipcMain.handle("diag:exportBundle", async (_e, extra) => {
 
 diagWrite({ level: "info", message: "diag ready", ctx: { path: currentLogFile() } });
 
-
 /* ---------- Sécurité : racines projet approuvées ---------- */
 
-const allowedRoots = new Set();
-
-/**
- * Audit I2 — les racines connues sont persistées sur disque et rechargées
- * synchronement dès `app.whenReady()`, AVANT la création de la fenêtre.
- * Cela supprime la course entre `registerRoots()` côté renderer (asynchrone,
- * appelé dans un useEffect) et les premiers `fs:*` du Dashboard qui se
- * voyaient sinon refuser l'accès (allowedRoots vide) → « dossier android
- * manquant » intempestif au 1er rendu.
- */
 function knownRootsPath() {
   return path.join(app.getPath("userData"), "known-roots.json");
 }
 
-function loadKnownRoots() {
-  try {
-    const raw = fs.readFileSync(knownRootsPath(), "utf8");
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return [];
-    return arr.filter((p) => typeof p === "string");
-  } catch {
-    return [];
-  }
-}
-
-function persistKnownRoots() {
-  try {
-    fs.mkdirSync(path.dirname(knownRootsPath()), { recursive: true });
-    fs.writeFileSync(
-      knownRootsPath(),
-      JSON.stringify([...allowedRoots], null, 2),
-      "utf8",
-    );
-  } catch (e) {
-    diagWrite({ level: "warn", message: "known-roots persist failed", ctx: { error: String(e) } });
-  }
-}
+const projectAccess = new ProjectAccessRegistry({ filePath: knownRootsPath() });
+const keystoreAccess = new FileAccessRegistry({
+  filePath: path.join(app.getPath("userData"), "known-keystores.json"),
+});
+const keystoreOutputAccess = new ProjectAccessRegistry({
+  filePath: path.join(app.getPath("userData"), "known-keystore-output-folders.json"),
+});
+const backupManager = new BackupManager(projectAccess);
+const trustStore = new ProjectTrustStore(
+  path.join(app.getPath("userData"), "trusted-projects.json"),
+);
+const durableStore = new DurableStore(path.join(app.getPath("userData"), "data", "store-v1.json"));
 
 function registerAllowedRoot(p) {
   try {
-    if (!p || typeof p !== "string") return null;
-    const real = fs.realpathSync(p);
-    const st = fs.statSync(real);
-    if (!st.isDirectory()) return null;
-    const wasNew = !allowedRoots.has(real);
-    allowedRoots.add(real);
-    if (wasNew) persistKnownRoots();
-    return real;
-  } catch {
+    return projectAccess.approveExisting(p);
+  } catch (error) {
+    diagWrite({
+      level: "warn",
+      message: "project root approval failed",
+      ctx: { error: String(error) },
+    });
     return null;
   }
 }
 
 function resolveWithinAllowed(inputPath) {
-  if (!inputPath || typeof inputPath !== "string") return null;
-  if (allowedRoots.size === 0) return null;
-  let candidate;
-  try {
-    candidate = fs.realpathSync(inputPath);
-  } catch {
-    try {
-      const parent = fs.realpathSync(path.dirname(inputPath));
-      candidate = path.join(parent, path.basename(inputPath));
-    } catch {
-      return null;
-    }
-  }
-  for (const root of allowedRoots) {
-    const rel = path.relative(root, candidate);
-    if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
-      return candidate;
-    }
-  }
-  return null;
+  return projectAccess.resolveExisting(inputPath);
 }
+
+async function confirmProjectTrust({ projectPath, projectName }) {
+  const result = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: "warning",
+    title: "Autoriser l'exécution du projet ?",
+    message: `AppPublisher va exécuter le code de « ${projectName} ».`,
+    detail:
+      `Dossier : ${projectPath}\n\n` +
+      "Un build npm, Capacitor ou Gradle peut exécuter des scripts du projet. " +
+      "Continuez uniquement si vous connaissez et faites confiance à son origine.",
+    buttons: ["Autoriser et continuer", "Annuler"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  return result.response === 0;
+}
+
+/* ---------- Persistance métier synchrone et atomique ---------- */
+
+ipcMain.on("storage:get", (event, key) => {
+  if (!isTrustedIpcSender(event)) {
+    event.returnValue = { ok: false, error: "Émetteur IPC non autorisé." };
+    return;
+  }
+  event.returnValue = durableStore.get(key);
+});
+
+ipcMain.on("storage:set", (event, key, value) => {
+  if (!isTrustedIpcSender(event)) {
+    event.returnValue = { ok: false, error: "Émetteur IPC non autorisé." };
+    return;
+  }
+  event.returnValue = durableStore.set(key, value);
+});
+
+ipcMain.on("storage:remove", (event, key) => {
+  if (!isTrustedIpcSender(event)) {
+    event.returnValue = { ok: false, error: "Émetteur IPC non autorisé." };
+    return;
+  }
+  event.returnValue = durableStore.remove(key);
+});
+
+ipcMain.on("storage:status", (event) => {
+  if (!isTrustedIpcSender(event)) {
+    event.returnValue = { ok: false, error: "Émetteur IPC non autorisé." };
+    return;
+  }
+  event.returnValue = durableStore.status();
+});
+
+ipcMain.handle("storage:export", async () => {
+  const result = await dialog.showSaveDialog(mainWindow ?? undefined, {
+    title: "Exporter les données AppPublisher",
+    defaultPath: `apppublisher-data-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: "Données AppPublisher", extensions: ["json"] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+  fs.writeFileSync(result.filePath, `${JSON.stringify(durableStore.snapshot(), null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  return result.filePath;
+});
+
+ipcMain.handle("storage:import", async () => {
+  const selected = await dialog.showOpenDialog(mainWindow ?? undefined, {
+    title: "Importer des données AppPublisher",
+    properties: ["openFile"],
+    filters: [{ name: "Données AppPublisher", extensions: ["json"] }],
+  });
+  if (selected.canceled || !selected.filePaths[0]) return null;
+  const source = selected.filePaths[0];
+  const stat = fs.statSync(source);
+  if (!stat.isFile() || stat.size > 8 * 1024 * 1024) {
+    throw new Error("Le fichier sélectionné est invalide ou trop volumineux.");
+  }
+  const document = JSON.parse(fs.readFileSync(source, "utf8"));
+  if (!validateDocument(document)) {
+    throw new Error("Ce fichier n'est pas un export AppPublisher valide.");
+  }
+  const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: "warning",
+    title: "Remplacer les données locales ?",
+    message: "L'import va remplacer les projets, réglages et historiques actuels.",
+    detail:
+      "Une sauvegarde automatique du fichier de données actuel sera conservée. " +
+      "Les mots de passe du trousseau système ne sont jamais contenus dans un export.",
+    buttons: ["Importer", "Annuler"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (confirmation.response !== 0) return null;
+  const imported = durableStore.replace(document);
+  if (!imported.ok) throw new Error(imported.error);
+  return { path: source, keys: imported.keys };
+});
 
 /* ---------- Menu Diagnostic (accès rapide au fichier de log) ---------- */
 
@@ -528,15 +624,19 @@ function setupDiagnosticMenu() {
               if (mainWindow && !mainWindow.isDestroyed()) mainWindow.reload();
             },
           },
-          {
-            label: "Outils de développement",
-            accelerator: "CmdOrCtrl+Alt+I",
-            click: () => {
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.openDevTools({ mode: "detach" });
-              }
-            },
-          },
+          ...(isDev
+            ? [
+                {
+                  label: "Outils de développement",
+                  accelerator: "CmdOrCtrl+Alt+I",
+                  click: () => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                      mainWindow.webContents.openDevTools({ mode: "detach" });
+                    }
+                  },
+                },
+              ]
+            : []),
         ],
       },
     );
@@ -547,22 +647,7 @@ function setupDiagnosticMenu() {
   }
 }
 
-
-/* ---------- Sécurité : allowlist commandes ---------- */
-
-const COMMAND_ALLOWLIST = new Set([
-  "node",
-  "npm",
-  "npm.cmd",
-  "npx",
-  "npx.cmd",
-  "git",
-  "java",
-  "gradle",
-  "gradlew",
-  "gradlew.bat",
-  "./gradlew",
-]);
+/* ---------- Sécurité : validation des arguments de processus ---------- */
 
 // Caractères interdits dans un argument passé à `spawn` (audit I3/M11).
 //
@@ -584,12 +669,6 @@ function firstForbiddenChar(a) {
   return c;
 }
 
-function isSafeArg(a) {
-  if (typeof a !== "string") return false;
-  if (a.length > 4096) return false;
-  return !ARG_FORBIDDEN.test(a);
-}
-
 function findUnsafeArg(args) {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -599,16 +678,6 @@ function findUnsafeArg(args) {
     if (bad) return { index: i, reason: `caractère interdit '${bad}'` };
   }
   return null;
-}
-
-function isAllowedCommand(cmd) {
-  if (typeof cmd !== "string") return false;
-  const base = path.basename(cmd);
-  return COMMAND_ALLOWLIST.has(base) || COMMAND_ALLOWLIST.has(cmd);
-}
-
-function isAllowedGradleEnvKey(key) {
-  return typeof key === "string" && /^ORG_GRADLE_PROJECT_[A-Z0-9_]+$/.test(key);
 }
 
 /* ---------- Persistance des dimensions de la fenêtre ---------- */
@@ -651,8 +720,6 @@ function writeWindowState(win) {
 
 /* ---------- Fenêtre ---------- */
 
-let mainWindow = null;
-
 function createWindow() {
   const saved = readWindowState();
   const win = new BrowserWindow({
@@ -670,6 +737,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      devTools: isDev,
     },
   });
   win.once("ready-to-show", () => {
@@ -684,12 +752,23 @@ function createWindow() {
     console.error(`[AppPublisher] chargement échoué (${code}) : ${desc}`);
   });
   const senderId = win.webContents.id;
-  win.webContents.once("destroyed", () => activeExecutions.cancelSender(senderId));
+  trustedWebContentsIds.add(senderId);
+  win.webContents.once("destroyed", () => {
+    trustedWebContentsIds.delete(senderId);
+    activeExecutions.cancelSender(senderId);
+    signingSessions.clearSender(senderId);
+  });
+
+  const indexPath = path.join(__dirname, "..", "dist", "index.html");
+  installWindowGuards(win, {
+    devUrl: isDev ? process.env.APPPUBLISHER_DEV_URL : undefined,
+    indexPath,
+  });
+  mainWindow = win;
 
   if (isDev) win.loadURL(process.env.APPPUBLISHER_DEV_URL);
-  else win.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+  else win.loadFile(indexPath);
 
-  mainWindow = win;
   return win;
 }
 
@@ -763,58 +842,73 @@ function safeStep(name, fn) {
   }
 }
 
-app.whenReady().then(() => {
-  diagWrite({ level: "info", message: "app whenReady" });
+app
+  .whenReady()
+  .then(() => {
+    diagWrite({ level: "info", message: "app whenReady" });
 
-  // Audit I2 — restaurer les racines projet connues AVANT tout accès fs
-  //           depuis le renderer, pour éviter la course au 1er rendu.
-  safeStep("restore-known-roots", () => {
-    const persisted = loadKnownRoots();
-    let restored = 0;
-    for (const p of persisted) {
-      if (registerAllowedRoot(p)) restored += 1;
-    }
-    diagWrite({
-      level: "info",
-      message: "known-roots restored",
-      ctx: { count: restored, requested: persisted.length },
+    safeStep("restore-known-roots", () => {
+      const restored = projectAccess.load();
+      const keystores = keystoreAccess.load();
+      const keystoreOutputFolders = keystoreOutputAccess.load();
+      const trusted = trustStore.load(projectAccess);
+      diagWrite({
+        level: "info",
+        message: "known-roots restored",
+        ctx: {
+          count: restored.length,
+          keystores: keystores.length,
+          keystoreOutputFolders: keystoreOutputFolders.length,
+          trustedProjects: trusted.length,
+        },
+      });
     });
-  });
 
-  safeStep("about-panel", () => configureAboutPanel());
-  safeStep("diagnostic-menu", () => setupDiagnosticMenu());
+    safeStep("deny-electron-permissions", () => {
+      session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+        return permission === "notifications" && trustedWebContentsIds.has(webContents?.id);
+      });
+      session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+        callback(permission === "notifications" && trustedWebContentsIds.has(webContents?.id));
+      });
+    });
 
-  // createWindow est la SEULE étape non-optionnelle : si elle échoue,
-  // l'app n'a pas d'UI et doit quitter proprement plutôt que de rester
-  // en tâche de fond invisible.
-  try {
-    diagWrite({ level: "info", message: "boot step start: createWindow" });
-    createWindow();
-    diagWrite({ level: "info", message: "boot step ok: createWindow" });
-  } catch (e) {
+    safeStep("about-panel", () => configureAboutPanel());
+    safeStep("diagnostic-menu", () => setupDiagnosticMenu());
+
+    // createWindow est la SEULE étape non-optionnelle : si elle échoue,
+    // l'app n'a pas d'UI et doit quitter proprement plutôt que de rester
+    // en tâche de fond invisible.
+    try {
+      diagWrite({ level: "info", message: "boot step start: createWindow" });
+      createWindow();
+      diagWrite({ level: "info", message: "boot step ok: createWindow" });
+    } catch (e) {
+      diagWrite({
+        level: "fatal",
+        message: "createWindow failed — quitting",
+        error: String((e && e.stack) || e),
+      });
+      app.quit();
+      return;
+    }
+
+    app.on("activate", () => {
+      diagWrite({ level: "info", message: "app activate" });
+      if (BrowserWindow.getAllWindows().length === 0)
+        safeStep("createWindow(activate)", createWindow);
+    });
+  })
+  .catch((e) => {
+    // Filet de sécurité : une rejection non gérée du .then ci-dessus
+    // laisserait l'app zombie. On log et on quitte.
     diagWrite({
       level: "fatal",
-      message: "createWindow failed — quitting",
+      message: "whenReady chain rejected",
       error: String((e && e.stack) || e),
     });
     app.quit();
-    return;
-  }
-
-  app.on("activate", () => {
-    diagWrite({ level: "info", message: "app activate" });
-    if (BrowserWindow.getAllWindows().length === 0) safeStep("createWindow(activate)", createWindow);
   });
-}).catch((e) => {
-  // Filet de sécurité : une rejection non gérée du .then ci-dessus
-  // laisserait l'app zombie. On log et on quitte.
-  diagWrite({
-    level: "fatal",
-    message: "whenReady chain rejected",
-    error: String((e && e.stack) || e),
-  });
-  app.quit();
-});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
@@ -822,8 +916,8 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   activeExecutions.cancelAll();
+  signingSessions.clear();
 });
-
 
 /* ---------- IPC : System ---------- */
 
@@ -866,8 +960,7 @@ async function detectSystem() {
     runCapture("java", ["-version"]),
   ]);
 
-  const androidHome =
-    process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || guessAndroidSdk();
+  const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || guessAndroidSdk();
   const androidStudio = guessAndroidStudio();
   const internet = await pingInternet();
 
@@ -878,7 +971,7 @@ async function detectSystem() {
     git: git.ok ? (git.out.match(/\d+\.\d+\.\d+/)?.[0] ?? git.out) : undefined,
     java:
       java.ok || java.err
-        ? (java.err || java.out).split("\n")[0].match(/"([^"]+)"/)?.[1] ?? "installé"
+        ? ((java.err || java.out).split("\n")[0].match(/"([^"]+)"/)?.[1] ?? "installé")
         : undefined,
     androidStudio,
     androidSdk: androidHome ? readSdkVersion(androidHome) : undefined,
@@ -1011,8 +1104,7 @@ function detectProjectFiles(projectPath) {
     }
   }
 
-  const displayName =
-    capacitorAppName || androidAppName || pkgDisplayName || pkgName || undefined;
+  const displayName = capacitorAppName || androidAppName || pkgDisplayName || pkgName || undefined;
 
   return {
     hasPackageJson: exists("package.json"),
@@ -1031,7 +1123,6 @@ function detectProjectFiles(projectPath) {
   };
 }
 
-
 ipcMain.handle("projects:detect", (_e, projectPath) => {
   const safe = resolveWithinAllowed(projectPath);
   if (!safe) return null;
@@ -1048,12 +1139,14 @@ ipcMain.handle("projects:scan", (_e, rootPath) => {
     const results = [];
     for (const d of dirs) {
       const p = path.join(safe, d.name);
-      registerAllowedRoot(p);
       const detected = detectProjectFiles(p);
       if (detected.hasPackageJson) {
-        results.push({ path: p, name: detected.displayName || detected.packageName || d.name, detected });
+        results.push({
+          path: p,
+          name: detected.displayName || detected.packageName || d.name,
+          detected,
+        });
       }
-
     }
     return results;
   } catch {
@@ -1064,23 +1157,37 @@ ipcMain.handle("projects:scan", (_e, rootPath) => {
 ipcMain.handle("projects:chooseFolder", async () => {
   const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
   if (r.canceled || !r.filePaths[0]) return null;
-  const real = registerAllowedRoot(r.filePaths[0]);
-  return real ?? r.filePaths[0];
+  const authorized = registerAllowedRoot(r.filePaths[0]);
+  if (!authorized) {
+    throw new Error(
+      "Ce dossier est trop large ou inaccessible. Sélectionnez directement le dossier du projet.",
+    );
+  }
+  return authorized;
 });
 
-/**
- * Ré-enregistre en une passe les racines des projets connus côté renderer.
- * Appelé au montage de l'application. Sans cette étape, aucun accès disque
- * n'est autorisé au 2ᵉ lancement sur les projets déjà mémorisés.
- */
-ipcMain.handle("projects:registerRoots", (_e, paths) => {
-  if (!Array.isArray(paths)) return [];
-  const ok = [];
-  for (const p of paths) {
-    const real = registerAllowedRoot(p);
-    if (real) ok.push(real);
+ipcMain.handle("projects:reauthorizeFolder", async (_e, expectedPath) => {
+  if (typeof expectedPath !== "string" || expectedPath.length > 4096) return null;
+  const r = await dialog.showOpenDialog(mainWindow ?? undefined, {
+    title: "Réautoriser le dossier du projet",
+    message: "Sélectionnez exactement le dossier déjà associé à ce projet.",
+    properties: ["openDirectory"],
+  });
+  if (r.canceled || !r.filePaths[0]) return null;
+  let expectedReal;
+  let selectedReal;
+  try {
+    expectedReal = fs.realpathSync(expectedPath);
+    selectedReal = fs.realpathSync(r.filePaths[0]);
+  } catch {
+    return null;
   }
-  return ok;
+  const same =
+    process.platform === "win32"
+      ? expectedReal.toLowerCase() === selectedReal.toLowerCase()
+      : expectedReal === selectedReal;
+  if (!same) return null;
+  return registerAllowedRoot(selectedReal);
 });
 
 /* ---------- IPC : Gradle (opérations dédiées) ---------- */
@@ -1089,65 +1196,154 @@ ipcMain.handle("gradle:ensureExecutable", (_e, projectPath) =>
   ensureGradleWrapperExecutable(projectPath, resolveWithinAllowed),
 );
 
+ipcMain.handle("gradle:ensureSigningPatch", async (_e, androidDirInput) => {
+  const androidDir = resolveWithinAllowed(androidDirInput);
+  if (!androidDir || path.basename(androidDir) !== "android") {
+    return { ok: false, errorCode: "project-not-authorized" };
+  }
+  const projectRoot = findProjectRoot(androidDir, projectAccess);
+  if (!projectRoot || path.dirname(androidDir) !== projectRoot) {
+    return { ok: false, errorCode: "project-not-authorized" };
+  }
+  const trusted = await ensureProjectTrusted(projectRoot, trustStore, confirmProjectTrust);
+  if (!trusted) throw new Error("Exécution du projet non autorisée par l'utilisateur.");
+  const target = resolveWithinAllowed(path.join(androidDir, "app", "build.gradle"));
+  if (!target) return { ok: false, errorCode: "gradle-missing" };
+  let current;
+  try {
+    current = fs.readFileSync(target, "utf8");
+  } catch {
+    return { ok: false, errorCode: "gradle-missing" };
+  }
+  const patched = buildPatchedGradle(current);
+  if (!patched.ok) return patched;
+  if (!patched.changed) return { ok: true, changed: false };
+  const temporary = `${target}.apppublisher-${process.pid}`;
+  try {
+    fs.writeFileSync(temporary, patched.content, { encoding: "utf8", mode: 0o600 });
+    fs.renameSync(temporary, target);
+    const verified = fs.readFileSync(target, "utf8") === patched.content;
+    return verified
+      ? { ok: true, changed: true }
+      : { ok: false, changed: true, errorCode: "write-failed" };
+  } catch {
+    try {
+      fs.unlinkSync(temporary);
+    } catch {}
+    return { ok: false, errorCode: "write-failed" };
+  }
+});
+
+/* ---------- IPC : sauvegardes dédiées ---------- */
+
+ipcMain.handle("backups:create", (_e, projectPath, reason) => {
+  return backupManager.create(projectPath, reason);
+});
+
+ipcMain.handle("backups:restore", async (_e, projectPath, location, files) => {
+  const project = resolveWithinAllowed(projectPath);
+  if (!project) throw new Error("Projet non autorisé.");
+  const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: "warning",
+    title: "Restaurer cette sauvegarde ?",
+    message: `Les fichiers actuels de « ${path.basename(project)} » vont être remplacés.`,
+    detail:
+      "AppPublisher vérifiera intégralement le snapshot avant de modifier le premier fichier.",
+    buttons: ["Restaurer", "Annuler"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (confirmation.response !== 0) throw new Error("Restauration annulée.");
+  return backupManager.restore(projectPath, location, files);
+});
+
 /* ---------- IPC : Exec (streaming) ---------- */
 
-ipcMain.handle("exec:run", (event, opts, channel, executionId) => {
+ipcMain.handle("exec:run", async (event, opts, channel, executionId) => {
+  const start = Date.now();
+  const failed = (message) => ({
+    exitCode: -1,
+    stdout: "",
+    stderr: redactSensitiveText(message, [...knownSecretValues]),
+    durationMs: Date.now() - start,
+    aborted: false,
+  });
+
+  if (!opts || typeof opts !== "object") return failed("Requête invalide.");
+  if (executionId != null && !isValidExecutionId(executionId)) {
+    return failed("Identifiant d'exécution invalide.");
+  }
+  if (channel != null && !/^exec-[a-z0-9_-]{6,80}$/i.test(channel)) {
+    return failed("Canal de suivi invalide.");
+  }
+  const args = Array.isArray(opts.args) ? opts.args : [];
+  const unsafe = findUnsafeArg(args);
+  if (unsafe) return failed(`Argument invalide #${unsafe.index + 1} : ${unsafe.reason}.`);
+
+  const policy = validateExecutionRequest(opts, projectAccess);
+  if (!policy.ok) return failed(policy.error);
+  if (policy.requiresTrust) {
+    const trusted = await ensureProjectTrusted(policy.projectRoot, trustStore, confirmProjectTrust);
+    if (!trusted) return failed("Exécution annulée : ce projet n'a pas été approuvé.");
+  }
+
+  let safeEnv = {};
+  if (policy.envAllowed) {
+    safeEnv = signingSessions.consume(event.sender.id, opts.signingSessionId, policy.projectRoot);
+    if (!safeEnv) {
+      return failed("Session de signature absente, expirée ou déjà utilisée.");
+    }
+    for (const [key, value] of Object.entries(safeEnv)) {
+      if (/(?:PASS|TOKEN|SECRET)/i.test(key) && value.length >= 4) {
+        knownSecretValues.add(value);
+      }
+    }
+  } else if (opts.signingSessionId != null) {
+    return failed("Session de signature interdite pour cette opération.");
+  }
+
+  const output = new RedactedOutputCollector(Object.values(safeEnv));
+  const emitLines = (stream, lines) => {
+    if (!channel || event.sender.isDestroyed()) return;
+    for (const line of lines) {
+      if (!line.length) continue;
+      try {
+        event.sender.send(channel, { stream, line });
+      } catch {}
+    }
+  };
+
   return new Promise((resolve) => {
-    const start = Date.now();
-    let stdout = "";
-    let stderr = "";
     let aborted = false;
     let settled = false;
     let timer = null;
     const timeoutMs = Math.min(Number(opts?.timeoutMs) || 10 * 60 * 1000, 30 * 60 * 1000);
 
-    const settle = (result) => {
+    const settle = (exitCode, error) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
+      if (error) output.append("stderr", `\n${String(error)}`);
+      emitLines("stdout", output.flush("stdout"));
+      emitLines("stderr", output.flush("stderr"));
       if (isValidExecutionId(executionId)) {
         activeExecutions.release(event.sender.id, executionId);
       }
-      resolve(result);
+      resolve({
+        exitCode,
+        stdout: output.result("stdout"),
+        stderr: output.result("stderr"),
+        durationMs: Date.now() - start,
+        aborted,
+      });
     };
 
-    const fail = (msg) =>
-      settle({
-        exitCode: -1,
-        stdout: "",
-        stderr: msg,
-        durationMs: Date.now() - start,
-        aborted: false,
-      });
-
-    if (!opts || typeof opts !== "object") return fail("Requête invalide.");
-    if (executionId != null && !isValidExecutionId(executionId)) {
-      return fail("Identifiant d'exécution invalide.");
-    }
-    if (!isAllowedCommand(opts.cmd)) return fail(`Commande non autorisée : ${String(opts.cmd)}`);
-    const args = Array.isArray(opts.args) ? opts.args : [];
-    const unsafe = findUnsafeArg(args);
-    if (unsafe) return fail(`Argument invalide #${unsafe.index + 1} : ${unsafe.reason}.`);
-    const cwd = resolveWithinAllowed(opts.cwd);
-    if (!cwd) return fail("Dossier de travail non autorisé.");
-
-    // Env venant du renderer : on n'accepte QUE les clés préfixées
-    // `ORG_GRADLE_PROJECT_*` (utilisées par le signing-injector pour passer
-    // storepass/keypass à Gradle sans les faire transiter par argv).
-    // Toute autre clé est ignorée. Les valeurs sont validées comme des args.
-    const safeEnv = {};
-    if (opts.env && typeof opts.env === "object") {
-      for (const [k, v] of Object.entries(opts.env)) {
-        if (!isAllowedGradleEnvKey(k)) continue;
-        if (typeof v !== "string" || v.length > 4096 || /[\n\r\u0000]/.test(v)) continue;
-        safeEnv[k] = v;
-      }
-    }
-
     try {
-      const command = normalizeSpawnCommand(opts.cmd);
+      const requestedCommand = policy.command === "gradlew" ? "./gradlew" : policy.command;
+      const command = normalizeSpawnCommand(requestedCommand);
       const child = spawn(command, args, {
-        cwd,
+        cwd: policy.cwd,
         env: { ...process.env, ...safeEnv },
         shell: false,
         detached: process.platform !== "win32",
@@ -1159,7 +1355,8 @@ ipcMain.handle("exec:run", (event, opts, channel, executionId) => {
         })
       ) {
         terminateProcessTree(child);
-        return fail("Une exécution portant cet identifiant est déjà active.");
+        output.append("stderr", "Une exécution portant cet identifiant est déjà active.");
+        return settle(-1);
       }
       timer = setTimeout(() => {
         aborted = true;
@@ -1171,59 +1368,25 @@ ipcMain.handle("exec:run", (event, opts, channel, executionId) => {
       }, timeoutMs);
 
       const push = (stream, data) => {
-        const text = data.toString();
-        if (stream === "stdout") stdout += text;
-        else stderr += text;
-        if (channel && typeof channel === "string") {
-          for (const line of text.split(/\r?\n/)) {
-            if (line.length) event.sender.send(channel, { stream, line });
-          }
-        }
+        emitLines(stream, output.append(stream, data.toString()));
       };
 
       child.stdout?.on("data", (d) => push("stdout", d));
       child.stderr?.on("data", (d) => push("stderr", d));
       child.on("error", (e) => {
-        settle({
-          exitCode: -1,
-          stdout,
-          stderr: stderr + "\n" + String(e),
-          durationMs: Date.now() - start,
-          aborted,
-        });
+        settle(-1, e);
       });
       child.on("close", (code) => {
-        settle({
-          exitCode: code ?? 0,
-          stdout,
-          stderr,
-          durationMs: Date.now() - start,
-          aborted,
-        });
+        settle(code ?? 0);
       });
     } catch (e) {
-      settle({
-        exitCode: -1,
-        stdout: "",
-        stderr: String(e),
-        durationMs: Date.now() - start,
-        aborted: false,
-      });
+      settle(-1, e);
     }
   });
 });
 
 ipcMain.handle("exec:cancel", (event, executionId) => {
   return activeExecutions.cancel(event.sender.id, executionId);
-});
-
-ipcMain.handle("exec:validateEnv", (_event, keys) => {
-  if (!Array.isArray(keys)) return { accepted: [], rejected: [] };
-  const unique = [...new Set(keys.filter((key) => typeof key === "string"))];
-  return {
-    accepted: unique.filter(isAllowedGradleEnvKey),
-    rejected: unique.filter((key) => !isAllowedGradleEnvKey(key)),
-  };
 });
 
 /* ---------- IPC : FS (lecture confinée) ---------- */
@@ -1300,57 +1463,6 @@ ipcMain.handle("fs:findByExtension", (_e, dir, ext, maxDepth = 6) => {
   return results;
 });
 
-/* ---------- IPC : FS (écriture confinée, Phase 3) ---------- */
-
-ipcMain.handle("fs:mkdir", (_e, p) => {
-  const safe = resolveWithinAllowed(p);
-  if (!safe) return false;
-  try {
-    fs.mkdirSync(safe, { recursive: true });
-    return true;
-  } catch {
-    return false;
-  }
-});
-
-ipcMain.handle("fs:writeText", (_e, p, content) => {
-  const safe = resolveWithinAllowed(p);
-  if (!safe) return false;
-  if (typeof content !== "string") return false;
-  try {
-    fs.mkdirSync(path.dirname(safe), { recursive: true });
-    fs.writeFileSync(safe, content, "utf8");
-    return true;
-  } catch {
-    return false;
-  }
-});
-
-ipcMain.handle("fs:writeJson", (_e, p, value) => {
-  const safe = resolveWithinAllowed(p);
-  if (!safe) return false;
-  try {
-    fs.mkdirSync(path.dirname(safe), { recursive: true });
-    fs.writeFileSync(safe, JSON.stringify(value, null, 2) + "\n", "utf8");
-    return true;
-  } catch {
-    return false;
-  }
-});
-
-ipcMain.handle("fs:copyFile", (_e, src, dest) => {
-  const safeSrc = resolveWithinAllowed(src);
-  const safeDest = resolveWithinAllowed(dest);
-  if (!safeSrc || !safeDest) return false;
-  try {
-    fs.mkdirSync(path.dirname(safeDest), { recursive: true });
-    fs.copyFileSync(safeSrc, safeDest);
-    return true;
-  } catch {
-    return false;
-  }
-});
-
 /* ---------- IPC : Shell ---------- */
 
 // openFolder accepte un dossier OU un fichier : dans ce dernier cas on ouvre
@@ -1403,13 +1515,10 @@ ipcMain.handle("net:online", pingInternet);
  *     process enfant (`-storepass:env`, `-keypass:env`). Ils n'apparaissent
  *     jamais en argv (`ps` ne les voit pas) ni dans les logs diagnostic
  *     (les handlers filtrent explicitement `ctx.storepass`/`keypass`).
- *   - Les chemins keystore résident souvent hors des racines projet.
- *     Un ensemble `allowedKeystoreFiles` conserve la liste des fichiers
- *     explicitement choisis par l'utilisateur via dialog. Aucun scan
- *     automatique du disque : seules les racines fournies sont explorées.
+ *   - Les chemins keystore résident souvent hors des racines projet. Une
+ *     autorisation persistante et limitée au fichier exact est créée après
+ *     sélection native ; son dossier parent n'est jamais exposé au renderer.
  * ========================================================================== */
-
-const allowedKeystoreFiles = new Set();
 
 function registerAllowedKeystore(p) {
   try {
@@ -1419,10 +1528,7 @@ function registerAllowedKeystore(p) {
     if (!st.isFile()) return null;
     const lower = real.toLowerCase();
     if (!lower.endsWith(".jks") && !lower.endsWith(".keystore")) return null;
-    allowedKeystoreFiles.add(real);
-    // Autorise également le dossier parent pour d'éventuelles vérifs fs:exists.
-    registerAllowedRoot(path.dirname(real));
-    return real;
+    return keystoreAccess.approveExisting(real);
   } catch {
     return null;
   }
@@ -1432,7 +1538,7 @@ function resolveKeystorePath(inputPath) {
   if (typeof inputPath !== "string") return null;
   try {
     const real = fs.realpathSync(inputPath);
-    if (allowedKeystoreFiles.has(real)) return real;
+    if (keystoreAccess.resolveExisting(real)) return real;
     // Autorise également si le fichier vit dans une racine projet connue.
     if (resolveWithinAllowed(real)) return real;
     return null;
@@ -1514,7 +1620,9 @@ function runKeytool(args, env = {}, timeoutMs = 30_000) {
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => {
-      try { child.kill(); } catch {}
+      try {
+        child.kill();
+      } catch {}
       resolve({ code: -1, stdout, stderr: stderr + "\n[timeout]", timedOut: true });
     }, timeoutMs);
     child.stdout?.on("data", (d) => (stdout += d.toString()));
@@ -1532,9 +1640,16 @@ function runKeytool(args, env = {}, timeoutMs = 30_000) {
 
 function classifyKeytoolStderr(stderr) {
   const s = (stderr || "").toLowerCase();
-  if (s.includes("password was incorrect") || s.includes("keystore was tampered") || s.includes("password verification failed")) return "wrong-password";
-  if (s.includes("alias") && (s.includes("does not exist") || s.includes("n'existe pas"))) return "alias-not-found";
-  if (s.includes("invalid keystore format") || s.includes("not a valid keystore")) return "invalid-keystore";
+  if (
+    s.includes("password was incorrect") ||
+    s.includes("keystore was tampered") ||
+    s.includes("password verification failed")
+  )
+    return "wrong-password";
+  if (s.includes("alias") && (s.includes("does not exist") || s.includes("n'existe pas")))
+    return "alias-not-found";
+  if (s.includes("invalid keystore format") || s.includes("not a valid keystore"))
+    return "invalid-keystore";
   return "unknown";
 }
 
@@ -1562,8 +1677,13 @@ ipcMain.handle("signing:chooseOutputFolder", async () => {
     properties: ["openDirectory", "createDirectory"],
   });
   if (r.canceled || !r.filePaths[0]) return null;
-  const real = registerAllowedRoot(r.filePaths[0]);
-  return real ?? r.filePaths[0];
+  const authorized = keystoreOutputAccess.approveExisting(r.filePaths[0]);
+  if (!authorized) {
+    throw new Error(
+      "Ce dossier est trop large ou inaccessible. Créez puis sélectionnez un sous-dossier dédié.",
+    );
+  }
+  return authorized;
 });
 
 /* ---------- Handler : keystoreList ---------- */
@@ -1572,22 +1692,33 @@ ipcMain.handle("signing:keystoreList", async (_e, args) => {
   try {
     if (!args || typeof args !== "object") return { ok: false, errorCode: "unknown" };
     const { keystorePath, storepass, alias } = args;
-    if (!isValidPassword(storepass)) return { ok: false, errorCode: "wrong-password", errorHint: "Le mot de passe est vide ou invalide." };
-    if (alias !== undefined && alias !== "" && !isValidAlias(alias)) return { ok: false, errorCode: "invalid-keystore", errorHint: "Alias invalide." };
+    if (!isValidPassword(storepass))
+      return {
+        ok: false,
+        errorCode: "wrong-password",
+        errorHint: "Le mot de passe est vide ou invalide.",
+      };
+    if (alias !== undefined && alias !== "" && !isValidAlias(alias))
+      return { ok: false, errorCode: "invalid-keystore", errorHint: "Alias invalide." };
     const safe = resolveKeystorePath(keystorePath);
-    if (!safe) return { ok: false, errorCode: "file-missing", errorHint: "Le fichier keystore est introuvable ou non autorisé." };
+    if (!safe)
+      return {
+        ok: false,
+        errorCode: "file-missing",
+        errorHint: "Le fichier keystore est introuvable ou non autorisé.",
+      };
     if (!fs.existsSync(safe)) return { ok: false, errorCode: "file-missing" };
 
-    const cmdArgs = [
-      "-list", "-v",
-      "-keystore", safe,
-      "-storepass:env", "APPPUB_STOREPASS",
-    ];
+    const cmdArgs = ["-list", "-v", "-keystore", safe, "-storepass:env", "APPPUB_STOREPASS"];
     if (alias) cmdArgs.push("-alias", alias);
     const r = await runKeytool(cmdArgs, { APPPUB_STOREPASS: storepass });
     if (r.spawnError && r.spawnError.code === "ENOENT") {
       diagSigning("error", "keystoreList: keytool introuvable");
-      return { ok: false, errorCode: "keytool-missing", errorHint: "keytool est introuvable. Installez un JDK 17+." };
+      return {
+        ok: false,
+        errorCode: "keytool-missing",
+        errorHint: "keytool est introuvable. Installez un JDK 17+.",
+      };
     }
     if (r.code === 0) {
       diagSigning("info", "keystoreList: succès", { alias: alias || "(tous)" });
@@ -1608,48 +1739,91 @@ ipcMain.handle("signing:keystoreCreate", async (_e, args) => {
   try {
     if (!args || typeof args !== "object") return { ok: false, errorCode: "invalid-args" };
     const { keystorePath, alias, storepass, keypass, dname, validityDays, keyalg, keysize } = args;
-    if (typeof keystorePath !== "string" || keystorePath.length === 0) return { ok: false, errorCode: "invalid-args" };
-    if (!isValidAlias(alias)) return { ok: false, errorCode: "invalid-args", errorHint: "Alias invalide (lettres, chiffres, . _ - uniquement)." };
-    if (!isValidPassword(storepass) || !isValidPassword(keypass)) return { ok: false, errorCode: "invalid-args", errorHint: "Les mots de passe doivent faire au moins 6 caractères." };
-    if (!isValidDName(dname)) return { ok: false, errorCode: "invalid-args", errorHint: "Informations de certificat invalides." };
+    if (typeof keystorePath !== "string" || keystorePath.length === 0)
+      return { ok: false, errorCode: "invalid-args" };
+    if (!isValidAlias(alias))
+      return {
+        ok: false,
+        errorCode: "invalid-args",
+        errorHint: "Alias invalide (lettres, chiffres, . _ - uniquement).",
+      };
+    if (!isValidPassword(storepass) || !isValidPassword(keypass))
+      return {
+        ok: false,
+        errorCode: "invalid-args",
+        errorHint: "Les mots de passe doivent faire au moins 6 caractères.",
+      };
+    if (!isValidDName(dname))
+      return {
+        ok: false,
+        errorCode: "invalid-args",
+        errorHint: "Informations de certificat invalides.",
+      };
     const validity = Math.max(1, Math.min(36500, Number(validityDays) || 10000));
     const alg = keyalg === "RSA" ? "RSA" : "RSA";
     const size = Math.max(2048, Math.min(8192, Number(keysize) || 2048));
 
     // Le dossier parent doit être une racine autorisée (dialog chooseOutputFolder).
     const parent = path.dirname(keystorePath);
-    const safeParent = resolveWithinAllowed(parent);
-    if (!safeParent) return { ok: false, errorCode: "invalid-args", errorHint: "Dossier de destination non autorisé." };
+    const safeParent = keystoreOutputAccess.resolveExisting(parent);
+    if (!safeParent)
+      return {
+        ok: false,
+        errorCode: "invalid-args",
+        errorHint: "Dossier de destination non autorisé.",
+      };
     const target = path.join(safeParent, path.basename(keystorePath));
-    if (fs.existsSync(target)) return { ok: false, errorCode: "file-exists", errorHint: "Un fichier existe déjà à cet emplacement." };
+    if (fs.existsSync(target))
+      return {
+        ok: false,
+        errorCode: "file-exists",
+        errorHint: "Un fichier existe déjà à cet emplacement.",
+      };
 
     const cmdArgs = [
       "-genkeypair",
-      "-keystore", target,
-      "-storetype", "JKS",
-      "-alias", alias,
-      "-keyalg", alg,
-      "-keysize", String(size),
-      "-validity", String(validity),
-      "-dname", dname,
-      "-storepass:env", "APPPUB_STOREPASS",
-      "-keypass:env", "APPPUB_KEYPASS",
+      "-keystore",
+      target,
+      "-storetype",
+      "JKS",
+      "-alias",
+      alias,
+      "-keyalg",
+      alg,
+      "-keysize",
+      String(size),
+      "-validity",
+      String(validity),
+      "-dname",
+      dname,
+      "-storepass:env",
+      "APPPUB_STOREPASS",
+      "-keypass:env",
+      "APPPUB_KEYPASS",
     ];
-    const r = await runKeytool(cmdArgs, {
-      APPPUB_STOREPASS: storepass,
-      APPPUB_KEYPASS: keypass,
-    }, 60_000);
+    const r = await runKeytool(
+      cmdArgs,
+      {
+        APPPUB_STOREPASS: storepass,
+        APPPUB_KEYPASS: keypass,
+      },
+      60_000,
+    );
     if (r.spawnError && r.spawnError.code === "ENOENT") {
       diagSigning("error", "keystoreCreate: keytool introuvable");
       return { ok: false, errorCode: "keytool-missing" };
     }
     if (r.code === 0 && fs.existsSync(target)) {
-      allowedKeystoreFiles.add(target);
+      keystoreAccess.approveExisting(target);
       diagSigning("info", "keystoreCreate: succès", { alias, path: target });
       return { ok: true };
     }
     diagSigning("warn", "keystoreCreate: échec", { code: r.code });
-    return { ok: false, errorCode: "unknown", errorHint: r.stderr?.split("\n")?.[0]?.slice(0, 200) };
+    return {
+      ok: false,
+      errorCode: "unknown",
+      errorHint: r.stderr?.split("\n")?.[0]?.slice(0, 200),
+    };
   } catch (e) {
     diagSigning("error", "keystoreCreate: exception", { error: String(e) });
     return { ok: false, errorCode: "unknown" };
@@ -1667,18 +1841,24 @@ ipcMain.handle("signing:scan", async (_e, roots) => {
   function walk(dir, depth) {
     if (depth > maxDepth) return;
     let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
     for (const ent of entries) {
       if (ent.name.startsWith(".") && ent.name !== ".android") continue;
       if (["node_modules", "build", "Pods", "DerivedData", ".gradle"].includes(ent.name)) continue;
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) {
-        walk(full, depth + 1);
+        const safeDirectory = resolveWithinAllowed(full);
+        if (safeDirectory) walk(safeDirectory, depth + 1);
       } else if (ent.isFile()) {
         const lower = ent.name.toLowerCase();
         if (lower.endsWith(".jks") || lower.endsWith(".keystore")) {
           try {
-            const real = fs.realpathSync(full);
+            const real = resolveWithinAllowed(full);
+            if (!real) continue;
             if (seen.has(real)) continue;
             seen.add(real);
             const st = fs.statSync(real);
@@ -1687,9 +1867,8 @@ ipcMain.handle("signing:scan", async (_e, roots) => {
               storeType: lower.endsWith(".jks") ? "JKS" : "unknown",
               size: st.size,
             });
-            // Un scan enregistre également les fichiers trouvés comme
-            // "autorisés" pour permettre une validation immédiate.
-            allowedKeystoreFiles.add(real);
+            // Le fichier reste autorisé via la racine déjà choisie ; un scan
+            // n'élargit jamais les autorisations persistantes.
           } catch {}
         }
       }
@@ -1698,11 +1877,9 @@ ipcMain.handle("signing:scan", async (_e, roots) => {
 
   for (const root of roots) {
     if (typeof root !== "string") continue;
-    let real;
-    try { real = fs.realpathSync(root); } catch { continue; }
-    // Sécurité : refuse un scan à la racine système.
-    if (real === "/" || /^[a-zA-Z]:\\?$/.test(real)) {
-      diagSigning("warn", "scan: racine système refusée", { root: real });
+    const real = resolveWithinAllowed(root);
+    if (!real) {
+      diagSigning("warn", "scan: dossier non autorisé refusé", { root });
       continue;
     }
     walk(real, 0);
@@ -1711,9 +1888,9 @@ ipcMain.handle("signing:scan", async (_e, roots) => {
   return results;
 });
 
-ipcMain.handle("signing:resolveKeystore", (_e, args) => {
-  const storedPath = typeof args?.storedPath === "string" ? args.storedPath.trim() : "";
-  const projectPath = resolveWithinAllowed(args?.projectPath);
+function resolveStoredKeystore(storedPathInput, projectPathInput) {
+  const storedPath = typeof storedPathInput === "string" ? storedPathInput.trim() : "";
+  const projectPath = resolveWithinAllowed(projectPathInput);
   const result = {
     ok: false,
     storedPath,
@@ -1723,11 +1900,12 @@ ipcMain.handle("signing:resolveKeystore", (_e, args) => {
   };
   if (!storedPath || !projectPath) return { ...result, errorCode: "invalid-path" };
 
-  const expanded = storedPath === "~"
-    ? app.getPath("home")
-    : storedPath.startsWith(`~${path.sep}`)
-      ? path.join(app.getPath("home"), storedPath.slice(2))
-      : storedPath;
+  const expanded =
+    storedPath === "~"
+      ? app.getPath("home")
+      : storedPath.startsWith(`~${path.sep}`)
+        ? path.join(app.getPath("home"), storedPath.slice(2))
+        : storedPath;
   const candidates = path.isAbsolute(expanded)
     ? [path.normalize(expanded)]
     : [
@@ -1742,7 +1920,10 @@ ipcMain.handle("signing:resolveKeystore", (_e, args) => {
     try {
       const real = fs.realpathSync(candidate);
       const stat = fs.statSync(real);
-      if (stat.isFile() && !matches.includes(real)) matches.push(real);
+      const authorized = path.isAbsolute(expanded)
+        ? resolveKeystorePath(real)
+        : resolveWithinAllowed(real);
+      if (authorized && stat.isFile() && !matches.includes(authorized)) matches.push(authorized);
     } catch {}
   }
   if (matches.length > 1) {
@@ -1758,7 +1939,6 @@ ipcMain.handle("signing:resolveKeystore", (_e, args) => {
   } catch {
     return { ...result, resolvedPath, errorCode: "not-readable" };
   }
-  allowedKeystoreFiles.add(resolvedPath);
   return {
     ...result,
     ok: true,
@@ -1766,6 +1946,10 @@ ipcMain.handle("signing:resolveKeystore", (_e, args) => {
     isAbsolute: path.isAbsolute(resolvedPath),
     readable: true,
   };
+}
+
+ipcMain.handle("signing:resolveKeystore", (_e, args) => {
+  return resolveStoredKeystore(args?.storedPath, args?.projectPath);
 });
 
 function resolveJdkTool(name) {
@@ -1793,40 +1977,71 @@ function runJdkTool(tool, args, timeoutMs = 60_000) {
       resolve(value);
     };
     const timer = setTimeout(() => {
-      try { child.kill(); } catch {}
+      try {
+        child.kill();
+      } catch {}
       finish({ code: -1, stdout, stderr: `${stderr}\n[timeout]` });
     }, timeoutMs);
     child.stdout?.on("data", (data) => (stdout += data.toString()));
     child.stderr?.on("data", (data) => (stderr += data.toString()));
-    child.on("error", (error) => finish({ code: -1, stdout, stderr: `${stderr}\n${String(error)}`, spawnError: error }));
+    child.on("error", (error) =>
+      finish({ code: -1, stdout, stderr: `${stderr}\n${String(error)}`, spawnError: error }),
+    );
     child.on("close", (code) => finish({ code: code ?? -1, stdout, stderr }));
   });
 }
 
 ipcMain.handle("signing:verifyAab", async (_e, inputPath) => {
   const safe = resolveWithinAllowed(inputPath);
-  if (!safe) return { ok: false, errorCode: "file-missing", errorHint: "Le fichier AAB est introuvable." };
+  if (!safe)
+    return { ok: false, errorCode: "file-missing", errorHint: "Le fichier AAB est introuvable." };
   let stat;
-  try { stat = fs.statSync(safe); } catch { return { ok: false, errorCode: "file-missing" }; }
+  try {
+    stat = fs.statSync(safe);
+  } catch {
+    return { ok: false, errorCode: "file-missing" };
+  }
   if (!stat.isFile()) return { ok: false, errorCode: "file-missing" };
-  if (stat.size <= 0) return { ok: false, errorCode: "empty-file", errorHint: "Le fichier AAB est vide." };
+  if (stat.size <= 0)
+    return { ok: false, errorCode: "empty-file", errorHint: "Le fichier AAB est vide." };
 
   const verified = await runJdkTool("jarsigner", ["-verify", "-verbose", "-certs", safe]);
   if (verified.spawnError?.code === "ENOENT") {
-    return { ok: false, errorCode: "jarsigner-missing", errorHint: "jarsigner est introuvable. Installez un JDK 17+." };
+    return {
+      ok: false,
+      errorCode: "jarsigner-missing",
+      errorHint: "jarsigner est introuvable. Installez un JDK 17+.",
+    };
   }
   const verificationOutput = `${verified.stdout}\n${verified.stderr}`;
-  const explicitlyUnsigned = /jar is unsigned|jar n'est pas signé|non signé/i.test(verificationOutput);
-  if (verified.code !== 0 || explicitlyUnsigned || !/jar verified\.|jar vérifié\./i.test(verificationOutput)) {
-    return { ok: false, errorCode: "verification-failed", errorHint: "La signature JAR du fichier AAB n'est pas valide." };
+  const explicitlyUnsigned = /jar is unsigned|jar n'est pas signé|non signé/i.test(
+    verificationOutput,
+  );
+  if (
+    verified.code !== 0 ||
+    explicitlyUnsigned ||
+    !/jar verified\.|jar vérifié\./i.test(verificationOutput)
+  ) {
+    return {
+      ok: false,
+      errorCode: "verification-failed",
+      errorHint: "La signature JAR du fichier AAB n'est pas valide.",
+    };
   }
 
   const certificate = await runJdkTool("keytool", ["-printcert", "-jarfile", safe]);
   const output = `${certificate.stdout}\n${certificate.stderr}`;
-  const sha256 = output.match(/SHA[\s-]?256\s*:\s*([0-9A-Fa-f: ]+)/i)?.[1]?.replace(/\s+/g, "").toUpperCase();
-  const owner = output.match(/^\s*(?:Owner|Propriétaire)\s*:\s*(.+)$/mi)?.[1]?.trim();
+  const sha256 = output
+    .match(/SHA[\s-]?256\s*:\s*([0-9A-Fa-f: ]+)/i)?.[1]
+    ?.replace(/\s+/g, "")
+    .toUpperCase();
+  const owner = output.match(/^\s*(?:Owner|Propriétaire)\s*:\s*(.+)$/im)?.[1]?.trim();
   if (certificate.code !== 0 || !sha256) {
-    return { ok: false, errorCode: "verification-failed", errorHint: "Le certificat de signature de l'AAB est illisible." };
+    return {
+      ok: false,
+      errorCode: "verification-failed",
+      errorHint: "Le certificat de signature de l'AAB est illisible.",
+    };
   }
   return { ok: true, sha256, certificate: owner };
 });
@@ -1847,13 +2062,25 @@ function secretsSupported() {
       fs.accessSync("/usr/bin/security", fs.constants.X_OK);
       return { platform: "darwin", available: true };
     } catch {
-      return { platform: "darwin", available: false, reason: "L'outil système /usr/bin/security est introuvable." };
+      return {
+        platform: "darwin",
+        available: false,
+        reason: "L'outil système /usr/bin/security est introuvable.",
+      };
     }
   }
   if (process.platform === "win32") {
-    return { platform: "win32", available: false, reason: "Le trousseau Windows n'est pas encore pris en charge par cette version." };
+    return {
+      platform: "win32",
+      available: false,
+      reason: "Le trousseau Windows n'est pas encore pris en charge par cette version.",
+    };
   }
-  return { platform: "linux", available: false, reason: "Le trousseau Linux n'est pas encore pris en charge par cette version." };
+  return {
+    platform: "linux",
+    available: false,
+    reason: "Le trousseau Linux n'est pas encore pris en charge par cette version.",
+  };
 }
 
 function runSecurity(args, input) {
@@ -1866,15 +2093,120 @@ function runSecurity(args, input) {
     child.on("error", (e) => resolve({ code: -1, stdout, stderr: String(e) }));
     child.on("close", (code) => resolve({ code: code ?? -1, stdout, stderr }));
     if (input !== undefined) {
-      try { child.stdin?.end(input); } catch {}
+      try {
+        child.stdin?.end(input);
+      } catch {}
     } else {
-      try { child.stdin?.end(); } catch {}
+      try {
+        child.stdin?.end();
+      } catch {}
     }
   });
 }
 
 function accountFor(profileId, field) {
   return `${profileId}:${field}`;
+}
+
+function storedSigningProfile(profileId) {
+  const stored = durableStore.get("android-signing.profiles.v1");
+  if (!stored.ok || !stored.found || !Array.isArray(stored.value)) return null;
+  return stored.value.find((profile) => profile?.id === profileId) ?? null;
+}
+
+function linkedStoredProject(projectPathInput, profileId) {
+  const projectPath = resolveWithinAllowed(projectPathInput);
+  if (!projectPath) return null;
+  const stored = durableStore.get("projects");
+  if (!stored.ok || !stored.found || !Array.isArray(stored.value)) return null;
+  return (
+    stored.value.find((project) => {
+      const savedPath = resolveWithinAllowed(project?.localPath);
+      return (
+        savedPath === projectPath && project?.publishing?.android?.signingProfileId === profileId
+      );
+    }) ?? null
+  );
+}
+
+async function getStoredSecret(profileId, field) {
+  const sup = secretsSupported();
+  if (!sup.available) return null;
+  const account = accountFor(profileId, field);
+  const result = await runSecurity([
+    "find-generic-password",
+    "-a",
+    account,
+    "-s",
+    KEYCHAIN_SERVICE,
+    "-w",
+  ]);
+  if (result.code !== 0) return null;
+  const value = result.stdout.replace(/\r?\n$/, "");
+  if (value.length >= 4) knownSecretValues.add(value);
+  return value;
+}
+
+function validateStoredProfileArgs(args, requireProject) {
+  if (!args || typeof args !== "object") return null;
+  if (typeof args.profileId !== "string" || !/^[a-zA-Z0-9._-]+$/.test(args.profileId)) {
+    return null;
+  }
+  const profile = storedSigningProfile(args.profileId);
+  if (!profile || profile.keystorePath !== args.keystorePath || profile.alias !== args.alias) {
+    return null;
+  }
+  if (requireProject && !linkedStoredProject(args.projectPath, profile.id)) return null;
+  return profile;
+}
+
+async function validateStoredKeystore(profile, projectPath) {
+  if (!isValidAlias(profile.alias)) {
+    return { ok: false, errorCode: "invalid-keystore", errorHint: "Alias invalide." };
+  }
+  const resolved = projectPath
+    ? resolveStoredKeystore(profile.keystorePath, projectPath)
+    : (() => {
+        const safe = resolveKeystorePath(profile.keystorePath);
+        return safe
+          ? {
+              ok: true,
+              resolvedPath: safe,
+              storedPath: profile.keystorePath,
+              testedPaths: [profile.keystorePath],
+              isAbsolute: path.isAbsolute(safe),
+              readable: true,
+            }
+          : { ok: false, errorCode: "not-found" };
+      })();
+  if (!resolved.ok || !resolved.resolvedPath) {
+    return { ok: false, errorCode: "file-missing", errorHint: "Keystore introuvable." };
+  }
+  const support = secretsSupported();
+  if (!support.available) {
+    return { ok: false, errorCode: "keychain-unavailable", errorHint: support.reason };
+  }
+  const storepass = await getStoredSecret(profile.id, "storepass");
+  if (!storepass) {
+    return { ok: false, errorCode: "keychain-missing", errorHint: "Mot de passe absent." };
+  }
+  const commandArgs = [
+    "-list",
+    "-v",
+    "-keystore",
+    resolved.resolvedPath,
+    "-storepass:env",
+    "APPPUB_STOREPASS",
+  ];
+  if (profile.alias) commandArgs.push("-alias", profile.alias);
+  const result = await runKeytool(commandArgs, { APPPUB_STOREPASS: storepass });
+  if (result.spawnError?.code === "ENOENT") {
+    return { ok: false, errorCode: "keytool-missing", errorHint: "keytool est introuvable." };
+  }
+  if (result.code !== 0) {
+    return { ok: false, errorCode: classifyKeytoolStderr(result.stderr) };
+  }
+  return { ok: true, stdout: result.stdout, resolved, storepass };
 }
 
 ipcMain.handle("secrets:supported", () => secretsSupported());
@@ -1890,6 +2222,8 @@ ipcMain.handle("secrets:set", async (_e, profileId, field, value) => {
   if (typeof profileId !== "string" || !/^[a-zA-Z0-9._-]+$/.test(profileId)) return false;
   if (field !== "storepass" && field !== "keypass") return false;
   if (!isValidPassword(value)) return false;
+  if (!storedSigningProfile(profileId)) return false;
+  knownSecretValues.add(value);
   const account = accountFor(profileId, field);
   // SÉCURITÉ : le mot de passe ne doit JAMAIS apparaître dans l'argv du
   // process enfant (visible via `ps` par tout process local). On utilise le
@@ -1898,9 +2232,12 @@ ipcMain.handle("secrets:set", async (_e, profileId, field, value) => {
   const line =
     [
       "add-generic-password",
-      "-a", quoteForSecurityInteractive(account),
-      "-s", quoteForSecurityInteractive(KEYCHAIN_SERVICE),
-      "-w", quoteForSecurityInteractive(value),
+      "-a",
+      quoteForSecurityInteractive(account),
+      "-s",
+      quoteForSecurityInteractive(KEYCHAIN_SERVICE),
+      "-w",
+      quoteForSecurityInteractive(value),
       "-U",
     ].join(" ") + "\n";
   const r = await runSecurity(["-i"], line);
@@ -1908,8 +2245,10 @@ ipcMain.handle("secrets:set", async (_e, profileId, field, value) => {
   // que la valeur est bien relisible depuis le trousseau.
   const check = await runSecurity([
     "find-generic-password",
-    "-a", account,
-    "-s", KEYCHAIN_SERVICE,
+    "-a",
+    account,
+    "-s",
+    KEYCHAIN_SERVICE,
     "-w",
   ]);
   const stored = check.code === 0 ? check.stdout.replace(/\r?\n$/, "") : null;
@@ -1921,34 +2260,67 @@ ipcMain.handle("secrets:set", async (_e, profileId, field, value) => {
   return true;
 });
 
-ipcMain.handle("secrets:get", async (_e, profileId, field) => {
-  const sup = secretsSupported();
-  if (!sup.available) return null;
-  if (typeof profileId !== "string" || !/^[a-zA-Z0-9._-]+$/.test(profileId)) return null;
-  if (field !== "storepass" && field !== "keypass") return null;
-  const account = accountFor(profileId, field);
-  const r = await runSecurity([
-    "find-generic-password",
-    "-a", account,
-    "-s", KEYCHAIN_SERVICE,
-    "-w",
-  ]);
-  if (r.code !== 0) return null;
-  // -w écrit le mot de passe sur stdout suivi d'un \n.
-  return r.stdout.replace(/\r?\n$/, "");
+ipcMain.handle("signing:validateStored", async (_e, args) => {
+  const profile = validateStoredProfileArgs(args, false);
+  if (!profile) return { ok: false, errorCode: "profile-mismatch" };
+  const result = await validateStoredKeystore(profile, args.projectPath);
+  const { storepass: _secret, resolved: _resolved, ...publicResult } = result;
+  return publicResult;
+});
+
+ipcMain.handle("signing:prepareBuild", async (event, args) => {
+  const profile = validateStoredProfileArgs(args, true);
+  if (!profile) return { ok: false, errorCode: "profile-mismatch" };
+  const projectPath = resolveWithinAllowed(args.projectPath);
+  if (!projectPath) return { ok: false, errorCode: "project-not-authorized" };
+  const validated = await validateStoredKeystore(profile, projectPath);
+  if (!validated.ok || !validated.resolved?.resolvedPath || !validated.storepass) {
+    return {
+      ok: false,
+      errorCode: validated.errorCode,
+      errorHint: validated.errorHint,
+    };
+  }
+  const keypass = (await getStoredSecret(profile.id, "keypass")) ?? validated.storepass;
+  const env = {
+    ORG_GRADLE_PROJECT_APP_KEYSTORE_FILE: validated.resolved.resolvedPath,
+    ORG_GRADLE_PROJECT_APP_KEYSTORE_PASSWORD: validated.storepass,
+    ORG_GRADLE_PROJECT_APP_KEY_ALIAS: profile.alias,
+    ORG_GRADLE_PROJECT_APP_KEY_PASSWORD: keypass,
+  };
+  const sessionId = signingSessions.create(event.sender.id, projectPath, env);
+  if (!sessionId) return { ok: false, errorCode: "session-failed" };
+  return {
+    ok: true,
+    sessionId,
+    keystorePath: validated.resolved.resolvedPath,
+    storedPathWasAbsolute:
+      validated.resolved.isAbsolute && profile.keystorePath === validated.resolved.resolvedPath,
+    testedPaths: validated.resolved.testedPaths,
+  };
 });
 
 ipcMain.handle("secrets:remove", async (_e, profileId) => {
   const sup = secretsSupported();
   if (!sup.available) return true;
   if (typeof profileId !== "string" || !/^[a-zA-Z0-9._-]+$/.test(profileId)) return false;
+  const profile = storedSigningProfile(profileId);
+  if (!profile) return false;
+  const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: "warning",
+    title: "Supprimer l'accès à la signature ?",
+    message: `Les mots de passe du profil « ${profile.name} » seront retirés du trousseau.`,
+    detail:
+      "Le fichier keystore ne sera pas supprimé. Cette action nécessite une réimportation pour signer de nouveau.",
+    buttons: ["Supprimer l'accès", "Annuler"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (confirmation.response !== 0) return false;
   for (const field of ["storepass", "keypass"]) {
     const account = accountFor(profileId, field);
-    await runSecurity([
-      "delete-generic-password",
-      "-a", account,
-      "-s", KEYCHAIN_SERVICE,
-    ]);
+    await runSecurity(["delete-generic-password", "-a", account, "-s", KEYCHAIN_SERVICE]);
   }
   diagSigning("info", "secrets:remove", { profileId });
   return true;

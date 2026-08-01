@@ -2,7 +2,7 @@ import type { SigningProfile } from "../types/signing-profile";
 import { storage } from "@/core/storage";
 
 /**
- * Persistance des profils de signature. localStorage typé, préfixe dédié.
+ * Persistance des profils de signature via l'adapter versionné AppPublisher.
  * INVARIANT : jamais de champ contenant un mot de passe (garanti par le
  * type `SigningProfile`, testé par `profiles-store.spec.ts`).
  */

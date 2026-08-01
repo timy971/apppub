@@ -13,14 +13,9 @@
  * API rétro-compatible : `diag()` et `diagOp()` restent exportés.
  */
 
-export type LogLevel =
-  | "trace"
-  | "debug"
-  | "info"
-  | "success"
-  | "warn"
-  | "error"
-  | "fatal";
+import { redactSensitiveText, sanitizeForLog } from "@/core/security/redaction";
+
+export type LogLevel = "trace" | "debug" | "info" | "success" | "warn" | "error" | "fatal";
 
 export interface LogEntry {
   id: string;
@@ -58,7 +53,6 @@ interface DiagBridge {
   onNavigate?: (cb: (target: string) => void) => () => void;
 }
 
-
 function getBridge(): DiagBridge | undefined {
   if (typeof window === "undefined") return undefined;
   const w = window as unknown as { appPublisher?: { diag?: DiagBridge } };
@@ -78,26 +72,32 @@ class LoggerImpl {
   }
 
   private push(entry: LogEntry): void {
-    this.buffer.push(entry);
+    const safeEntry: LogEntry = {
+      ...entry,
+      message: redactSensitiveText(entry.message),
+      ctx: sanitizeForLog(entry.ctx),
+      error: entry.error ? redactSensitiveText(entry.error) : undefined,
+    };
+    this.buffer.push(safeEntry);
     if (this.buffer.length > MAX_BUFFER) {
       this.buffer.splice(0, this.buffer.length - MAX_BUFFER);
     }
     for (const l of this.listeners) {
       try {
-        l(entry);
+        l(safeEntry);
       } catch {
         /* noop */
       }
     }
     // Console navigateur (utile en dev).
     try {
-      const label = `[diag ${entry.level}] ${entry.module ? `[${entry.module}] ` : ""}${entry.message}`;
-      if (entry.level === "error" || entry.level === "fatal") {
-        console.error(label, entry.ctx ?? "");
-      } else if (entry.level === "warn") {
-        console.warn(label, entry.ctx ?? "");
+      const label = `[diag ${safeEntry.level}] ${safeEntry.module ? `[${safeEntry.module}] ` : ""}${safeEntry.message}`;
+      if (safeEntry.level === "error" || safeEntry.level === "fatal") {
+        console.error(label, safeEntry.ctx ?? "");
+      } else if (safeEntry.level === "warn") {
+        console.warn(label, safeEntry.ctx ?? "");
       } else {
-        console.log(label, entry.ctx ?? "");
+        console.log(label, safeEntry.ctx ?? "");
       }
     } catch {
       /* noop */
@@ -110,14 +110,14 @@ class LoggerImpl {
         b.log({
           ts: new Date(entry.ts).toISOString(),
           source: "renderer",
-          level: entry.level,
-          message: entry.module
-            ? `[${entry.module}] ${entry.message}`
-            : entry.message,
-          ctx: entry.ctx,
-          opId: entry.opId,
-          durationMs: entry.durationMs,
-          error: entry.error,
+          level: safeEntry.level,
+          message: safeEntry.module
+            ? `[${safeEntry.module}] ${safeEntry.message}`
+            : safeEntry.message,
+          ctx: safeEntry.ctx,
+          opId: safeEntry.opId,
+          durationMs: safeEntry.durationMs,
+          error: safeEntry.error,
         });
       } catch {
         /* noop */
@@ -125,12 +125,7 @@ class LoggerImpl {
     }
   }
 
-  log(
-    level: LogLevel | string,
-    module: string | undefined,
-    message: string,
-    ctx?: unknown,
-  ): void {
+  log(level: LogLevel | string, module: string | undefined, message: string, ctx?: unknown): void {
     this.push({
       id: this.nextId(),
       ts: Date.now(),
@@ -311,14 +306,10 @@ export function getSysInfo(): Promise<Record<string, unknown>> | undefined {
   return getBridge()?.getSysInfo?.();
 }
 
-export function exportDiagnosticBundle(
-  extra?: unknown,
-): Promise<string> | undefined {
+export function exportDiagnosticBundle(extra?: unknown): Promise<string> | undefined {
   return getBridge()?.exportBundle?.(extra);
 }
 
-export function onDiagnosticNavigate(
-  cb: (target: string) => void,
-): (() => void) | undefined {
+export function onDiagnosticNavigate(cb: (target: string) => void): (() => void) | undefined {
   return getBridge()?.onNavigate?.(cb);
 }

@@ -41,12 +41,12 @@ export function useCopilotPlan(): {
     return () => {
       cancelled = true;
     };
-  }, [project?.id]);
+  }, [project]);
 
   // Abonnement au bus — recalcul sur événement métier.
   useEffect(() => CopilotBus.subscribe(() => setBusTick((n) => n + 1)), []);
 
-  // Historique + backups (localStorage) lus à chaque tick / mutation projet.
+  // Historique + sauvegardes persistantes lus à chaque tick / mutation projet.
   const history = HistoryService.list();
   const backups = project ? BackupService.list(project.id) : [];
 

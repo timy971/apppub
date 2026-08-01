@@ -114,9 +114,8 @@ export const webBridge: SystemBridge = {
       return p?.trim() || null;
     },
 
-    async registerRoots(): Promise<string[]> {
-      // No-op en Web : pas de confinement fs à alimenter.
-      return [];
+    async reauthorizeFolder(expectedPath): Promise<string | null> {
+      return expectedPath;
     },
   },
 
@@ -124,13 +123,22 @@ export const webBridge: SystemBridge = {
     async ensureExecutable(projectPath) {
       return { ok: true, path: `${projectPath}/android/gradlew` };
     },
+    async ensureSigningPatch() {
+      return { ok: true, changed: false };
+    },
+  },
+
+  backups: {
+    async create(projectPath) {
+      return { location: `${projectPath}/.apppublisher-backups/simulation`, files: [] };
+    },
+    async restore(_projectPath, location, files) {
+      return { location, files };
+    },
   },
 
   exec: {
     run: fakeExec,
-    async validateEnv(keys) {
-      return { accepted: [...keys], rejected: [] };
-    },
   },
 
   fs: {
@@ -151,18 +159,6 @@ export const webBridge: SystemBridge = {
     },
     async findByExtension() {
       return [];
-    },
-    async mkdir() {
-      return true;
-    },
-    async writeText() {
-      return true;
-    },
-    async writeJson() {
-      return true;
-    },
-    async copyFile() {
-      return true;
     },
   },
 
@@ -198,9 +194,6 @@ export const webBridge: SystemBridge = {
     async set() {
       return false;
     },
-    async get() {
-      return null;
-    },
     async remove() {
       return true;
     },
@@ -225,6 +218,20 @@ export const webBridge: SystemBridge = {
         ok: false,
         errorCode: "keytool-missing",
         errorHint: "Aperçu Lovable — keytool n'est disponible que dans l'application de bureau.",
+      };
+    },
+    async validateStored() {
+      return {
+        ok: false,
+        errorCode: "keychain-unavailable",
+        errorHint: "Le trousseau n'est pas disponible dans l'aperçu Web.",
+      };
+    },
+    async prepareBuild() {
+      return {
+        ok: false,
+        errorCode: "keychain-unavailable",
+        errorHint: "Le trousseau n'est pas disponible dans l'aperçu Web.",
       };
     },
     async scan() {

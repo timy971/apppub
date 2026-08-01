@@ -18,7 +18,6 @@ import { CopilotBus } from "@/core/copilot/bus";
  */
 
 const KEY = "backups";
-const BACKUPS_FOLDER = ".apppublisher-backups";
 
 interface StoredBackup extends ProjectBackup {
   contents?: Record<string, string>;
@@ -37,10 +36,6 @@ function uid(): UUID {
   return Math.random().toString(36).slice(2);
 }
 
-function stamp(): string {
-  return new Date().toISOString().replace(/[:.]/g, "-");
-}
-
 export const BackupService = {
   list(projectId: UUID): ProjectBackup[] {
     return storage.get<StoredBackup[]>(KEY, []).filter((b) => b.projectId === projectId);
@@ -53,23 +48,9 @@ export const BackupService = {
     let location: string | undefined;
 
     if (b.runtime === "electron") {
-      // Snapshot réel sur disque, sous la racine du projet (donc autorisé
-      // par le confinement fs:*).
-      location = `${project.localPath}/${BACKUPS_FOLDER}/${stamp()}-${reason}`;
-      const created = await b.fs.mkdir(location);
-      if (!created) throw new Error("Impossible de créer le dossier de sauvegarde.");
-      for (const rel of SNAPSHOT_FILES) {
-        const src = `${project.localPath}/${rel}`;
-        const stat = await b.fs.stat(src);
-        if (!stat?.isFile) continue;
-        const copied = await b.fs.copyFile(src, `${location}/${rel}`);
-        if (!copied) throw new Error(`Impossible de sauvegarder ${rel}.`);
-        const saved = await b.fs.stat(`${location}/${rel}`);
-        if (!saved?.isFile || saved.size !== stat.size) {
-          throw new Error(`La copie de sauvegarde de ${rel} est incomplète.`);
-        }
-        files.push({ path: rel, size: stat.size });
-      }
+      const snapshot = await b.backups.create(project.localPath, reason);
+      location = snapshot.location;
+      files.push(...snapshot.files);
     } else {
       for (const rel of SNAPSHOT_FILES) {
         const p = `${project.localPath}/${rel}`;
@@ -115,14 +96,8 @@ export const BackupService = {
     const b = bridge();
 
     if (b.runtime === "electron" && backup.location) {
-      let ok = true;
-      for (const f of backup.files) {
-        const src = `${backup.location}/${f.path}`;
-        const dest = `${project.localPath}/${f.path}`;
-        const done = await b.fs.copyFile(src, dest);
-        const restored = done ? await b.fs.stat(dest) : null;
-        if (!restored?.isFile || restored.size !== f.size) ok = false;
-      }
+      const restored = await b.backups.restore(project.localPath, backup.location, backup.files);
+      const ok = restored.files.length === backup.files.length;
       JournalService.log(ok ? "info" : "warn", "Restauration de sauvegarde", {
         project: project.name,
         backupId,
@@ -131,9 +106,8 @@ export const BackupService = {
     }
 
     if (b.runtime === "web" && backup.contents) {
-      for (const [rel, text] of Object.entries(backup.contents)) {
-        await b.fs.writeText(`${project.localPath}/${rel}`, text);
-      }
+      // Preview Lovable : aucune écriture disque réelle. Les contenus sont
+      // conservés uniquement pour simuler un cycle de restauration complet.
       return true;
     }
 

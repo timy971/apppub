@@ -535,6 +535,23 @@ function ConfigurationTab({
     }
   }
 
+  async function reauthorizeProjectFolder() {
+    try {
+      const authorized = await bridge().projects.reauthorizeFolder(project.localPath);
+      if (!authorized) {
+        toast.error("Dossier non réautorisé", {
+          description: "Sélectionnez exactement le dossier déjà associé à ce projet.",
+        });
+        return;
+      }
+      toast.success("Dossier du projet réautorisé");
+    } catch (error) {
+      toast.error("Réautorisation impossible", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   return (
     <Card className="p-6 shadow-soft space-y-5 max-w-3xl">
       <DiscoveryHint title="Configuration du dépôt et du build">
@@ -554,10 +571,15 @@ function ConfigurationTab({
             <FolderOpen className="h-4 w-4" />
             Ouvrir
           </Button>
+          {bridge().runtime === "electron" && (
+            <Button variant="outline" onClick={reauthorizeProjectFolder}>
+              Réautoriser
+            </Button>
+          )}
         </div>
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Chemin racine du projet. Non modifiable ici — recréez le projet
-          pour pointer vers un autre dossier.
+          Chemin racine du projet. Après une mise à niveau de sécurité, « Réautoriser » permet de
+          confirmer ce dossier sans recréer le projet.
         </p>
       </div>
 

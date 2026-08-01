@@ -24,11 +24,25 @@ typé exposé via `contextBridge`, consommé côté renderer par
 ## Sécurité
 
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
-- `exec:run` : allowlist stricte (`node`, `npm`, `npx`, `git`, `java`,
-  `gradlew`), caractères shell interdits, `shell:false`, `env` du renderer
-  ignoré, `cwd` obligatoirement dans une racine projet approuvée.
-- `fs:*` / `shell:*` : chaque chemin est canonicalisé (`realpath`) puis
-  vérifié comme contenu dans une racine approuvée.
+- `exec:run` n'accepte que les workflows exacts nécessaires à l'application
+  (build web, Capacitor, version et bundle Android), avec `shell:false` et
+  confirmation native avant la première exécution de code d'un projet.
+- Un dossier projet n'est approuvé qu'après sélection dans un dialogue natif.
+  Les racines système, le dossier utilisateur et les liens symboliques sortants
+  sont refusés après canonicalisation (`realpath`). Les autorisations héritées
+  de l'ancien renderer ne sont pas reprises ; l'écran projet propose une
+  réautorisation native sans recréer la fiche.
+- Le renderer ne dispose d'aucune primitive générique d'écriture. Les
+  sauvegardes, la restauration et l'injection Gradle passent par des opérations
+  natives dédiées, validées fichier par fichier. Le bloc Gradle est construit
+  dans le main process : aucun contenu de fichier fourni par React n'est écrit.
+- Un keystore choisi n'autorise que ce fichier exact, de façon persistante ;
+  son dossier parent n'est pas rendu lisible par le renderer.
+- Les données applicatives sont stockées dans un fichier JSON versionné et
+  écrit atomiquement sous `userData`, avec récupération depuis une copie de
+  secours. Les mots de passe restent exclusivement dans le trousseau système.
+- Les redirections, nouvelles fenêtres, webviews et permissions sont bloquées
+  par défaut. Les outils de développement sont désactivés dans le paquet final.
 - **Instance unique** : les tentatives de double-lancement raménent la
   fenêtre existante au premier plan.
 - **Erreurs non capturées** : `uncaughtException` déclenche une boîte de

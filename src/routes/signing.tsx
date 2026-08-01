@@ -113,7 +113,14 @@ function SigningPage() {
   };
 
   const remove = async (p: SigningProfile) => {
-    await bridge().secrets.remove(p.id).catch(() => {});
+    const removed = await bridge()
+      .secrets.remove(p.id)
+      .catch(() => false);
+    if (!removed) {
+      toast.info("Suppression annulée");
+      setToDelete(null);
+      return;
+    }
     ProfilesStore.remove(p.id);
     reload();
     toast.success("Signature supprimée", {

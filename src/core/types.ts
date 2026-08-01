@@ -2,7 +2,7 @@
  * AppPublisher — Contrats de domaine.
  * Stables : la Phase 2 étend, sans casser la Phase 1.
  * Les nouveaux champs ajoutés ici sont TOUS optionnels pour préserver
- * la compatibilité avec les données persistées (localStorage).
+ * la compatibilité avec les données persistées par les versions précédentes.
  */
 
 export type UUID = string;
@@ -104,9 +104,7 @@ export interface Project {
   updatedAt: string;
 }
 
-
 export type ProjectDraft = Omit<Project, "id" | "createdAt" | "updatedAt">;
-
 
 /* ---------- Versioning ---------- */
 
@@ -162,12 +160,7 @@ export interface PublishRecord {
 /* ---------- Workflow Engine ---------- */
 
 export type WorkflowStepStatus =
-  | "pending"
-  | "running"
-  | "success"
-  | "warning"
-  | "error"
-  | "skipped";
+  "pending" | "running" | "success" | "warning" | "error" | "skipped";
 
 export interface WorkflowStep {
   id: string;
@@ -256,7 +249,8 @@ export interface ExecOptions {
   cmd: string;
   args?: string[];
   cwd?: string;
-  env?: Record<string, string>;
+  /** Jeton opaque, mono-usage, préparé par le main process pour Gradle. */
+  signingSessionId?: string;
   /** Timeout en ms. Par défaut 10 min. */
   timeoutMs?: number;
 }
@@ -269,10 +263,7 @@ export interface ExecResult {
   aborted: boolean;
 }
 
-export type ExecLineHandler = (line: {
-  stream: "stdout" | "stderr";
-  line: string;
-}) => void;
+export type ExecLineHandler = (line: { stream: "stdout" | "stderr"; line: string }) => void;
 
 export interface DetectedFiles {
   hasPackageJson: boolean;
@@ -299,7 +290,6 @@ export interface ScannedProject {
   name: string;
   detected: DetectedFiles;
 }
-
 
 /* ---------- Phase 2 : Health Score ---------- */
 
