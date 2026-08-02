@@ -20,6 +20,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -347,6 +354,7 @@ function ImportDialog({
   const [path, setPath] = useState("");
   const [alias, setAlias] = useState("");
   const [storepass, setStorepass] = useState("");
+  const [detectedAliases, setDetectedAliases] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -355,6 +363,7 @@ function ImportDialog({
       setPath("");
       setAlias("");
       setStorepass("");
+      setDetectedAliases([]);
       setBusy(false);
     }
   }, [open]);
@@ -364,6 +373,8 @@ function ImportDialog({
       const p = await bridge().signing.chooseKeystore();
       if (p) {
         setPath(p);
+        setAlias("");
+        setDetectedAliases([]);
         if (!name) {
           const base = p.split(/[\\/]/).pop()?.replace(/\.(jks|keystore)$/i, "") ?? "";
           setName(base);
@@ -378,16 +389,51 @@ function ImportDialog({
 
   const submit = async () => {
     setBusy(true);
-    const res = await KeystoreImporter.import({ name, keystorePath: path, alias, storepass });
-    setBusy(false);
-    // Purge sécurité — état local du mot de passe.
-    setStorepass("");
-    if (res.ok) {
-      toast.success(res.title, { description: res.message });
-      onDone();
-      onOpenChange(false);
-    } else {
-      toast.error(res.title, { description: res.message });
+    try {
+      let selectedAlias = alias;
+      if (detectedAliases.length === 0) {
+        const detection = await KeystoreImporter.detectAliases({
+          keystorePath: path,
+          storepass,
+        });
+        if (!detection.ok) {
+          setStorepass("");
+          toast.error(detection.title, { description: detection.message });
+          return;
+        }
+
+        setDetectedAliases(detection.aliases);
+        if (detection.aliases.length > 1) {
+          toast.success(detection.title, { description: detection.message });
+          return;
+        }
+        selectedAlias = detection.aliases[0];
+        setAlias(selectedAlias);
+      }
+
+      if (!selectedAlias) return;
+      const res = await KeystoreImporter.import({
+        name,
+        keystorePath: path,
+        alias: selectedAlias,
+        storepass,
+      });
+      // Purge sécurité — état local du mot de passe.
+      setStorepass("");
+      if (res.ok) {
+        toast.success(res.title, { description: res.message });
+        onDone();
+        onOpenChange(false);
+      } else {
+        toast.error(res.title, { description: res.message });
+      }
+    } catch (error) {
+      setStorepass("");
+      toast.error("Importation impossible", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -414,18 +460,57 @@ function ImportDialog({
             </div>
           </div>
           <div className="grid gap-1.5">
-            <Label>Alias</Label>
-            <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="Ex : upload" autoComplete="off" />
+            <Label>Clé de signature</Label>
+            {detectedAliases.length === 0 ? (
+              <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                L'alias sera détecté après la saisie du mot de passe.
+              </p>
+            ) : detectedAliases.length === 1 ? (
+              <Input value={detectedAliases[0]} readOnly aria-label="Alias détecté" />
+            ) : (
+              <Select value={alias} onValueChange={setAlias}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir la clé de cette application" />
+                </SelectTrigger>
+                <SelectContent>
+                  {detectedAliases.map((detectedAlias) => (
+                    <SelectItem key={detectedAlias} value={detectedAlias}>
+                      {detectedAlias}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label>Mot de passe du keystore</Label>
-            <Input type="password" value={storepass} onChange={(e) => setStorepass(e.target.value)} autoComplete="new-password" />
+            <Input
+              type="password"
+              value={storepass}
+              onChange={(e) => {
+                setStorepass(e.target.value);
+                setAlias("");
+                setDetectedAliases([]);
+              }}
+              autoComplete="new-password"
+            />
           </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Annuler</Button>
-          <Button onClick={submit} disabled={busy || !name || !path || !alias || !storepass}>
-            {busy ? "Vérification…" : "Importer"}
+          <Button
+            onClick={submit}
+            disabled={
+              busy || !name || !path || !storepass || (detectedAliases.length > 1 && !alias)
+            }
+          >
+            {busy
+              ? detectedAliases.length === 0
+                ? "Détection…"
+                : "Importation…"
+              : detectedAliases.length === 0
+                ? "Détecter et importer"
+                : "Importer"}
           </Button>
         </DialogFooter>
       </DialogContent>

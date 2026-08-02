@@ -57,6 +57,7 @@ export type SigningValidationCode =
   | "invalid-keystore"
   | "wrong-password"
   | "alias-not-found"
+  | "no-signing-alias"
   | "certificate-unreadable"
   | "keychain-missing"
   | "keychain-unavailable"

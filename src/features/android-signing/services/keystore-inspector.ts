@@ -83,6 +83,40 @@ export function parseKeytoolListOutput(stdout: string): CertificateInfo | null {
   };
 }
 
+/**
+ * Extrait les alias qui correspondent réellement à une clé privée.
+ *
+ * Un keystore peut aussi contenir de simples certificats de confiance. Ces
+ * entrées ont bien un alias, mais ne peuvent pas signer un AAB : elles ne sont
+ * donc volontairement pas proposées dans le parcours d'import.
+ */
+export function parseKeytoolPrivateKeyAliases(stdout: string): string[] {
+  const aliasPattern = /^\s*(?:Alias name|Nom d['’]alias)\s*:\s*(.+?)\s*$/gim;
+  const matches = [...stdout.matchAll(aliasPattern)];
+  const aliases: string[] = [];
+
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index];
+    const alias = match[1]?.trim();
+    if (!alias) continue;
+
+    const start = (match.index ?? 0) + match[0].length;
+    const end = matches[index + 1]?.index ?? stdout.length;
+    const entry = stdout.slice(start, end);
+    const entryType =
+      extractLine(entry, "Entry type") ??
+      extractLine(entry, "Type d'entrée") ??
+      extractLine(entry, "Type d’entrée");
+
+    const isPrivateKey =
+      entryType?.toLowerCase().includes("privatekeyentry") ||
+      entryType?.toLowerCase().includes("clé privée");
+    if (isPrivateKey && !aliases.includes(alias)) aliases.push(alias);
+  }
+
+  return aliases;
+}
+
 export type KeytoolFailureCode =
   "wrong-password" | "alias-not-found" | "invalid-keystore" | "unknown";
 
