@@ -100,6 +100,19 @@ export const BuildService = {
       };
     }
 
+    // Vérifie la référence avant npm, Capacitor ou Gradle. Le préflight UI
+    // effectue le même contrôle, mais le moteur doit rester sûr lorsqu'il est
+    // appelé depuis un autre parcours ou si le stockage change entre-temps.
+    const signingProfile = SigningInjector.resolveProfile(project);
+    if (!signingProfile.ok) {
+      opts.onStep("prepare", "error", signingProfile.error.message);
+      JournalService.log("error", signingProfile.error.message, {
+        projectId: project.id,
+        code: signingProfile.error.code,
+      });
+      throw new Error(signingProfile.error.message);
+    }
+
     // 1. Dépendances
     abortIfNeeded(signal);
     const hasNodeModules = await b.fs.exists(`${project.localPath}/node_modules`);

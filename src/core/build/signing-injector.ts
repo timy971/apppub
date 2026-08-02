@@ -2,6 +2,7 @@ import type { Project } from "@/core/types";
 import { bridge } from "@/core/bridge";
 import { getAndroidConfig } from "@/core/projects/android-config";
 import { ProfilesStore } from "@/features/android-signing/storage/profiles-store";
+import type { SigningProfile } from "@/features/android-signing/types/signing-profile";
 
 /**
  * Signing Injector — pont unique entre le SigningProfile (source de vérité)
@@ -65,8 +66,42 @@ export interface SigningPrepareError {
   message: string;
 }
 
+export type SigningProfileResolution =
+  { ok: true; profile: SigningProfile } | { ok: false; error: SigningPrepareError };
+
 export const SigningInjector = {
   markerBegin: MARKER_BEGIN,
+
+  /**
+   * Résout l'association avant toute opération coûteuse. Cette vérification
+   * reste synchrone et sans secret : elle garantit seulement que la référence
+   * du projet pointe encore vers un profil persisté.
+   */
+  resolveProfile(project: Project): SigningProfileResolution {
+    const profileId = getAndroidConfig(project).signingProfileId;
+    if (!profileId) {
+      return {
+        ok: false,
+        error: {
+          code: "no-profile-linked",
+          message:
+            "Aucun profil de signature n'est associé à ce projet. Ouvrez la fiche du projet pour en lier un.",
+        },
+      };
+    }
+    const profile = ProfilesStore.get(profileId);
+    if (!profile) {
+      return {
+        ok: false,
+        error: {
+          code: "profile-missing",
+          message:
+            "Le profil de signature associé au projet est introuvable. Réassociez une signature dans la fiche du projet avant de relancer.",
+        },
+      };
+    }
+    return { ok: true, profile };
+  },
 
   /**
    * Applique le patch signing dans `<android>/app/build.gradle` s'il ne l'est
@@ -128,27 +163,9 @@ export const SigningInjector = {
   ): Promise<
     { ok: true; preparation: SigningPreparation } | { ok: false; error: SigningPrepareError }
   > {
-    const cfg = getAndroidConfig(project);
-    if (!cfg.signingProfileId) {
-      return {
-        ok: false,
-        error: {
-          code: "no-profile-linked",
-          message:
-            "Aucun profil de signature n'est associé à ce projet. Ouvrez la fiche du projet pour en lier un.",
-        },
-      };
-    }
-    const profile = ProfilesStore.get(cfg.signingProfileId);
-    if (!profile) {
-      return {
-        ok: false,
-        error: {
-          code: "profile-missing",
-          message: "Le profil de signature associé au projet est introuvable.",
-        },
-      };
-    }
+    const resolved = this.resolveProfile(project);
+    if (!resolved.ok) return resolved;
+    const profile = resolved.profile;
     if (!profile.alias.trim()) {
       return {
         ok: false,

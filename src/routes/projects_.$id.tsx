@@ -13,6 +13,7 @@ import {
   Package,
   Rocket,
   Info,
+  AlertTriangle,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { ProfilesStore as SigningProfilesStore } from "@/features/android-signing";
@@ -1181,8 +1182,12 @@ function SigningProfileField({
 }) {
   const profiles = SigningProfilesStore.list();
   const linked = value ? profiles.find((p) => p.id === value) : undefined;
+  const missingLink = Boolean(value && !linked);
   return (
-    <div data-cockpit-field="android.signingProfileId" className="rounded-lg border bg-muted/30 p-3">
+    <div
+      data-cockpit-field="android.signingProfileId"
+      className="rounded-lg border bg-muted/30 p-3"
+    >
       <div className="flex items-start justify-between gap-2">
         <div>
           <Label>Signature associée à ce projet</Label>
@@ -1197,6 +1202,23 @@ function SigningProfileField({
           </Link>
         </Button>
       </div>
+      {missingLink && (
+        <div
+          role="alert"
+          className="mt-3 flex items-start gap-2 rounded-md border border-danger/40 bg-danger/5 p-3 text-sm"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
+          <div>
+            <p className="font-medium text-danger">
+              Le profil précédemment associé est introuvable.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Sélectionnez à nouveau votre profil ci-dessous. Le fichier keystore n'a pas été
+              supprimé.
+            </p>
+          </div>
+        </div>
+      )}
       {profiles.length === 0 ? (
         <div className="mt-3 rounded-md border border-dashed bg-background p-3">
           <p className="text-sm">
@@ -1216,13 +1238,18 @@ function SigningProfileField({
       ) : (
         <div className="mt-2">
           <Select
-            value={value ?? "__none__"}
+            value={missingLink ? "__missing__" : (value ?? "__none__")}
             onValueChange={(v) => onChange(v === "__none__" ? undefined : v)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Aucune signature associée" />
             </SelectTrigger>
             <SelectContent>
+              {missingLink && (
+                <SelectItem value="__missing__" disabled>
+                  Profil précédent introuvable — choisissez-en un
+                </SelectItem>
+              )}
               <SelectItem value="__none__">Aucune (configuration manuelle ci-dessous)</SelectItem>
               {profiles.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
