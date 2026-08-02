@@ -13,6 +13,17 @@ interface Pattern {
 
 const PATTERNS: Pattern[] = [
   {
+    test: (r) => /profil de signature associé au projet est introuvable/i.test(r),
+    error: {
+      title: "Signature à réassocier",
+      explanation:
+        "Le projet pointe vers un ancien profil qui n'existe plus dans AppPublisher. Votre fichier keystore n'a pas été supprimé.",
+      solution:
+        "Ouvrez la fiche du projet, puis Publication → Signature associée à ce projet, et sélectionnez à nouveau votre profil.",
+      retryable: true,
+    },
+  },
+  {
     test: (r) => /Keystore introuvable ou ambigu/.test(r),
     error: {
       title: "Keystore introuvable ou ambigu",

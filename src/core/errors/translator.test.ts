@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { translateError } from "./translator";
 
 describe("translateError", () => {
+  it("explique comment réparer une association de signature obsolète", () => {
+    const t = translateError(
+      "Le profil de signature associé au projet est introuvable. Réassociez une signature dans la fiche du projet avant de relancer.",
+    );
+    expect(t.title).toBe("Signature à réassocier");
+    expect(t.explanation).toMatch(/keystore n'a pas été supprimé/i);
+    expect(t.solution).toMatch(/Publication.*Signature associée/i);
+  });
+
   it("traduit ENOENT sur version.mjs en message ciblé", () => {
     const t = translateError("Error: ENOENT: no such file scripts/version.mjs");
     expect(t.title).toMatch(/script de version/i);

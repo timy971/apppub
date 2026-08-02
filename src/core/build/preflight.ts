@@ -242,7 +242,22 @@ export const PreflightService = {
     const profileId = android.signingProfileId;
     const linkedProfile = profileId ? ProfilesStore.get(profileId) : undefined;
 
-    if (linkedProfile) {
+    if (profileId && !linkedProfile) {
+      checks.push({
+        id: "signing-profile-missing",
+        category: "keystore",
+        status: "error",
+        title: "Association de signature obsolète",
+        message:
+          "Le profil précédemment associé à ce projet n'existe plus dans AppPublisher. Choisissez à nouveau le profil de signature ; votre fichier keystore n'a pas été supprimé.",
+        technical: `Identifiant du profil introuvable : ${profileId}`,
+        fix: {
+          label: "Réassocier la signature",
+          kind: "open-cockpit",
+          payload: { tab: "publishing", field: "android.signingProfileId" },
+        },
+      });
+    } else if (linkedProfile) {
       // Nouveau chemin : profil de signature lié → validation complète
       // (fichier + mot de passe trousseau + alias + certificat).
       const val = await SigningValidator.validate(linkedProfile.id, project.localPath);
