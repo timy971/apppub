@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * AppPublisher — Preload script (instrumenté Phase 3.7 Diagnostic).
  *
@@ -108,21 +107,35 @@ contextBridge.exposeInMainWorld("appPublisher", {
     detect: () => inv("system:detect"),
   },
 
+  storage: {
+    get: (key) => ipcRenderer.sendSync("storage:get", key),
+    set: (key, value) => ipcRenderer.sendSync("storage:set", key, value),
+    remove: (key) => ipcRenderer.sendSync("storage:remove", key),
+    status: () => ipcRenderer.sendSync("storage:status"),
+    exportFile: () => inv("storage:export"),
+    importFile: () => inv("storage:import"),
+  },
+
   projects: {
     detect: (p) => inv("projects:detect", p),
     scan: (root) => inv("projects:scan", root),
     chooseFolder: () => inv("projects:chooseFolder"),
-    registerRoots: (paths) => inv("projects:registerRoots", paths),
+    reauthorizeFolder: (expectedPath) => inv("projects:reauthorizeFolder", expectedPath),
   },
 
   gradle: {
     ensureExecutable: (projectPath) => inv("gradle:ensureExecutable", projectPath),
+    ensureSigningPatch: (androidDir) => inv("gradle:ensureSigningPatch", androidDir),
+  },
+
+  backups: {
+    create: (projectPath, reason) => inv("backups:create", projectPath, reason),
+    restore: (projectPath, location, files) => inv("backups:restore", projectPath, location, files),
   },
 
   exec: {
     run: (opts, channel, executionId) => inv("exec:run", opts, channel, executionId),
     cancel: (executionId) => inv("exec:cancel", executionId),
-    validateEnv: (keys) => inv("exec:validateEnv", keys),
     subscribeLines: (channel, cb) => {
       const listener = (_e, line) => cb(line);
       ipcRenderer.on(channel, listener);
@@ -141,10 +154,6 @@ contextBridge.exposeInMainWorld("appPublisher", {
     stat: (p) => inv("fs:stat", p),
     listDir: (p) => inv("fs:listDir", p),
     findByExtension: (d, e, max) => inv("fs:findByExtension", d, e, max),
-    mkdir: (p) => inv("fs:mkdir", p),
-    writeText: (p, content) => inv("fs:writeText", p, content),
-    writeJson: (p, value) => inv("fs:writeJson", p, value),
-    copyFile: (src, dest) => inv("fs:copyFile", src, dest),
   },
 
   shell: {
@@ -160,7 +169,6 @@ contextBridge.exposeInMainWorld("appPublisher", {
   secrets: {
     supported: () => inv("secrets:supported"),
     set: (profileId, field, value) => inv("secrets:set", profileId, field, value),
-    get: (profileId, field) => inv("secrets:get", profileId, field),
     remove: (profileId) => inv("secrets:remove", profileId),
   },
 
@@ -169,6 +177,8 @@ contextBridge.exposeInMainWorld("appPublisher", {
     chooseOutputFolder: () => inv("signing:chooseOutputFolder"),
     keystoreList: (args) => inv("signing:keystoreList", args),
     keystoreCreate: (args) => inv("signing:keystoreCreate", args),
+    validateStored: (args) => inv("signing:validateStored", args),
+    prepareBuild: (args) => inv("signing:prepareBuild", args),
     scan: (roots) => inv("signing:scan", roots),
     resolveKeystore: (args) => inv("signing:resolveKeystore", args),
     verifyAab: (path) => inv("signing:verifyAab", path),

@@ -109,8 +109,13 @@ export function PublishCenter({ project }: { project: Project }) {
       if (settings.autoBackupEnabled) {
         try {
           await BackupService.create(project, "publish");
-        } catch {
-          /* la sauvegarde ne doit jamais bloquer la préparation */
+        } catch (error) {
+          toast.error("Préparation interrompue : sauvegarde impossible", {
+            description:
+              error instanceof Error ? error.message : "Vérifiez l'accès au dossier du projet.",
+            duration: 10_000,
+          });
+          return;
         }
       }
       HistoryService.record({

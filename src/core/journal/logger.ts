@@ -1,5 +1,6 @@
 import type { JournalEntry, JournalLevel } from "@/core/types";
 import { storage, STORAGE_KEYS } from "@/core/storage";
+import { redactSensitiveText, sanitizeForLog } from "@/core/security/redaction";
 
 const MAX_ENTRIES = 500;
 
@@ -17,8 +18,8 @@ export const JournalService = {
     const entry: JournalEntry = {
       id: uid(),
       level,
-      message,
-      context,
+      message: redactSensitiveText(message),
+      context: sanitizeForLog(context) as Record<string, unknown> | undefined,
       createdAt: new Date().toISOString(),
     };
     const next = [entry, ...this.list()].slice(0, MAX_ENTRIES);
@@ -36,13 +37,13 @@ export const JournalService = {
     message?: string;
   }): void {
     const level: JournalLevel = input.exitCode === 0 ? "command" : "error";
-    const tailFrom = [input.stdout, input.stderr].filter(Boolean).join("\n");
+    const tailFrom = redactSensitiveText([input.stdout, input.stderr].filter(Boolean).join("\n"));
     const tail = tailFrom.split("\n").slice(-200).join("\n");
     const entry: JournalEntry = {
       id: uid(),
       level,
-      message: input.message ?? input.command,
-      command: input.command,
+      message: redactSensitiveText(input.message ?? input.command),
+      command: redactSensitiveText(input.command),
       cwd: input.cwd,
       durationMs: input.durationMs,
       exitCode: input.exitCode,

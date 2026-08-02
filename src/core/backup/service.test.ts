@@ -4,19 +4,17 @@ const mocks = vi.hoisted(() => {
   const values = new Map<string, unknown>();
   return {
     values,
-    mkdir: vi.fn(),
-    stat: vi.fn(),
-    copyFile: vi.fn(),
+    create: vi.fn(),
+    restore: vi.fn(),
   };
 });
 
 vi.mock("@/core/bridge", () => ({
   bridge: () => ({
     runtime: "electron",
-    fs: {
-      mkdir: mocks.mkdir,
-      stat: mocks.stat,
-      copyFile: mocks.copyFile,
+    backups: {
+      create: mocks.create,
+      restore: mocks.restore,
     },
   }),
 }));
@@ -48,16 +46,20 @@ const project = {
 describe("BackupService", () => {
   beforeEach(() => {
     mocks.values.clear();
-    mocks.mkdir.mockReset().mockResolvedValue(true);
-    mocks.copyFile.mockReset().mockResolvedValue(true);
-    mocks.stat.mockReset().mockImplementation(async (path: string) => {
-      if (path.includes("version.json")) return { size: 20, isFile: true, isDir: false };
-      if (path.includes("package.json")) return { size: 100, isFile: true, isDir: false };
-      if (path.includes("android/app/build.gradle")) {
-        return { size: 500, isFile: true, isDir: false };
-      }
-      return null;
+    mocks.create.mockReset().mockResolvedValue({
+      location: "/projects/cranioscan/.apppublisher-backups/snapshot",
+      files: [
+        { path: "version.json", size: 20 },
+        { path: "package.json", size: 100 },
+        { path: "android/app/build.gradle", size: 500 },
+      ],
     });
+    mocks.restore
+      .mockReset()
+      .mockImplementation(async (_projectPath: string, location: string, files: unknown[]) => ({
+        location,
+        files,
+      }));
   });
 
   it("includes the Gradle file that AppPublisher mutates", async () => {
@@ -67,16 +69,12 @@ describe("BackupService", () => {
       "version.json",
       "package.json",
       "android/app/build.gradle",
-      "android/app/build.gradle.kts",
     ]);
-    expect(mocks.copyFile).toHaveBeenCalledWith(
-      "/projects/cranioscan/android/app/build.gradle",
-      expect.stringContaining("/android/app/build.gradle"),
-    );
+    expect(mocks.create).toHaveBeenCalledWith("/projects/cranioscan", "build");
   });
 
   it("does not record a backup when its directory cannot be created", async () => {
-    mocks.mkdir.mockResolvedValue(false);
+    mocks.create.mockRejectedValue(new Error("Impossible de créer le dossier de sauvegarde."));
 
     await expect(BackupService.create(project, "manual")).rejects.toThrow(/dossier de sauvegarde/);
     expect(BackupService.list(project.id)).toEqual([]);
@@ -86,9 +84,10 @@ describe("BackupService", () => {
     const backup = await BackupService.create(project, "manual");
 
     await expect(BackupService.restore(project, backup.id)).resolves.toBe(true);
-    expect(mocks.copyFile).toHaveBeenCalledWith(
-      expect.stringContaining("/android/app/build.gradle"),
-      "/projects/cranioscan/android/app/build.gradle",
+    expect(mocks.restore).toHaveBeenCalledWith(
+      "/projects/cranioscan",
+      "/projects/cranioscan/.apppublisher-backups/snapshot",
+      backup.files,
     );
   });
 });

@@ -83,6 +83,39 @@ export interface SigningAabVerifyResult {
   errorHint?: string;
 }
 
+export type SigningStoredValidationResult = Omit<SigningKeystoreListResult, "errorCode"> & {
+  errorCode?:
+    | SigningKeystoreListResult["errorCode"]
+    | "keychain-unavailable"
+    | "keychain-missing"
+    | "profile-mismatch";
+};
+
+export type SigningPrepareBuildResult =
+  | {
+      ok: true;
+      sessionId: string;
+      keystorePath: string;
+      storedPathWasAbsolute: boolean;
+      testedPaths: string[];
+    }
+  | {
+      ok: false;
+      errorCode:
+        | "profile-mismatch"
+        | "project-not-authorized"
+        | "file-missing"
+        | "wrong-password"
+        | "alias-not-found"
+        | "invalid-keystore"
+        | "keytool-missing"
+        | "keychain-unavailable"
+        | "keychain-missing"
+        | "session-failed"
+        | "unknown";
+      errorHint?: string;
+    };
+
 export interface SecretsSupportInfo {
   platform: "darwin" | "win32" | "linux" | "web";
   available: boolean;
@@ -100,6 +133,16 @@ export interface GradleEnsureExecutableResult {
     | "internal-error";
 }
 
+export interface BackupFileRecord {
+  path: string;
+  size: number;
+}
+
+export interface NativeBackupResult {
+  location: string;
+  files: BackupFileRecord[];
+}
+
 export interface SystemBridge {
   readonly runtime: "electron" | "web";
 
@@ -111,16 +154,37 @@ export interface SystemBridge {
     detect(path: string): Promise<DetectedFiles | null>;
     scan(rootPath: string): Promise<ScannedProject[]>;
     chooseFolder(): Promise<string | null>;
-    registerRoots(paths: string[]): Promise<string[]>;
+    reauthorizeFolder(expectedPath: string): Promise<string | null>;
   };
 
   gradle: {
     ensureExecutable(projectPath: string): Promise<GradleEnsureExecutableResult>;
+    ensureSigningPatch(androidDir: string): Promise<{
+      ok: boolean;
+      changed?: boolean;
+      errorCode?:
+        | "project-not-authorized"
+        | "gradle-missing"
+        | "invalid-content"
+        | "managed-block-corrupt"
+        | "write-failed";
+    }>;
+  };
+
+  backups: {
+    create(
+      projectPath: string,
+      reason: "build" | "manual" | "publish" | "version",
+    ): Promise<NativeBackupResult>;
+    restore(
+      projectPath: string,
+      location: string,
+      files: BackupFileRecord[],
+    ): Promise<NativeBackupResult>;
   };
 
   exec: {
     run(opts: ExecOptions, onLine?: ExecLineHandler, signal?: AbortSignal): Promise<ExecResult>;
-    validateEnv(keys: string[]): Promise<{ accepted: string[]; rejected: string[] }>;
   };
 
   fs: {
@@ -130,10 +194,6 @@ export interface SystemBridge {
     stat(path: string): Promise<{ size: number; isFile: boolean; isDir: boolean } | null>;
     listDir(path: string): Promise<string[]>;
     findByExtension(dir: string, ext: string, maxDepth?: number): Promise<string[]>;
-    mkdir(path: string): Promise<boolean>;
-    writeText(path: string, content: string): Promise<boolean>;
-    writeJson(path: string, value: unknown): Promise<boolean>;
-    copyFile(src: string, dest: string): Promise<boolean>;
   };
 
   shell: {
@@ -156,8 +216,6 @@ export interface SystemBridge {
     supported(): Promise<SecretsSupportInfo>;
     /** true si stocké avec succès. Un `false` = coffre indisponible. */
     set(profileId: string, field: "storepass" | "keypass", value: string): Promise<boolean>;
-    /** Renvoie null si absent, indisponible, ou refusé par l'utilisateur. */
-    get(profileId: string, field: "storepass" | "keypass"): Promise<string | null>;
     /** Efface toutes les entrées associées à un profil. */
     remove(profileId: string): Promise<boolean>;
   };
@@ -176,6 +234,20 @@ export interface SystemBridge {
     keystoreList(args: SigningKeystoreListArgs): Promise<SigningKeystoreListResult>;
     /** Crée un keystore via `keytool -genkeypair`. Refuse si le fichier existe déjà. */
     keystoreCreate(args: SigningKeystoreCreateArgs): Promise<SigningKeystoreCreateResult>;
+    /** Valide un profil enregistré sans ressortir son mot de passe du main process. */
+    validateStored(args: {
+      profileId: string;
+      keystorePath: string;
+      alias: string;
+      projectPath?: string;
+    }): Promise<SigningStoredValidationResult>;
+    /** Prépare un jeton Gradle mono-usage ; aucun secret n'est retourné au renderer. */
+    prepareBuild(args: {
+      profileId: string;
+      keystorePath: string;
+      alias: string;
+      projectPath: string;
+    }): Promise<SigningPrepareBuildResult>;
     /** Scan ciblé : uniquement les racines fournies. Jamais tout le disque. */
     scan(roots: string[]): Promise<SigningScanResult[]>;
     /** Normalise et vérifie le chemin du keystore avant tout lancement Gradle. */

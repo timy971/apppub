@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 import type { ExperienceMode, ThemePreference } from "@/core/types";
 import { ModeBadge } from "@/components/mode-badge";
 import { isElectron } from "@/core/bridge";
+import { exportDesktopData, importDesktopData } from "@/core/storage";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -26,6 +28,46 @@ function SettingsPage() {
   const settings = useSettings();
   const navigate = useNavigate();
   const electron = isElectron();
+  const [dataAction, setDataAction] = useState<"export" | "import" | null>(null);
+
+  async function exportData() {
+    setDataAction("export");
+    try {
+      const file = await exportDesktopData();
+      if (file) {
+        toast.success("Données exportées", {
+          description: file.split(/[\\/]/).pop(),
+        });
+      }
+    } catch (error) {
+      toast.error("L'export a échoué", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setDataAction(null);
+    }
+  }
+
+  async function importData() {
+    setDataAction("import");
+    try {
+      const result = await importDesktopData();
+      if (result) {
+        AppStore.hydrate();
+        toast.success("Données importées", {
+          description:
+            "Les projets et réglages ont été rechargés. Réautorisez leurs dossiers depuis leur configuration ; les mots de passe restent à renseigner sur cet ordinateur.",
+          duration: 10_000,
+        });
+      }
+    } catch (error) {
+      toast.error("L'import a échoué", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setDataAction(null);
+    }
+  }
 
   return (
     <div>
@@ -50,6 +92,32 @@ function SettingsPage() {
             />
           </Row>
         </Card>
+
+        {electron && (
+          <Card className="p-6 shadow-soft">
+            <Row
+              label="Données AppPublisher"
+              hint="Exportez une copie portable de vos projets, réglages et historiques, ou restaurez un export validé. Les mots de passe ne sont jamais inclus."
+            >
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => void exportData()}
+                  disabled={dataAction !== null}
+                >
+                  {dataAction === "export" ? "Export…" : "Exporter"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void importData()}
+                  disabled={dataAction !== null}
+                >
+                  {dataAction === "import" ? "Import…" : "Importer"}
+                </Button>
+              </div>
+            </Row>
+          </Card>
+        )}
 
         <Card className="p-6 shadow-soft">
           <Row
@@ -149,7 +217,10 @@ function SettingsPage() {
             <Button
               variant="outline"
               onClick={() => {
-                AppStore.updateSettings({ onboardingCompleted: false, mode: "discovery" as ExperienceMode });
+                AppStore.updateSettings({
+                  onboardingCompleted: false,
+                  mode: "discovery" as ExperienceMode,
+                });
                 toast.success("Configuration réinitialisée");
                 navigate({ to: "/setup" });
               }}

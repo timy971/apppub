@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Project } from "@/core/types";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import { OperationRunner } from "@/core/operations/runner";
@@ -51,16 +51,10 @@ export function BuildCenter({ project }: Props) {
   }, [snap.status]);
 
   // Statistiques historiques (durée moyenne, dernier build).
-  const stats = useMemo(
-    () => OperationEstimator.stats(project.id, "build"),
-    [project.id, snap.status],
-  );
+  const stats = OperationEstimator.stats(project.id, "build");
 
   // Temps écoulé : depuis startedAt jusqu'à endedAt (fin) ou now (live).
-  const elapsedMs =
-    snap.startedAt != null
-      ? (snap.endedAt ?? now) - snap.startedAt
-      : 0;
+  const elapsedMs = snap.startedAt != null ? (snap.endedAt ?? now) - snap.startedAt : 0;
 
   // Enregistre à la fin (une seule fois par run).
   useEffect(() => {
@@ -85,7 +79,10 @@ export function BuildCenter({ project }: Props) {
         artifactPath: artifact?.aabPath,
         artifactSizeBytes: artifact?.aabSize,
       });
-      notify("Build terminé", `${project.name} · ${artifact?.aabPath ? artifact.aabPath.split(/[\\/]/).pop() : "artefact prêt"}`);
+      notify(
+        "Build terminé",
+        `${project.name} · ${artifact?.aabPath ? artifact.aabPath.split(/[\\/]/).pop() : "artefact prêt"}`,
+      );
       toast.success("Build terminé", {
         description: artifact?.aabPath?.split(/[\\/]/).pop(),
       });
@@ -107,15 +104,28 @@ export function BuildCenter({ project }: Props) {
     } else if (snap.status === "cancelled") {
       notify("Build annulé", `${project.name}`);
     }
-  }, [snap.status, snap.id, snap.endedAt, snap.startedAt, snap.result, snap.error, project, settings.userName]);
+  }, [
+    snap.status,
+    snap.id,
+    snap.endedAt,
+    snap.startedAt,
+    snap.result,
+    snap.error,
+    project,
+    settings.userName,
+  ]);
 
   const start = useCallback(async () => {
-    // Sauvegarde préalable (si activée) — même contrat qu'avant.
     if (settings.autoBackupEnabled) {
       try {
         await BackupService.create(project, "build");
-      } catch {
-        /* silencieux : la sauvegarde ne bloque jamais un build */
+      } catch (error) {
+        toast.error("Build interrompu : sauvegarde impossible", {
+          description:
+            error instanceof Error ? error.message : "Vérifiez l'accès au dossier du projet.",
+          duration: 10_000,
+        });
+        return;
       }
     }
     requestNotificationPermission();
@@ -169,9 +179,7 @@ export function BuildCenter({ project }: Props) {
             <ResultCard project={project} snap={snap} elapsedMs={elapsedMs} stats={stats} />
           )}
 
-          {translated && (
-            <BuildErrorPanel error={translated} onRetry={reset} />
-          )}
+          {translated && <BuildErrorPanel error={translated} onRetry={reset} />}
         </div>
 
         <SidePanel
@@ -193,9 +201,9 @@ function IntroCard() {
       <div className="mx-auto max-w-md">
         <h2 className="text-xl font-semibold">Prêt à construire.</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          AppPublisher va préparer votre projet, compiler l'application web,
-          synchroniser Android puis produire le fichier .aab prêt à envoyer sur Google Play.
-          Vous pouvez annuler à tout moment.
+          AppPublisher va préparer votre projet, compiler l'application web, synchroniser Android
+          puis produire le fichier .aab prêt à envoyer sur Google Play. Vous pouvez annuler à tout
+          moment.
         </p>
       </div>
     </div>

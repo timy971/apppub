@@ -5,7 +5,7 @@ import { ProjectsService } from "@/core/projects/service";
 
 /**
  * Store réactif minimal — évite d'introduire une dépendance externe.
- * Toute mise à jour passe par les services (source de vérité = localStorage).
+ * Toute mise à jour passe par les services (source de vérité = adapter persistant).
  */
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -19,8 +19,7 @@ const serverProjects: Project[] = [];
 export const AppStore = {
   getSettings: () => cachedSettings,
   getProjects: () => cachedProjects,
-  getActiveProject: () =>
-    cachedProjects.find((p) => p.id === cachedSettings.activeProjectId),
+  getActiveProject: () => cachedProjects.find((p) => p.id === cachedSettings.activeProjectId),
 
   /** Recharge explicitement l'état navigateur après l'hydratation SSR. */
   hydrate() {
@@ -51,25 +50,13 @@ export const AppStore = {
 };
 
 export function useSettings(): Settings {
-  return useSyncExternalStore(
-    AppStore.subscribe,
-    AppStore.getSettings,
-    () => serverSettings,
-  );
+  return useSyncExternalStore(AppStore.subscribe, AppStore.getSettings, () => serverSettings);
 }
 
 export function useProjects(): Project[] {
-  return useSyncExternalStore(
-    AppStore.subscribe,
-    AppStore.getProjects,
-    () => serverProjects,
-  );
+  return useSyncExternalStore(AppStore.subscribe, AppStore.getProjects, () => serverProjects);
 }
 
 export function useActiveProject(): Project | undefined {
-  return useSyncExternalStore(
-    AppStore.subscribe,
-    AppStore.getActiveProject,
-    () => undefined,
-  );
+  return useSyncExternalStore(AppStore.subscribe, AppStore.getActiveProject, () => undefined);
 }

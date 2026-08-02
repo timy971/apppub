@@ -7,8 +7,23 @@ import type { SystemBridge } from "./types";
 interface AppPublisherApi {
   runtime: "electron";
   system: SystemBridge["system"];
+  storage: {
+    get(key: string): { ok: boolean; found?: boolean; value?: unknown; error?: string };
+    set(key: string, value: unknown): { ok: boolean; error?: string };
+    remove(key: string): { ok: boolean; error?: string };
+    status(): {
+      ok: boolean;
+      schemaVersion?: number;
+      filePath?: string;
+      lastError?: string | null;
+      error?: string;
+    };
+    exportFile(): Promise<string | null>;
+    importFile(): Promise<{ path: string; keys: string[] } | null>;
+  };
   projects: SystemBridge["projects"];
   gradle: SystemBridge["gradle"];
+  backups: SystemBridge["backups"];
   exec: {
     run: (
       opts: Parameters<SystemBridge["exec"]["run"]>[0],
@@ -20,7 +35,6 @@ interface AppPublisherApi {
       channel: string,
       cb: (line: { stream: "stdout" | "stderr"; line: string }) => void,
     ) => () => void;
-    validateEnv: SystemBridge["exec"]["validateEnv"];
   };
   fs: SystemBridge["fs"];
   shell: SystemBridge["shell"];
@@ -56,11 +70,18 @@ export const electronBridge: SystemBridge = {
     detect: (path) => ensure().projects.detect(path),
     scan: (root) => ensure().projects.scan(root),
     chooseFolder: () => ensure().projects.chooseFolder(),
-    registerRoots: (paths) => ensure().projects.registerRoots(paths),
+    reauthorizeFolder: (expectedPath) => ensure().projects.reauthorizeFolder(expectedPath),
   },
 
   gradle: {
     ensureExecutable: (projectPath) => ensure().gradle.ensureExecutable(projectPath),
+    ensureSigningPatch: (androidDir) => ensure().gradle.ensureSigningPatch(androidDir),
+  },
+
+  backups: {
+    create: (projectPath, reason) => ensure().backups.create(projectPath, reason),
+    restore: (projectPath, location, files) =>
+      ensure().backups.restore(projectPath, location, files),
   },
 
   exec: {
@@ -83,7 +104,6 @@ export const electronBridge: SystemBridge = {
         unsubscribe();
       }
     },
-    validateEnv: (keys) => ensure().exec.validateEnv(keys),
   },
 
   fs: {
@@ -93,10 +113,6 @@ export const electronBridge: SystemBridge = {
     stat: (p) => ensure().fs.stat(p),
     listDir: (p) => ensure().fs.listDir(p),
     findByExtension: (d, e, max) => ensure().fs.findByExtension(d, e, max),
-    mkdir: (p) => ensure().fs.mkdir(p),
-    writeText: (p, c) => ensure().fs.writeText(p, c),
-    writeJson: (p, v) => ensure().fs.writeJson(p, v),
-    copyFile: (s, d) => ensure().fs.copyFile(s, d),
   },
 
   shell: {
@@ -112,7 +128,6 @@ export const electronBridge: SystemBridge = {
   secrets: {
     supported: () => ensure().secrets.supported(),
     set: (id, field, value) => ensure().secrets.set(id, field, value),
-    get: (id, field) => ensure().secrets.get(id, field),
     remove: (id) => ensure().secrets.remove(id),
   },
 
@@ -121,6 +136,8 @@ export const electronBridge: SystemBridge = {
     chooseOutputFolder: () => ensure().signing.chooseOutputFolder(),
     keystoreList: (args) => ensure().signing.keystoreList(args),
     keystoreCreate: (args) => ensure().signing.keystoreCreate(args),
+    validateStored: (args) => ensure().signing.validateStored(args),
+    prepareBuild: (args) => ensure().signing.prepareBuild(args),
     scan: (roots) => ensure().signing.scan(roots),
     resolveKeystore: (args) => ensure().signing.resolveKeystore(args),
     verifyAab: (path) => ensure().signing.verifyAab(path),

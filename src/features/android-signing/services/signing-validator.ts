@@ -1,10 +1,7 @@
 import { bridge } from "@/core/bridge";
 import { ProfilesStore } from "../storage/profiles-store";
 import { parseKeytoolListOutput } from "./keystore-inspector";
-import type {
-  SigningProfile,
-  SigningValidationResult,
-} from "../types/signing-profile";
+import type { SigningProfile, SigningValidationResult } from "../types/signing-profile";
 
 /**
  * Validation d'un profil de signature. Utilisée :
@@ -28,46 +25,11 @@ export const SigningValidator = {
       };
     }
 
-    const resolved = projectPath
-      ? await b.signing.resolveKeystore({ storedPath: profile.keystorePath, projectPath })
-      : null;
-    const keystorePath = resolved?.ok && resolved.resolvedPath
-      ? resolved.resolvedPath
-      : profile.keystorePath;
-    const exists = resolved?.ok ?? await b.fs.exists(keystorePath).catch(() => false);
-    if (!exists) {
-      return {
-        code: "file-missing",
-        ok: false,
-        title: "Fichier introuvable",
-        message: `Le fichier « ${profile.keystorePath} » n'existe plus à cet emplacement.`,
-      };
-    }
-
-    const support = await b.secrets.supported();
-    if (!support.available) {
-      return {
-        code: "keychain-unavailable",
-        ok: false,
-        title: "Trousseau indisponible",
-        message: support.reason ?? "Le trousseau système n'est pas disponible sur cette plateforme.",
-      };
-    }
-
-    const storepass = await b.secrets.get(profile.id, "storepass");
-    if (!storepass) {
-      return {
-        code: "keychain-missing",
-        ok: false,
-        title: "Mot de passe absent",
-        message: "Le mot de passe du keystore n'est plus dans le trousseau. Ré-importez la signature pour restaurer l'accès.",
-      };
-    }
-
-    const res = await b.signing.keystoreList({
-      keystorePath,
-      storepass,
+    const res = await b.signing.validateStored({
+      profileId: profile.id,
+      keystorePath: profile.keystorePath,
       alias: profile.alias,
+      projectPath,
     });
     if (!res.ok) {
       const map: Record<string, SigningValidationResult> = {
@@ -101,6 +63,26 @@ export const SigningValidator = {
           title: "keytool introuvable",
           message: "Installez un JDK 17+ pour permettre la validation.",
         },
+        "keychain-unavailable": {
+          code: "keychain-unavailable",
+          ok: false,
+          title: "Trousseau indisponible",
+          message:
+            res.errorHint ?? "Le trousseau système n'est pas disponible sur cette plateforme.",
+        },
+        "keychain-missing": {
+          code: "keychain-missing",
+          ok: false,
+          title: "Mot de passe absent",
+          message:
+            "Le mot de passe du keystore n'est plus dans le trousseau. Ré-importez la signature pour restaurer l'accès.",
+        },
+        "profile-mismatch": {
+          code: "unknown",
+          ok: false,
+          title: "Profil incohérent",
+          message: "Les métadonnées de signature ne correspondent plus aux données enregistrées.",
+        },
       };
       return (
         map[res.errorCode ?? "unknown"] ?? {
@@ -112,7 +94,7 @@ export const SigningValidator = {
       );
     }
 
-    const certificate = res.stdout ? parseKeytoolListOutput(res.stdout) ?? undefined : undefined;
+    const certificate = res.stdout ? (parseKeytoolListOutput(res.stdout) ?? undefined) : undefined;
     if (!certificate) {
       return {
         code: "certificate-unreadable",
