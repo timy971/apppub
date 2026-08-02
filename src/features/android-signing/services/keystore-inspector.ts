@@ -8,8 +8,18 @@ import type { CertificateInfo } from "../types/signing-profile";
  */
 
 const MONTHS: Record<string, number> = {
-  Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-  Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+  Jan: 0,
+  Feb: 1,
+  Mar: 2,
+  Apr: 3,
+  May: 4,
+  Jun: 5,
+  Jul: 6,
+  Aug: 7,
+  Sep: 8,
+  Oct: 9,
+  Nov: 10,
+  Dec: 11,
 };
 
 /**
@@ -27,7 +37,9 @@ function parseKeytoolDate(raw: string): string | undefined {
   const [, mon, day, hh, mm, ss, yyyy] = m;
   const month = MONTHS[mon];
   if (month === undefined) return undefined;
-  const d = new Date(Date.UTC(Number(yyyy), month, Number(day), Number(hh), Number(mm), Number(ss)));
+  const d = new Date(
+    Date.UTC(Number(yyyy), month, Number(day), Number(hh), Number(mm), Number(ss)),
+  );
   return d.toISOString();
 }
 
@@ -39,14 +51,18 @@ function extractLine(text: string, prefix: string): string | undefined {
 
 export function parseKeytoolListOutput(stdout: string): CertificateInfo | null {
   const owner = extractLine(stdout, "Owner") ?? extractLine(stdout, "Propriétaire");
-  const issuer = extractLine(stdout, "Issuer") ?? extractLine(stdout, "Émetteur") ?? extractLine(stdout, "Emetteur");
+  const issuer =
+    extractLine(stdout, "Issuer") ??
+    extractLine(stdout, "Émetteur") ??
+    extractLine(stdout, "Emetteur");
   const validFromRaw =
-    stdout.match(/Valid from:?\s*(.+?)\s+until:?\s*(.+)$/mi) ??
-    stdout.match(/Valide du\s*:?\s*(.+?)\s+au\s*:?\s*(.+)$/mi);
+    stdout.match(/Valid from:?\s*(.+?)\s+until\b\s*:?\s*(.+)$/im) ??
+    stdout.match(/Valide du\s*:?\s*(.+?)\s+au\b\s*:?\s*(.+)$/im);
   const sha256 = stdout.match(/SHA[\s-]?256\s*:\s*([0-9A-Fa-f:]+)/i)?.[1]?.trim();
   const sha1 = stdout.match(/(?<!\d)SHA[\s-]?1\s*:\s*([0-9A-Fa-f:]+)/i)?.[1]?.trim();
-  const algorithm = extractLine(stdout, "Signature algorithm name")
-    ?? extractLine(stdout, "Nom de l'algorithme de signature");
+  const algorithm =
+    extractLine(stdout, "Signature algorithm name") ??
+    extractLine(stdout, "Nom de l'algorithme de signature");
   const serial = extractLine(stdout, "Serial number") ?? extractLine(stdout, "Numéro de série");
 
   if (!owner || !issuer || !sha256 || !validFromRaw) return null;
@@ -68,10 +84,7 @@ export function parseKeytoolListOutput(stdout: string): CertificateInfo | null {
 }
 
 export type KeytoolFailureCode =
-  | "wrong-password"
-  | "alias-not-found"
-  | "invalid-keystore"
-  | "unknown";
+  "wrong-password" | "alias-not-found" | "invalid-keystore" | "unknown";
 
 /**
  * Traduit un stderr keytool en un code d'erreur non-technique.
@@ -87,9 +100,7 @@ export function classifyKeytoolError(stderr: string): KeytoolFailureCode {
   ) {
     return "wrong-password";
   }
-  if (
-    s.includes("alias") && (s.includes("does not exist") || s.includes("n'existe pas"))
-  ) {
+  if (s.includes("alias") && (s.includes("does not exist") || s.includes("n'existe pas"))) {
     return "alias-not-found";
   }
   if (
@@ -117,4 +128,3 @@ export function isExpired(info: CertificateInfo | undefined): boolean {
   if (Number.isNaN(end)) return false;
   return end < Date.now();
 }
-
