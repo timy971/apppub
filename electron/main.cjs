@@ -1575,8 +1575,10 @@ function isValidDName(s) {
 function isValidAlias(s) {
   if (typeof s !== "string") return false;
   if (s.length === 0 || s.length > 128) return false;
-  // Alias sûr : lettres, chiffres, tirets, underscores, points.
-  return /^[a-zA-Z0-9._-]+$/.test(s);
+  // L'alias est transmis comme un argument spawn distinct (shell:false), puis
+  // comme une valeur d'environnement Gradle. Les espaces et signes autorisés
+  // par keytool sont donc sûrs ; seuls les caractères de contrôle sont refusés.
+  return !/[\u0000-\u001f\u007f]/.test(s);
 }
 
 function isValidPassword(s) {
@@ -1709,7 +1711,18 @@ ipcMain.handle("signing:keystoreList", async (_e, args) => {
       };
     if (!fs.existsSync(safe)) return { ok: false, errorCode: "file-missing" };
 
-    const cmdArgs = ["-list", "-v", "-keystore", safe, "-storepass:env", "APPPUB_STOREPASS"];
+    // Stabilise les libellés de sortie sur toutes les langues système. Le
+    // parseur conserve le support FR pour les anciennes sorties et les tests.
+    const cmdArgs = [
+      "-J-Duser.language=en",
+      "-J-Duser.country=US",
+      "-list",
+      "-v",
+      "-keystore",
+      safe,
+      "-storepass:env",
+      "APPPUB_STOREPASS",
+    ];
     if (alias) cmdArgs.push("-alias", alias);
     const r = await runKeytool(cmdArgs, { APPPUB_STOREPASS: storepass });
     if (r.spawnError && r.spawnError.code === "ENOENT") {
@@ -2191,6 +2204,8 @@ async function validateStoredKeystore(profile, projectPath) {
     return { ok: false, errorCode: "keychain-missing", errorHint: "Mot de passe absent." };
   }
   const commandArgs = [
+    "-J-Duser.language=en",
+    "-J-Duser.country=US",
     "-list",
     "-v",
     "-keystore",

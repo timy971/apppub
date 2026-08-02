@@ -7,6 +7,7 @@ export { SigningValidator } from "./services/signing-validator";
 export { SigningScanner } from "./services/signing-scanner";
 export {
   parseKeytoolListOutput,
+  parseKeytoolPrivateKeyAliases,
   classifyKeytoolError,
   isExpired,
   isExpiringSoon,

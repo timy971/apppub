@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseKeytoolListOutput } from "./keystore-inspector";
+import { parseKeytoolListOutput, parseKeytoolPrivateKeyAliases } from "./keystore-inspector";
 
 describe("parseKeytoolListOutput", () => {
   it("analyse la sortie française même lorsque la date contient le mois Aug", () => {
@@ -49,5 +49,58 @@ Signature algorithm name: SHA256withRSA
       validUntil: "2053-12-18T08:58:34.000Z",
       sha256: "11:22:33",
     });
+  });
+});
+
+describe("parseKeytoolPrivateKeyAliases", () => {
+  it("liste uniquement les clés privées d'un keystore anglais", () => {
+    const output = `
+Alias name: cranioscan-upload
+Creation date: Aug 2, 2026
+Entry type: PrivateKeyEntry
+Certificate chain length: 1
+
+Alias name: google-root
+Creation date: Aug 2, 2026
+Entry type: trustedCertEntry
+
+Alias name: backup-upload
+Creation date: Aug 2, 2026
+Entry type: PrivateKeyEntry
+`;
+
+    expect(parseKeytoolPrivateKeyAliases(output)).toEqual(["cranioscan-upload", "backup-upload"]);
+  });
+
+  it("analyse les libellés français et les apostrophes typographiques", () => {
+    const output = `
+Nom d'alias : release
+Date de création : 2 août 2026
+Type d'entrée : PrivateKeyEntry
+
+Nom d’alias : certificat-seul
+Date de création : 2 août 2026
+Type d’entrée : trustedCertEntry
+`;
+
+    expect(parseKeytoolPrivateKeyAliases(output)).toEqual(["release"]);
+  });
+
+  it("préserve les espaces et signes d'un alias existant", () => {
+    const output = `
+Alias name: CrânioScan release @ 2026
+Entry type: PrivateKeyEntry
+`;
+
+    expect(parseKeytoolPrivateKeyAliases(output)).toEqual(["CrânioScan release @ 2026"]);
+  });
+
+  it("renvoie une liste vide lorsqu'aucune clé privée n'est disponible", () => {
+    const output = `
+Alias name: certificate-only
+Entry type: trustedCertEntry
+`;
+
+    expect(parseKeytoolPrivateKeyAliases(output)).toEqual([]);
   });
 });

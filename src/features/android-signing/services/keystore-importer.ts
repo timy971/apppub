@@ -1,11 +1,8 @@
 import { bridge } from "@/core/bridge";
 import { JournalService } from "@/core/journal/logger";
 import { ProfilesStore } from "../storage/profiles-store";
-import { parseKeytoolListOutput } from "./keystore-inspector";
-import type {
-  SigningProfile,
-  SigningValidationResult,
-} from "../types/signing-profile";
+import { parseKeytoolListOutput, parseKeytoolPrivateKeyAliases } from "./keystore-inspector";
+import type { SigningProfile, SigningValidationResult } from "../types/signing-profile";
 
 /**
  * Import d'un keystore existant. Séquence :
@@ -37,11 +34,97 @@ export interface ImportKeystoreOutput extends SigningValidationResult {
   secretStored: boolean;
 }
 
+export interface DetectKeystoreAliasesInput {
+  keystorePath: string;
+  storepass: string;
+}
+
+export interface DetectKeystoreAliasesOutput extends SigningValidationResult {
+  aliases: string[];
+}
+
 function detectStoreType(path: string): "JKS" | "PKCS12" {
   return path.toLowerCase().endsWith(".jks") ? "JKS" : "PKCS12";
 }
 
 export const KeystoreImporter = {
+  async detectAliases(input: DetectKeystoreAliasesInput): Promise<DetectKeystoreAliasesOutput> {
+    const keystorePath = input.keystorePath.trim();
+    if (!keystorePath || !input.storepass) {
+      return {
+        aliases: [],
+        code: "unknown",
+        ok: false,
+        title: "Informations incomplètes",
+        message: "Choisissez le fichier keystore et renseignez son mot de passe.",
+      };
+    }
+
+    const res = await bridge().signing.keystoreList({
+      keystorePath,
+      storepass: input.storepass,
+    });
+
+    if (!res.ok) {
+      const failures = {
+        "file-missing": {
+          code: "file-missing" as const,
+          title: "Fichier introuvable",
+          message: "Le fichier keystore est introuvable ou n'a pas été autorisé.",
+        },
+        "wrong-password": {
+          code: "wrong-password" as const,
+          title: "Mot de passe incorrect",
+          message: "Le mot de passe du keystore ne permet pas de l'ouvrir.",
+        },
+        "invalid-keystore": {
+          code: "invalid-keystore" as const,
+          title: "Keystore invalide",
+          message: "Le fichier n'est pas reconnu comme un keystore Android valide.",
+        },
+        "keytool-missing": {
+          code: "keytool-missing" as const,
+          title: "keytool introuvable",
+          message:
+            "Installez un JDK 17+ ou définissez JAVA_HOME pour permettre la lecture des signatures.",
+        },
+      };
+      const failure = res.errorCode ? failures[res.errorCode as keyof typeof failures] : undefined;
+      return {
+        aliases: [],
+        ok: false,
+        ...(failure ?? {
+          code: "unknown" as const,
+          title: "Erreur inattendue",
+          message: "Impossible de lire ce keystore. Vérifiez le fichier et le mot de passe.",
+        }),
+      };
+    }
+
+    const aliases = res.stdout ? parseKeytoolPrivateKeyAliases(res.stdout) : [];
+    if (aliases.length === 0) {
+      return {
+        aliases: [],
+        code: "no-signing-alias",
+        ok: false,
+        title: "Aucune clé de signature",
+        message:
+          "Le keystore s'ouvre, mais il ne contient aucune clé privée utilisable pour signer une application.",
+      };
+    }
+
+    return {
+      aliases,
+      code: "ok",
+      ok: true,
+      title: aliases.length === 1 ? "Clé détectée" : "Clés détectées",
+      message:
+        aliases.length === 1
+          ? `L'alias « ${aliases[0]} » a été sélectionné automatiquement.`
+          : `${aliases.length} clés de signature ont été trouvées. Choisissez celle de cette application.`,
+    };
+  },
+
   async import(input: ImportKeystoreInput): Promise<ImportKeystoreOutput> {
     const b = bridge();
     const trimmed: ImportKeystoreInput = {
@@ -106,7 +189,8 @@ export const KeystoreImporter = {
             ok: false,
             secretStored: false,
             title: "keytool introuvable",
-            message: "Installez un JDK 17+ ou définissez JAVA_HOME pour permettre la validation des signatures.",
+            message:
+              "Installez un JDK 17+ ou définissez JAVA_HOME pour permettre la validation des signatures.",
           };
         default:
           return {
@@ -114,12 +198,13 @@ export const KeystoreImporter = {
             ok: false,
             secretStored: false,
             title: "Erreur inattendue",
-            message: "Impossible de lire ce keystore. Vérifiez le fichier, l'alias et le mot de passe.",
+            message:
+              "Impossible de lire ce keystore. Vérifiez le fichier, l'alias et le mot de passe.",
           };
       }
     }
 
-    const certificate = res.stdout ? parseKeytoolListOutput(res.stdout) ?? undefined : undefined;
+    const certificate = res.stdout ? (parseKeytoolListOutput(res.stdout) ?? undefined) : undefined;
     if (!certificate) {
       return {
         code: "certificate-unreadable",
