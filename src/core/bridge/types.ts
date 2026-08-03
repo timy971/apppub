@@ -48,6 +48,42 @@ export interface GitSyncResult {
   detected: DetectedFiles;
 }
 
+export type AndroidPreparationStatus = "ready" | "preparable" | "blocked";
+export type SupportedPackageManager = "npm" | "pnpm" | "yarn" | "bun";
+
+export interface AndroidPreparationAnalysis {
+  status: AndroidPreparationStatus;
+  blockers: string[];
+  warnings: string[];
+  changes: string[];
+  packageManager: SupportedPackageManager;
+  buildScript?: string;
+  capacitorConfigFile?: string;
+  hasCapacitorConfig: boolean;
+  hasCapacitorCore: boolean;
+  hasCapacitorCli: boolean;
+  hasCapacitorAndroid: boolean;
+  hasAndroid: boolean;
+  hasGradleWrapper: boolean;
+  appName: string;
+  applicationId: string;
+  webDir: string;
+  webOutputReady: boolean;
+}
+
+export interface AndroidPreparationRequest {
+  appName: string;
+  applicationId: string;
+  webDir: string;
+  packageManager: SupportedPackageManager;
+}
+
+export interface AndroidPreparationConfigResult {
+  created: boolean;
+  path: string;
+  reason?: "already-exists";
+}
+
 export interface SigningKeystoreListArgs {
   keystorePath: string;
   /** Mot de passe du store — jamais persisté. */
@@ -206,6 +242,14 @@ export interface SystemBridge {
       branch: string;
     }): Promise<GitProjectStatus>;
     sync(args: { projectPath: string; remoteUrl: string; branch: string }): Promise<GitSyncResult>;
+  };
+
+  androidPreparation: {
+    inspect(projectPath: string): Promise<AndroidPreparationAnalysis>;
+    createConfig(
+      projectPath: string,
+      request: AndroidPreparationRequest,
+    ): Promise<AndroidPreparationConfigResult>;
   };
 
   gradle: {

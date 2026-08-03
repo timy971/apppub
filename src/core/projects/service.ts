@@ -38,6 +38,12 @@ function draftFromDetected(path: string, detected: DetectedFiles): ProjectDraft 
       hasVersionScript: detected.hasVersionScript,
       hasGradleWrapper: detected.hasGradleWrapper,
       hasChangelog: detected.hasChangelog,
+      androidReadiness: detected.androidReadiness,
+      androidReadinessReason: detected.androidReadinessReason,
+      packageManager: detected.packageManager,
+      webBuildScript: detected.webBuildScript,
+      webOutputDir: detected.webOutputDir,
+      capacitorAppId: detected.capacitorAppId,
     },
   };
 }
@@ -85,6 +91,7 @@ export const ProjectsService = {
     // Marque comme "user" les champs explicitement modifiés depuis l'UI.
     const nextSources: Record<string, "detected" | "user"> = {
       ...(list[idx].fieldSources ?? {}),
+      ...(patch.fieldSources ?? {}),
     };
     for (const key of opts?.touched ?? []) nextSources[key] = "user";
     const updated: Project = {
@@ -168,6 +175,12 @@ export const ProjectsService = {
         hasVersionScript: sp.detected.hasVersionScript,
         hasGradleWrapper: sp.detected.hasGradleWrapper,
         hasChangelog: sp.detected.hasChangelog,
+        androidReadiness: sp.detected.androidReadiness,
+        androidReadinessReason: sp.detected.androidReadinessReason,
+        packageManager: sp.detected.packageManager,
+        webBuildScript: sp.detected.webBuildScript,
+        webOutputDir: sp.detected.webOutputDir,
+        capacitorAppId: sp.detected.capacitorAppId,
       },
       fieldSources,
     });
@@ -264,5 +277,41 @@ export const ProjectsService = {
       commit: result.status.headSha,
     });
     return result.status;
+  },
+
+  /** Relit les fichiers après une préparation Android locale. */
+  async refreshDetection(id: UUID, applicationId?: string): Promise<Project | undefined> {
+    const project = this.get(id);
+    if (!project) return undefined;
+    const detected = await bridge().projects.detect(project.localPath);
+    if (!detected) throw new Error("Le dossier du projet n’est plus autorisé.");
+    const draft = draftFromDetected(project.localPath, detected);
+    const currentAndroid = project.publishing?.android ?? {};
+    const detectedApplicationId = applicationId || detected.capacitorAppId;
+    return this.update(id, {
+      technicalName: draft.technicalName,
+      currentVersion: detected.currentVersion ?? project.currentVersion,
+      currentBuild: detected.currentBuild ?? project.currentBuild,
+      detected: draft.detected,
+      publishing: {
+        ...(project.publishing ?? {}),
+        android: {
+          ...currentAndroid,
+          applicationId: applicationId
+            ? applicationId
+            : project.fieldSources?.["android.applicationId"] === "user"
+              ? currentAndroid.applicationId
+              : detectedApplicationId || currentAndroid.applicationId,
+        },
+      },
+      fieldSources: {
+        ...(project.fieldSources ?? {}),
+        ...(applicationId
+          ? { "android.applicationId": "user" as const }
+          : detectedApplicationId && project.fieldSources?.["android.applicationId"] !== "user"
+            ? { "android.applicationId": "detected" as const }
+            : {}),
+      },
+    });
   },
 };

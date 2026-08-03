@@ -23,6 +23,7 @@ interface AppPublisherApi {
   };
   projects: SystemBridge["projects"];
   git: SystemBridge["git"];
+  androidPreparation: SystemBridge["androidPreparation"];
   gradle: SystemBridge["gradle"];
   backups: SystemBridge["backups"];
   exec: {
@@ -80,6 +81,12 @@ export const electronBridge: SystemBridge = {
     status: (args) => ensure().git.status(args),
     check: (args) => ensure().git.check(args),
     sync: (args) => ensure().git.sync(args),
+  },
+
+  androidPreparation: {
+    inspect: (projectPath) => ensure().androidPreparation.inspect(projectPath),
+    createConfig: (projectPath, request) =>
+      ensure().androidPreparation.createConfig(projectPath, request),
   },
 
   gradle: {

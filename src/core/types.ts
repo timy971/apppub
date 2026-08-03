@@ -94,6 +94,13 @@ export interface Project {
     hasGradleWrapper?: boolean;
     /** Phase 3 : présence d'un CHANGELOG.md. */
     hasChangelog?: boolean;
+    /** Compatibilité de la source web avec la préparation Android guidée. */
+    androidReadiness?: "ready" | "preparable" | "blocked";
+    androidReadinessReason?: string;
+    packageManager?: "npm" | "pnpm" | "yarn" | "bun";
+    webBuildScript?: string;
+    webOutputDir?: string;
+    capacitorAppId?: string;
   };
   /** Phase 2 : dernier score global connu (mise en cache). */
   lastHealthScore?: number;
@@ -305,6 +312,13 @@ export interface DetectedFiles {
   displayName?: string;
   currentVersion?: string;
   currentBuild?: number;
+  /** État de préparation Android détecté sans modifier le projet. */
+  androidReadiness?: "ready" | "preparable" | "blocked";
+  androidReadinessReason?: string;
+  packageManager?: "npm" | "pnpm" | "yarn" | "bun";
+  webBuildScript?: string;
+  webOutputDir?: string;
+  capacitorAppId?: string;
 }
 
 export interface ScannedProject {

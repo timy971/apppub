@@ -131,6 +131,12 @@ contextBridge.exposeInMainWorld("appPublisher", {
     sync: (args) => inv("git:sync", args),
   },
 
+  androidPreparation: {
+    inspect: (projectPath) => inv("android-preparation:inspect", projectPath),
+    createConfig: (projectPath, request) =>
+      inv("android-preparation:createConfig", projectPath, request),
+  },
+
   gradle: {
     ensureExecutable: (projectPath) => inv("gradle:ensureExecutable", projectPath),
     ensureSigningPatch: (androidDir) => inv("gradle:ensureSigningPatch", androidDir),

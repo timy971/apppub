@@ -8,6 +8,14 @@ const BACKUPS_FOLDER = ".apppublisher-backups";
 const SNAPSHOT_FILES = Object.freeze([
   "version.json",
   "package.json",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb",
+  "capacitor.config.json",
+  "capacitor.config.ts",
+  "capacitor.config.js",
   "CHANGELOG.md",
   "android/app/build.gradle",
   "android/app/build.gradle.kts",
@@ -97,7 +105,12 @@ class BackupManager {
     if (!Array.isArray(files) || files.length === 0) throw new Error("Sauvegarde vide.");
 
     const validated = files.map((file) => {
-      if (!file || !safeRelativeFile(file.path) || !Number.isSafeInteger(file.size) || file.size < 0) {
+      if (
+        !file ||
+        !safeRelativeFile(file.path) ||
+        !Number.isSafeInteger(file.size) ||
+        file.size < 0
+      ) {
         throw new Error("Métadonnées de sauvegarde invalides.");
       }
       const source = this.access.resolveExisting(path.join(location, file.path));

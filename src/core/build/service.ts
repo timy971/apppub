@@ -4,6 +4,7 @@ import { JournalService } from "@/core/journal/logger";
 import { SigningInjector } from "./signing-injector";
 import { SigningValidator } from "@/features/android-signing/services/signing-validator";
 import { ProfilesStore } from "@/features/android-signing/storage/profiles-store";
+import { dependencyInstall, webBuild } from "@/core/capacitor/service";
 
 /**
  * BuildService — orchestre la construction Android.
@@ -82,6 +83,7 @@ export const BuildService = {
     const start = performance.now();
     const b = bridge();
     const { signal } = opts;
+    const packageManager = project.detected.packageManager ?? "npm";
 
     if (b.runtime === "web") {
       // Simulation Phase 1-compatible pour la preview Lovable.
@@ -140,7 +142,15 @@ export const BuildService = {
     const hasNodeModules = await b.fs.exists(`${project.localPath}/node_modules`);
     if (!hasNodeModules) {
       opts.onStep("deps", "running", "Installation des dépendances…");
-      const r = await run(project, "npm", ["install"], project.localPath, opts.onLine, signal);
+      const install = dependencyInstall(packageManager);
+      const r = await run(
+        project,
+        install.cmd,
+        install.args,
+        project.localPath,
+        opts.onLine,
+        signal,
+      );
       if (r.exitCode !== 0) {
         opts.onStep("deps", "error", "L'installation des dépendances a échoué.");
         throw new Error(r.stderr || r.stdout);
@@ -153,7 +163,8 @@ export const BuildService = {
     // 2. Build web
     abortIfNeeded(signal);
     opts.onStep("web", "running", "Compilation de la partie web…");
-    const web = await run(project, "npm", ["run", "build"], project.localPath, opts.onLine, signal);
+    const build = webBuild(packageManager);
+    const web = await run(project, build.cmd, build.args, project.localPath, opts.onLine, signal);
     if (web.exitCode !== 0) {
       opts.onStep("web", "error", "La compilation web a échoué.");
       throw new Error(web.stderr || web.stdout);

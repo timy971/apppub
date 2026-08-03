@@ -13,6 +13,7 @@ import {
   GitBranch,
   CloudDownload,
   Laptop,
+  PackageCheck,
 } from "lucide-react";
 import { ProjectStatusService } from "@/core/projects/status";
 import { ProjectLifecycleBadge, LIFECYCLE_OPTIONS } from "@/components/project-lifecycle-badge";
@@ -643,6 +644,7 @@ function ProjectCard({
               )}
             </div>
           )}
+          <AndroidReadiness project={project} />
         </div>
         <div className="text-right text-xs text-muted-foreground tabular-nums hidden sm:block">
           v{project.currentVersion} · build {project.currentBuild}
@@ -723,5 +725,34 @@ function ProjectCard({
         </TooltipProvider>
       </div>
     </Card>
+  );
+}
+
+function AndroidReadiness({ project }: { project: Project }) {
+  const readiness =
+    project.detected.androidReadiness ?? (project.detected.hasAndroid ? "ready" : undefined);
+  if (!readiness) return null;
+  const label =
+    readiness === "ready"
+      ? "Android prêt"
+      : readiness === "preparable"
+        ? "Préparable pour Android"
+        : "Préparation Android bloquée";
+  const tone =
+    readiness === "ready"
+      ? "text-success"
+      : readiness === "preparable"
+        ? "text-primary"
+        : "text-warning";
+  return (
+    <div className={`mt-1 flex items-center gap-1.5 text-[11px] ${tone}`}>
+      <PackageCheck className="h-3 w-3" />
+      <span>{label}</span>
+      {readiness === "blocked" && project.detected.androidReadinessReason && (
+        <span className="truncate text-muted-foreground">
+          · {project.detected.androidReadinessReason}
+        </span>
+      )}
+    </div>
   );
 }

@@ -150,11 +150,14 @@ export const PreflightService = {
       title: "Dossier Android",
       message: hasAndroidDir
         ? "Dossier android/ détecté."
-        : "Ce projet ne contient pas encore de dossier android/. AppPublisher peut le créer pour vous.",
+        : project.detected.androidReadiness === "blocked"
+          ? project.detected.androidReadinessReason ||
+            "Ce projet web doit être corrigé avant la préparation Android."
+          : "Ce projet web peut être configuré, compilé et préparé pour Android par AppPublisher.",
       technical: androidDir,
-      fix: hasAndroidDir
+      fix: hasAndroidDir || project.detected.androidReadiness === "blocked"
         ? undefined
-        : { label: "Créer le projet Android", kind: "create-android", confirm: false },
+        : { label: "Préparer Android", kind: "create-android", confirm: false },
     });
 
     // ---------- Gradle wrapper ----------
