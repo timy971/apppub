@@ -45,6 +45,22 @@ export interface ProjectPublishing {
   ios?: IosPublishingConfig;
 }
 
+export type GitRelation = "up-to-date" | "behind" | "ahead" | "diverged" | "no-upstream";
+
+export interface GitProjectSource {
+  type: "git";
+  remoteUrl: string;
+  branch: string;
+  /** true lorsque la copie se trouve dans l'espace privé géré par AppPublisher. */
+  managed: true;
+  headSha?: string;
+  shortSha?: string;
+  workingTree?: "clean" | "dirty";
+  relation?: GitRelation;
+  lastCheckedAt?: string;
+  lastSyncedAt?: string;
+}
+
 export interface Project {
   id: UUID;
   /** Nom d'affichage (éditable). Utilisé partout dans l'UI. */
@@ -58,6 +74,8 @@ export interface Project {
   logoEmoji?: string;
   localPath: string;
   githubRepo?: string;
+  /** Origine distante structurée. Absent pour les projets locaux historiques. */
+  source?: GitProjectSource;
   playStoreAppId?: string;
   /** @deprecated Phase 3 — utiliser publishing.android.keystorePath. Lu pour compat. */
   keystorePath?: string;
@@ -154,6 +172,10 @@ export interface PublishRecord {
   kind?: PublishKind;
   artifactPath?: string;
   artifactSizeBytes?: number;
+  /** Commit exact du dépôt ayant servi au build, lorsqu'il existe. */
+  sourceCommit?: string;
+  /** Signale qu'un build Git contenait aussi des changements non commités. */
+  sourceDirty?: boolean;
   notes?: string;
 }
 

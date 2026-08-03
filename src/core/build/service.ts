@@ -26,6 +26,8 @@ export interface BuildResult {
   signed?: boolean;
   signingProfileName?: string;
   signatureSha256?: string;
+  sourceCommit?: string;
+  sourceDirty?: boolean;
 }
 
 export interface StepReport {
@@ -97,6 +99,8 @@ export const BuildService = {
         aabSize: 42_000_000,
         durationMs: performance.now() - start,
         succeeded: true,
+        sourceCommit: project.source?.headSha,
+        sourceDirty: project.source?.workingTree === "dirty",
       };
     }
 
@@ -111,6 +115,24 @@ export const BuildService = {
         code: signingProfile.error.code,
       });
       throw new Error(signingProfile.error.message);
+    }
+
+    // Fige l'origine exacte avant toute commande de build. Un arbre modifié
+    // reste constructible, mais l'historique le signalera explicitement afin
+    // de ne jamais présenter le SHA seul comme une reproduction parfaite.
+    let sourceCommit: string | undefined;
+    let sourceDirty = false;
+    if (project.source?.type === "git") {
+      const gitStatus = await b.git.status({
+        projectPath: project.localPath,
+        remoteUrl: project.source.remoteUrl,
+        branch: project.source.branch,
+      });
+      sourceCommit = gitStatus.headSha;
+      sourceDirty = gitStatus.workingTree === "dirty";
+      opts.onLine?.(
+        `Source Git : ${gitStatus.branch} @ ${gitStatus.shortSha}${sourceDirty ? " (modifications locales)" : ""}`,
+      );
     }
 
     // 1. Dépendances
@@ -340,6 +362,8 @@ export const BuildService = {
       signed: true,
       signingProfileName: prep.preparation.profileName,
       signatureSha256: verified.sha256,
+      sourceCommit,
+      sourceDirty,
     };
   },
 };

@@ -1,4 +1,5 @@
-import type { Project, ProjectDraft, ScannedProject, UUID } from "@/core/types";
+import type { DetectedFiles, Project, ProjectDraft, ScannedProject, UUID } from "@/core/types";
+import type { GitProjectStatus } from "@/core/bridge/types";
 import { storage, STORAGE_KEYS } from "@/core/storage";
 import { JournalService } from "@/core/journal/logger";
 import { bridge } from "@/core/bridge";
@@ -17,6 +18,43 @@ function inferName(p: string): string {
   const clean = p.replace(/[\\/]+$/, "");
   const last = clean.split(/[\\/]/).pop() ?? "Mon projet";
   return last.charAt(0).toUpperCase() + last.slice(1);
+}
+
+function draftFromDetected(path: string, detected: DetectedFiles): ProjectDraft {
+  return {
+    name: detected.displayName || detected.packageName || inferName(path),
+    technicalName: detected.packageName,
+    logoEmoji: "📱",
+    localPath: path,
+    packageName: detected.packageName,
+    currentVersion: detected.currentVersion || "1.0.0",
+    currentBuild: detected.currentBuild || 1,
+    detected: {
+      hasPackageJson: detected.hasPackageJson,
+      hasAndroid: detected.hasAndroid,
+      hasIos: detected.hasIos,
+      hasVersionJson: detected.hasVersionJson,
+      hasCapacitorConfig: detected.hasCapacitorConfig,
+      hasVersionScript: detected.hasVersionScript,
+      hasGradleWrapper: detected.hasGradleWrapper,
+      hasChangelog: detected.hasChangelog,
+    },
+  };
+}
+
+function sourceFromStatus(status: GitProjectStatus, lastSyncedAt?: string) {
+  return {
+    type: "git" as const,
+    remoteUrl: status.remoteUrl,
+    branch: status.branch,
+    managed: true as const,
+    headSha: status.headSha,
+    shortSha: status.shortSha,
+    workingTree: status.workingTree,
+    relation: status.relation,
+    lastCheckedAt: status.checkedAt,
+    lastSyncedAt,
+  };
 }
 
 export const ProjectsService = {
@@ -92,25 +130,7 @@ export const ProjectsService = {
         hasPackageJson: detected.hasPackageJson,
         hasAndroid: detected.hasAndroid,
       });
-      return {
-        name: detected.displayName || detected.packageName || inferName(path),
-        technicalName: detected.packageName,
-        logoEmoji: "📱",
-        localPath: path,
-        packageName: detected.packageName,
-        currentVersion: detected.currentVersion || "1.0.0",
-        currentBuild: detected.currentBuild || 1,
-        detected: {
-          hasPackageJson: detected.hasPackageJson,
-          hasAndroid: detected.hasAndroid,
-          hasIos: detected.hasIos,
-          hasVersionJson: detected.hasVersionJson,
-          hasCapacitorConfig: detected.hasCapacitorConfig,
-          hasVersionScript: detected.hasVersionScript,
-          hasGradleWrapper: detected.hasGradleWrapper,
-          hasChangelog: detected.hasChangelog,
-        },
-      };
+      return draftFromDetected(path, detected);
     });
   },
 
@@ -151,5 +171,98 @@ export const ProjectsService = {
       },
       fieldSources,
     });
+  },
+
+  async inspectRemote(remoteUrl: string) {
+    return bridge().git.inspectRemote(remoteUrl);
+  },
+
+  async importFromGit(remoteUrl: string, branch: string): Promise<Project> {
+    const duplicate = this.list().find(
+      (project) =>
+        project.source?.type === "git" &&
+        project.source.remoteUrl === remoteUrl &&
+        project.source.branch === branch,
+    );
+    if (duplicate) {
+      throw new Error(
+        `Ce dépôt et cette branche sont déjà associés au projet « ${duplicate.name} ».`,
+      );
+    }
+    const cloned = await bridge().git.clone({ remoteUrl, branch });
+    if (!cloned.detected.hasPackageJson) {
+      throw new Error(
+        "Le dépôt a bien été copié, mais il ne contient aucun package.json à sa racine.",
+      );
+    }
+    const draft = draftFromDetected(cloned.localPath, cloned.detected);
+    const imported = this.save({
+      ...draft,
+      githubRepo: cloned.status.remoteUrl,
+      defaultBranch: cloned.status.branch,
+      source: sourceFromStatus(cloned.status, new Date().toISOString()),
+      fieldSources: {
+        name: cloned.detected.displayName ? "detected" : "user",
+        packageName: cloned.detected.packageName ? "detected" : "user",
+        currentVersion: cloned.detected.currentVersion ? "detected" : "user",
+        githubRepo: "detected",
+        defaultBranch: "detected",
+        localPath: "detected",
+      },
+    });
+    JournalService.log("info", "Dépôt Git importé", {
+      projectId: imported.id,
+      branch: cloned.status.branch,
+      commit: cloned.status.headSha,
+      reused: cloned.reused,
+    });
+    return imported;
+  },
+
+  async gitStatus(id: UUID): Promise<GitProjectStatus> {
+    const project = this.get(id);
+    if (!project || project.source?.type !== "git") {
+      throw new Error("Ce projet n’est pas lié à une copie Git gérée.");
+    }
+    const status = await bridge().git.check({
+      projectPath: project.localPath,
+      remoteUrl: project.source.remoteUrl,
+      branch: project.source.branch,
+    });
+    this.update(id, {
+      source: sourceFromStatus(status, project.source.lastSyncedAt),
+    });
+    return status;
+  },
+
+  async syncGit(id: UUID): Promise<GitProjectStatus> {
+    const project = this.get(id);
+    if (!project || project.source?.type !== "git") {
+      throw new Error("Ce projet n’est pas lié à une copie Git gérée.");
+    }
+    const result = await bridge().git.sync({
+      projectPath: project.localPath,
+      remoteUrl: project.source.remoteUrl,
+      branch: project.source.branch,
+    });
+    const detectedDraft = draftFromDetected(project.localPath, result.detected);
+    const syncedAt = new Date().toISOString();
+    this.update(id, {
+      technicalName: detectedDraft.technicalName,
+      packageName:
+        project.fieldSources?.packageName === "user"
+          ? project.packageName
+          : detectedDraft.packageName,
+      currentVersion: detectedDraft.currentVersion,
+      currentBuild: detectedDraft.currentBuild,
+      detected: detectedDraft.detected,
+      source: sourceFromStatus(result.status, syncedAt),
+    });
+    JournalService.log("info", result.updated ? "Dépôt Git synchronisé" : "Dépôt Git déjà à jour", {
+      projectId: id,
+      previousCommit: result.previousHeadSha,
+      commit: result.status.headSha,
+    });
+    return result.status;
   },
 };

@@ -26,6 +26,12 @@ test("the renderer has no generic filesystem or secret-reading bridge", () => {
   assert.match(preload, /gradle:ensureSigningPatch/);
   assert.match(preload, /projects:reauthorizeFolder/);
   assert.match(preload, /signing:prepareBuild/);
+  assert.match(preload, /git:inspectRemote/);
+  assert.match(preload, /git:clone/);
+  assert.match(preload, /git:status/);
+  assert.match(preload, /git:check/);
+  assert.match(preload, /git:sync/);
+  assert.equal(preload.includes("git:run"), false);
 });
 
 test("the main process does not register removed generic IPC handlers", () => {

@@ -123,6 +123,14 @@ contextBridge.exposeInMainWorld("appPublisher", {
     reauthorizeFolder: (expectedPath) => inv("projects:reauthorizeFolder", expectedPath),
   },
 
+  git: {
+    inspectRemote: (remoteUrl) => inv("git:inspectRemote", remoteUrl),
+    clone: (args) => inv("git:clone", args),
+    status: (args) => inv("git:status", args),
+    check: (args) => inv("git:check", args),
+    sync: (args) => inv("git:sync", args),
+  },
+
   gradle: {
     ensureExecutable: (projectPath) => inv("gradle:ensureExecutable", projectPath),
     ensureSigningPatch: (androidDir) => inv("gradle:ensureSigningPatch", androidDir),

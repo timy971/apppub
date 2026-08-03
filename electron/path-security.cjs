@@ -262,6 +262,7 @@ module.exports = {
   ProjectAccessRegistry,
   isDangerouslyBroadRoot,
   isWithin,
+  isWithin,
   samePath,
   writeJsonAtomic,
 };
