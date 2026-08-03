@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Project } from "@/core/types";
+import type { AabValidationReport, Project } from "@/core/types";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import { OperationRunner } from "@/core/operations/runner";
 import type { OperationSnapshot } from "@/core/operations/types";
@@ -69,6 +69,8 @@ export function BuildCenter({ project }: Props) {
           aabSize?: number;
           sourceCommit?: string;
           sourceDirty?: boolean;
+          aabValidation?: AabValidationReport;
+          aabReportPath?: string;
         }
       | undefined;
 
@@ -81,20 +83,40 @@ export function BuildCenter({ project }: Props) {
         user: settings.userName || "vous",
         durationMs,
         outcome: "success",
-        message: "Construction Android",
+        message:
+          artifact?.aabValidation?.verdict === "blocked"
+            ? "Construction Android — AAB bloqué"
+            : artifact?.aabValidation?.verdict === "warnings"
+              ? "Construction Android — avertissements"
+              : "Construction Android — prêt pour Google Play",
         kind: "build",
         artifactPath: artifact?.aabPath,
         artifactSizeBytes: artifact?.aabSize,
         sourceCommit: artifact?.sourceCommit,
         sourceDirty: artifact?.sourceDirty,
+        aabValidation: artifact?.aabValidation,
+        aabReportPath: artifact?.aabReportPath,
       });
       notify(
         "Build terminé",
         `${project.name} · ${artifact?.aabPath ? artifact.aabPath.split(/[\\/]/).pop() : "artefact prêt"}`,
       );
-      toast.success("Build terminé", {
-        description: artifact?.aabPath?.split(/[\\/]/).pop(),
-      });
+      if (artifact?.aabValidation?.verdict === "blocked") {
+        toast.error("AAB construit, mais bloqué pour Google Play", {
+          description: artifact.aabValidation.issues.find((issue) => issue.severity === "error")
+            ?.detail,
+          duration: 10_000,
+        });
+      } else if (artifact?.aabValidation?.verdict === "warnings") {
+        toast.warning("AAB construit avec des avertissements", {
+          description: artifact.aabValidation.issues[0]?.detail,
+          duration: 8_000,
+        });
+      } else {
+        toast.success("AAB prêt pour Google Play", {
+          description: artifact?.aabPath?.split(/[\\/]/).pop(),
+        });
+      }
       AppStore.refreshProjects();
     } else if (snap.status === "error") {
       const err = translateError(snap.error);

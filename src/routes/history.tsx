@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { HistoryService } from "@/core/history/service";
 import { useActiveProject } from "@/core/store/app-store";
 import { bridge } from "@/core/bridge";
-import { FolderOpen } from "lucide-react";
+import { FileText, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/history")({
@@ -17,7 +17,7 @@ function HistoryPage() {
   const project = useActiveProject();
   const records = useMemo(
     () => (project ? HistoryService.forProject(project.id) : HistoryService.list()),
-    [project?.id],
+    [project],
   );
 
   return (
@@ -69,6 +69,29 @@ function HistoryPage() {
                   {r.message && (
                     <div className="mt-1 text-sm text-muted-foreground truncate">{r.message}</div>
                   )}
+                  {r.aabValidation && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span
+                        className={
+                          "rounded-full px-2 py-0.5 font-medium " +
+                          (r.aabValidation.verdict === "ready"
+                            ? "bg-success/10 text-success"
+                            : r.aabValidation.verdict === "blocked"
+                              ? "bg-danger/10 text-danger"
+                              : "bg-warning/10 text-warning")
+                        }
+                      >
+                        {r.aabValidation.verdict === "ready"
+                          ? "Prêt Google Play"
+                          : r.aabValidation.verdict === "blocked"
+                            ? "Bloqué"
+                            : "Avertissements"}
+                      </span>
+                      <span className="font-mono">
+                        {r.aabValidation.packageName ?? "package inconnu"}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
                   <div>{formatDuration(r.durationMs)}</div>
@@ -88,6 +111,22 @@ function HistoryPage() {
                   >
                     <FolderOpen className="h-4 w-4" />
                     Ouvrir
+                  </Button>
+                )}
+                {r.aabReportPath && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await bridge().shell.revealItem(r.aabReportPath!);
+                      } catch {
+                        toast.info("Ouverture disponible dans l'application Desktop.");
+                      }
+                    }}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Rapport
                   </Button>
                 )}
               </div>

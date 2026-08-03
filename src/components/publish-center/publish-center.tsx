@@ -130,6 +130,8 @@ export function PublishCenter({ project }: { project: Project }) {
         kind: "publish",
         artifactPath: verifiedArtifact.path,
         artifactSizeBytes: verifiedArtifact.size,
+        aabValidation: verifiedArtifact.validation,
+        aabReportPath: verifiedArtifact.record?.aabReportPath,
         notes: notesFormatted || undefined,
       });
       AppStore.refreshProjects();

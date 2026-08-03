@@ -1,6 +1,17 @@
 import { useMemo } from "react";
-import { CheckCircle2, FolderOpen, Copy, FileArchive, TrendingDown, TrendingUp, Minus } from "lucide-react";
-import type { Project } from "@/core/types";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  FileArchive,
+  FileText,
+  FolderOpen,
+  Minus,
+  TrendingDown,
+  TrendingUp,
+  XCircle,
+} from "lucide-react";
+import type { AabValidationReport, Project } from "@/core/types";
 import type { OperationSnapshot } from "@/core/operations/types";
 import type { DurationStats } from "@/core/operations/estimator";
 import { Card } from "@/components/ui/card";
@@ -14,6 +25,9 @@ interface Artifact {
   aabPath?: string;
   aabSize?: number;
   signatureSha256?: string;
+  artifactSha256?: string;
+  aabValidation?: AabValidationReport;
+  aabReportPath?: string;
 }
 
 interface Props {
@@ -29,10 +43,35 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
   const filename = artifact.aabPath ? artifact.aabPath.split(/[\\/]/).pop() : undefined;
 
   const checksum = useMemo(() => {
-    if (artifact.signatureSha256) return artifact.signatureSha256;
+    if (artifact.artifactSha256) return artifact.artifactSha256;
     if (!artifact.aabPath) return undefined;
     return shortChecksum(`${artifact.aabPath}|${artifact.aabSize ?? 0}|${elapsedMs}`);
-  }, [artifact.aabPath, artifact.aabSize, artifact.signatureSha256, elapsedMs]);
+  }, [artifact.aabPath, artifact.aabSize, artifact.artifactSha256, elapsedMs]);
+
+  const validation = artifact.aabValidation;
+  const verdict = validation?.verdict ?? "warnings";
+  const banner =
+    verdict === "ready"
+      ? {
+          title: "Prêt pour Google Play",
+          className: "bg-success/5",
+          iconClassName: "bg-success/15 text-success",
+          Icon: CheckCircle2,
+        }
+      : verdict === "blocked"
+        ? {
+            title: "AAB bloqué pour Google Play",
+            className: "bg-danger/5",
+            iconClassName: "bg-danger/15 text-danger",
+            Icon: XCircle,
+          }
+        : {
+            title: "AAB construit avec des avertissements",
+            className: "bg-warning/5",
+            iconClassName: "bg-warning/15 text-warning",
+            Icon: AlertTriangle,
+          };
+  const VerdictIcon = banner.Icon;
 
   const previous = stats.lastSuccess;
   const delta =
@@ -75,20 +114,80 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
       () => toast.error("Impossible de copier l'empreinte."),
     );
   }
+  async function revealReport() {
+    if (!artifact.aabReportPath) return;
+    try {
+      await bridge().shell.revealItem(artifact.aabReportPath);
+    } catch {
+      toast.info("Ouverture du rapport disponible dans l'application Desktop.");
+    }
+  }
 
   return (
     <Card className="overflow-hidden shadow-soft">
-      <div className="border-b bg-success/5 p-5 flex items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success/15 text-success">
-          <CheckCircle2 className="h-6 w-6" />
+      <div className={cn("border-b p-5 flex items-center gap-4", banner.className)}>
+        <div
+          className={cn(
+            "flex h-12 w-12 items-center justify-center rounded-full",
+            banner.iconClassName,
+          )}
+        >
+          <VerdictIcon className="h-6 w-6" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-lg font-semibold">Build terminé avec succès</div>
+          <div className="text-lg font-semibold">{banner.title}</div>
           <div className="mt-0.5 truncate text-sm text-muted-foreground font-mono">
             {filename ?? "Artefact indisponible"}
           </div>
         </div>
       </div>
+
+      {validation && (
+        <div className="border-b p-5">
+          <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Contrôle de l'AAB
+          </div>
+          <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <ValidationMetric label="Package" value={validation.packageName ?? "Illisible"} mono />
+            <ValidationMetric
+              label="Version réelle"
+              value={`${validation.versionName ?? "?"} · code ${validation.versionCode ?? "?"}`}
+            />
+            <ValidationMetric
+              label="SDK"
+              value={`min ${validation.minSdk ?? "?"} · cible ${validation.targetSdk ?? "?"}`}
+            />
+            <ValidationMetric
+              label="Bundletool"
+              value={
+                validation.bundletool.status === "passed"
+                  ? `Validé${validation.bundletool.version ? ` · ${validation.bundletool.version}` : ""}`
+                  : validation.bundletool.status === "failed"
+                    ? "Échec"
+                    : "Non disponible"
+              }
+            />
+          </div>
+          {validation.issues.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {validation.issues.map((issue) => (
+                <div
+                  key={issue.id}
+                  className={cn(
+                    "rounded-lg border px-3 py-2 text-sm",
+                    issue.severity === "error"
+                      ? "border-danger/30 bg-danger/5"
+                      : "border-warning/30 bg-warning/5",
+                  )}
+                >
+                  <div className="font-medium">{issue.title}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">{issue.detail}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 p-5 md:grid-cols-4">
         <Metric label="Durée" value={formatDuration(elapsedMs)} delta={delta} />
@@ -108,7 +207,12 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
               <div className="truncate font-mono text-sm">{artifact.aabPath}</div>
               {checksum && (
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  Empreinte : <span className="font-mono">{checksum}</span>
+                  SHA-256 du fichier : <span className="font-mono">{checksum}</span>
+                </div>
+              )}
+              {artifact.signatureSha256 && (
+                <div className="mt-0.5 text-xs text-muted-foreground">
+                  Certificat : <span className="font-mono">{artifact.signatureSha256}</span>
                 </div>
               )}
             </div>
@@ -130,6 +234,12 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
                 Copier l'empreinte
               </Button>
             )}
+            {artifact.aabReportPath && (
+              <Button variant="outline" onClick={revealReport}>
+                <FileText className="h-4 w-4" />
+                Ouvrir le rapport
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -149,7 +259,7 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
             />
             <Compare
               label="Taille"
-                a={formatSize(artifact.aabSize)}
+              a={formatSize(artifact.aabSize)}
               b={formatSize(previous.artifactSizeBytes)}
             />
           </div>
@@ -166,6 +276,23 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
         </div>
       )}
     </Card>
+  );
+}
+
+function ValidationMetric({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={cn("mt-1 break-all font-medium", mono && "font-mono text-xs")}>{value}</div>
+    </div>
   );
 }
 

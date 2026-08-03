@@ -222,6 +222,41 @@ export const webBridge: SystemBridge = {
     },
   },
 
+  aab: {
+    async inspect(request) {
+      const reportPath = request.persistReport
+        ? `${request.path}.apppublisher-report.json`
+        : undefined;
+      return {
+        schemaVersion: 1,
+        inspectedAt: new Date().toISOString(),
+        verdict: "warnings",
+        packageName: request.expected.packageName ?? "app.exemple.android",
+        versionName: request.expected.versionName ?? "1.0.0",
+        versionCode: request.expected.versionCode ?? 1,
+        minSdk: 24,
+        targetSdk: 35,
+        modules: ["base"],
+        artifactSha256: "A".repeat(64),
+        artifactSizeBytes: 42_000_000,
+        signatureValid: true,
+        signerSha256: request.expected.signerSha256 ?? "B".repeat(64),
+        signerCertificate: "CN=AppPublisher Preview",
+        expected: request.expected,
+        bundletool: { status: "unavailable" },
+        issues: [
+          {
+            id: "bundletool-unavailable",
+            severity: "warning",
+            title: "Contrôle bundletool non exécuté",
+            detail: "Simulation de l'aperçu Web.",
+          },
+        ],
+        reportPath,
+      };
+    },
+  },
+
   gradle: {
     async ensureExecutable(projectPath) {
       return { ok: true, path: `${projectPath}/android/gradlew` };

@@ -1,5 +1,6 @@
 import { bridge } from "@/core/bridge";
-import type { Project, PublishRecord } from "@/core/types";
+import type { AabValidationReport, Project, PublishRecord } from "@/core/types";
+import { AabValidationService } from "@/core/aab/service";
 
 export type PublishArtifactStatus = "valid" | "missing" | "invalid";
 
@@ -9,6 +10,7 @@ export interface PublishArtifactCheck {
   record?: PublishRecord;
   path?: string;
   size?: number;
+  validation?: AabValidationReport;
 }
 
 function freshBuild(history: PublishRecord[], project: Project): PublishRecord | undefined {
@@ -68,25 +70,30 @@ export async function verifyPublishArtifact(
       };
     }
 
-    const signature = await b.signing.verifyAab(record.artifactPath);
-    if (!signature.ok) {
+    const validation = await AabValidationService.inspect(project, record.artifactPath);
+    if (validation.verdict === "blocked") {
       return {
         status: "invalid",
         detail:
-          signature.errorHint ??
-          "Le fichier AAB existe, mais sa signature n'est pas valide. Relancez le build signé.",
+          validation.issues.find((issue) => issue.severity === "error")?.detail ??
+          "Le contrôle complet de l'AAB signale une erreur bloquante.",
         record,
         path: record.artifactPath,
         size: stat.size,
+        validation,
       };
     }
 
     return {
       status: "valid",
-      detail: "Le fichier AAB existe, n'est pas vide et sa signature est valide.",
+      detail:
+        validation.verdict === "warnings"
+          ? "L'AAB est publiable, avec des avertissements à contrôler."
+          : "L'AAB est conforme au projet et prêt pour Google Play.",
       record,
       path: record.artifactPath,
       size: stat.size,
+      validation,
     };
   } catch (error) {
     return {
