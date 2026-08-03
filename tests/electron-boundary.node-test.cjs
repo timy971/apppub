@@ -32,6 +32,9 @@ test("the renderer has no generic filesystem or secret-reading bridge", () => {
   assert.match(preload, /git:check/);
   assert.match(preload, /git:sync/);
   assert.equal(preload.includes("git:run"), false);
+  assert.match(preload, /android-preparation:inspect/);
+  assert.match(preload, /android-preparation:createConfig/);
+  assert.equal(preload.includes("android-preparation:writeFile"), false);
 });
 
 test("the main process does not register removed generic IPC handlers", () => {

@@ -247,4 +247,40 @@ describe("ProjectsService", () => {
       detected: { hasAndroid: true },
     });
   });
+
+  it("refreshes Android detection without resetting the project version", async () => {
+    const project = ProjectsService.save({
+      name: "Web App",
+      localPath: "/projects/web-app",
+      currentVersion: "3.4.0",
+      currentBuild: 27,
+      detected: {
+        hasPackageJson: true,
+        hasVersionJson: false,
+        hasCapacitorConfig: false,
+        hasAndroid: false,
+        hasIos: false,
+      },
+    });
+    mocks.detect.mockResolvedValue({
+      hasPackageJson: true,
+      hasVersionJson: false,
+      hasCapacitorConfig: true,
+      hasAndroid: true,
+      hasIos: false,
+      hasVersionScript: false,
+      hasGradleWrapper: true,
+      androidReadiness: "ready",
+      capacitorAppId: "app.web.android",
+    });
+
+    await ProjectsService.refreshDetection(project.id, "app.confirmed.android");
+    expect(ProjectsService.get(project.id)).toMatchObject({
+      currentVersion: "3.4.0",
+      currentBuild: 27,
+      detected: { hasAndroid: true, androidReadiness: "ready" },
+      publishing: { android: { applicationId: "app.confirmed.android" } },
+      fieldSources: { "android.applicationId": "user" },
+    });
+  });
 });

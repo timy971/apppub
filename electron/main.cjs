@@ -55,6 +55,10 @@ const { installWindowGuards } = require("./window-security.cjs");
 const { SigningSessionRegistry } = require("./signing-session.cjs");
 const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
+const {
+  AndroidPreparationManager,
+  inspectAndroidPreparation,
+} = require("./android-preparation.cjs");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
 const activeExecutions = new ExecutionRegistry();
@@ -446,6 +450,7 @@ const durableStore = new DurableStore(path.join(app.getPath("userData"), "data",
 const gitProjectManager = new GitProjectManager(
   path.join(app.getPath("userData"), "managed-projects"),
 );
+const androidPreparationManager = new AndroidPreparationManager(projectAccess);
 
 function registerAllowedRoot(p) {
   try {
@@ -1109,6 +1114,10 @@ function detectProjectFiles(projectPath) {
   }
 
   const displayName = capacitorAppName || androidAppName || pkgDisplayName || pkgName || undefined;
+  let androidPreparation;
+  try {
+    androidPreparation = inspectAndroidPreparation(projectPath);
+  } catch {}
 
   return {
     hasPackageJson: exists("package.json"),
@@ -1124,6 +1133,12 @@ function detectProjectFiles(projectPath) {
     displayName,
     currentVersion: versionJson?.version,
     currentBuild: versionJson?.build,
+    androidReadiness: androidPreparation?.status,
+    androidReadinessReason: androidPreparation?.blockers?.[0],
+    packageManager: androidPreparation?.packageManager,
+    webBuildScript: androidPreparation?.buildScript,
+    webOutputDir: androidPreparation?.webDir,
+    capacitorAppId: androidPreparation?.applicationId,
   };
 }
 
@@ -1214,6 +1229,20 @@ ipcMain.handle("git:sync", async (_e, args) => {
   const safe = resolveWithinAllowed(args?.projectPath);
   if (!safe) throw new Error("La copie locale du projet n’est plus autorisée.");
   return { ...result, detected: detectProjectFiles(safe) };
+});
+
+/* ---------- IPC : préparation Android guidée ---------- */
+
+ipcMain.handle("android-preparation:inspect", (_e, projectPath) =>
+  androidPreparationManager.inspect(projectPath),
+);
+
+ipcMain.handle("android-preparation:createConfig", async (_e, projectPath, request) => {
+  const project = resolveWithinAllowed(projectPath);
+  if (!project) throw new Error("Projet non autorisé.");
+  const trusted = await ensureProjectTrusted(project, trustStore, confirmProjectTrust);
+  if (!trusted) throw new Error("Préparation Android annulée par l’utilisateur.");
+  return androidPreparationManager.createConfig(project, request);
 });
 
 /* ---------- IPC : Gradle (opérations dédiées) ---------- */

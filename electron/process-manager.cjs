@@ -12,6 +12,9 @@ function normalizeSpawnCommand(command, platform = process.platform) {
   if (platform !== "win32") return command;
   if (command === "npm") return "npm.cmd";
   if (command === "npx") return "npx.cmd";
+  if (command === "pnpm") return "pnpm.cmd";
+  if (command === "yarn") return "yarn.cmd";
+  if (command === "bun") return "bun.exe";
   if (command === "gradle") return "gradle.bat";
   return command;
 }

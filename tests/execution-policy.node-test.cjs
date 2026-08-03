@@ -67,3 +67,35 @@ test("permits only the harmless adb version probe without a project cwd", () => 
   assert.equal(validateExecutionRequest({ cmd: "adb", args: ["--version"] }, access).ok, true);
   assert.equal(validateExecutionRequest({ cmd: "adb", args: ["shell"] }, access).ok, false);
 });
+
+test("allows only the exact Android preparation commands", (t) => {
+  const { access, project } = policyFixture(t);
+  const android = path.join(project, "android");
+  for (const request of [
+    {
+      cmd: "npm",
+      args: ["install", "@capacitor/cli", "@capacitor/android", "@capacitor/core"],
+      cwd: project,
+    },
+    { cmd: "pnpm", args: ["run", "build"], cwd: project },
+    { cmd: "yarn", args: ["build"], cwd: project },
+    { cmd: "bun", args: ["install"], cwd: project },
+    { cmd: "./gradlew", args: ["assembleDebug"], cwd: android },
+  ]) {
+    assert.equal(validateExecutionRequest(request, access).ok, true, JSON.stringify(request));
+  }
+  assert.equal(
+    validateExecutionRequest(
+      { cmd: "npm", args: ["install", "malicious-package"], cwd: project },
+      access,
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateExecutionRequest(
+      { cmd: "./gradlew", args: ["clean", "assembleDebug"], cwd: android },
+      access,
+    ).ok,
+    false,
+  );
+});

@@ -83,6 +83,11 @@ export const webBridge: SystemBridge = {
         packageName: inferName(path),
         currentVersion: "1.0.0",
         currentBuild: 1,
+        androidReadiness: "ready",
+        packageManager: "npm",
+        webBuildScript: "vite build",
+        webOutputDir: "dist",
+        capacitorAppId: "app.exemple.android",
       };
     },
 
@@ -104,6 +109,11 @@ export const webBridge: SystemBridge = {
           packageName: n,
           currentVersion: "1.0.0",
           currentBuild: 1,
+          androidReadiness: "ready",
+          packageManager: "npm",
+          webBuildScript: "vite build",
+          webOutputDir: "dist",
+          capacitorAppId: `app.${n.toLowerCase()}.android`,
         },
       }));
     },
@@ -177,6 +187,38 @@ export const webBridge: SystemBridge = {
         status,
         detected,
       };
+    },
+  },
+
+  androidPreparation: {
+    async inspect(projectPath) {
+      return {
+        status: "preparable",
+        blockers: [],
+        warnings: [],
+        changes: [
+          "Installer les dépendances avec npm",
+          "Créer capacitor.config.json",
+          "Exécuter le build web vers dist/",
+          "Créer puis synchroniser le dossier android/",
+          "Compiler une version Android de contrôle",
+        ],
+        packageManager: "npm",
+        buildScript: "vite build",
+        hasCapacitorConfig: false,
+        hasCapacitorCore: false,
+        hasCapacitorCli: false,
+        hasCapacitorAndroid: false,
+        hasAndroid: false,
+        hasGradleWrapper: false,
+        appName: inferName(projectPath),
+        applicationId: "app.exemple.android",
+        webDir: "dist",
+        webOutputReady: false,
+      };
+    },
+    async createConfig(projectPath) {
+      return { created: true, path: `${projectPath}/capacitor.config.json` };
     },
   },
 

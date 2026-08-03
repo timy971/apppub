@@ -5,16 +5,26 @@ export const androidRules: ProjectRule[] = [
   {
     id: "android.folder",
     domain: "android",
-    evaluate: ({ project }) =>
-      project.detected.hasAndroid
-        ? null
-        : {
-            severity: "warn",
-            message: "Aucun dossier Android n'a été trouvé dans le projet.",
-            explanation:
-              "Un dossier android/ est nécessaire pour compiler l'application sous Android.",
-            hint: "Exécutez « npx cap add android » avant de préparer un build.",
-          },
+    evaluate: ({ project }) => {
+      if (project.detected.androidReadiness === "blocked") {
+        return {
+          severity: "error",
+          message: "Ce projet web ne peut pas encore être préparé automatiquement pour Android.",
+          explanation:
+            project.detected.androidReadinessReason ||
+            "Le build web ou la configuration Capacitor doit être corrigé.",
+          hint: "Ouvrez le Build Center pour consulter l’analyse détaillée.",
+        };
+      }
+      if (project.detected.hasAndroid) return null;
+      return {
+        severity: "warn",
+        message: "Ce projet est prêt à être préparé pour Android.",
+        explanation:
+          "AppPublisher peut configurer Capacitor, créer android/ et effectuer une compilation de contrôle.",
+        hint: "Ouvrez le Build Center puis choisissez « Préparer Android ».",
+      };
+    },
   },
   {
     id: "android.gradle",

@@ -11,6 +11,9 @@ const {
 test("normalizes package and Gradle commands on Windows", () => {
   assert.equal(normalizeSpawnCommand("npm", "win32"), "npm.cmd");
   assert.equal(normalizeSpawnCommand("npx", "win32"), "npx.cmd");
+  assert.equal(normalizeSpawnCommand("pnpm", "win32"), "pnpm.cmd");
+  assert.equal(normalizeSpawnCommand("yarn", "win32"), "yarn.cmd");
+  assert.equal(normalizeSpawnCommand("bun", "win32"), "bun.exe");
   assert.equal(normalizeSpawnCommand("gradle", "win32"), "gradle.bat");
   assert.equal(normalizeSpawnCommand("node", "win32"), "node");
   assert.equal(normalizeSpawnCommand("npm", "darwin"), "npm");
