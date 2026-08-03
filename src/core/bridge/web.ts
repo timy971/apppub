@@ -119,6 +119,67 @@ export const webBridge: SystemBridge = {
     },
   },
 
+  git: {
+    async inspectRemote(remoteUrl) {
+      return { remoteUrl, defaultBranch: "main", branches: ["main", "develop"] };
+    },
+    async clone({ remoteUrl, branch }) {
+      const name =
+        remoteUrl
+          .split("/")
+          .pop()
+          ?.replace(/\.git$/, "") || "projet";
+      const localPath = `/Users/moi/Projets AppPublisher/${name}`;
+      const detected = await webBridge.projects.detect(localPath);
+      if (!detected) throw new Error("Projet simulé introuvable.");
+      return {
+        localPath,
+        reused: false,
+        status: {
+          remoteUrl,
+          branch,
+          headSha: "0123456789abcdef0123456789abcdef01234567",
+          shortSha: "0123456789",
+          ahead: 0,
+          behind: 0,
+          relation: "up-to-date",
+          workingTree: "clean",
+          changedFiles: [],
+          checkedAt: new Date().toISOString(),
+        },
+        detected,
+      };
+    },
+    async status({ remoteUrl, branch }) {
+      return {
+        remoteUrl,
+        branch,
+        headSha: "0123456789abcdef0123456789abcdef01234567",
+        shortSha: "0123456789",
+        ahead: 0,
+        behind: 0,
+        relation: "up-to-date",
+        workingTree: "clean",
+        changedFiles: [],
+        checkedAt: new Date().toISOString(),
+      };
+    },
+    async check(args) {
+      return webBridge.git.status(args);
+    },
+    async sync(args) {
+      const status = await webBridge.git.status(args);
+      const detected = await webBridge.projects.detect(args.projectPath);
+      if (!detected) throw new Error("Projet simulé introuvable.");
+      return {
+        updated: false,
+        previousHeadSha: status.headSha,
+        status,
+        detected,
+      };
+    },
+  },
+
   gradle: {
     async ensureExecutable(projectPath) {
       return { ok: true, path: `${projectPath}/android/gradlew` };

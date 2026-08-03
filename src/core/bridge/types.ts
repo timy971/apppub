@@ -11,7 +11,42 @@ import type {
   ExecResult,
   ScannedProject,
   SystemInfo,
+  GitRelation,
 } from "@/core/types";
+
+export interface GitRemoteInfo {
+  remoteUrl: string;
+  defaultBranch: string;
+  branches: string[];
+}
+
+export interface GitProjectStatus {
+  remoteUrl: string;
+  branch: string;
+  headSha: string;
+  shortSha: string;
+  upstream?: string;
+  ahead: number;
+  behind: number;
+  relation: GitRelation;
+  workingTree: "clean" | "dirty";
+  changedFiles: string[];
+  checkedAt: string;
+}
+
+export interface GitCloneResult {
+  localPath: string;
+  reused: boolean;
+  status: GitProjectStatus;
+  detected: DetectedFiles;
+}
+
+export interface GitSyncResult {
+  updated: boolean;
+  previousHeadSha: string;
+  status: GitProjectStatus;
+  detected: DetectedFiles;
+}
 
 export interface SigningKeystoreListArgs {
   keystorePath: string;
@@ -155,6 +190,22 @@ export interface SystemBridge {
     scan(rootPath: string): Promise<ScannedProject[]>;
     chooseFolder(): Promise<string | null>;
     reauthorizeFolder(expectedPath: string): Promise<string | null>;
+  };
+
+  git: {
+    inspectRemote(remoteUrl: string): Promise<GitRemoteInfo>;
+    clone(args: { remoteUrl: string; branch: string }): Promise<GitCloneResult>;
+    status(args: {
+      projectPath: string;
+      remoteUrl: string;
+      branch: string;
+    }): Promise<GitProjectStatus>;
+    check(args: {
+      projectPath: string;
+      remoteUrl: string;
+      branch: string;
+    }): Promise<GitProjectStatus>;
+    sync(args: { projectPath: string; remoteUrl: string; branch: string }): Promise<GitSyncResult>;
   };
 
   gradle: {

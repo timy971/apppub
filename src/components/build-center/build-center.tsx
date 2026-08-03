@@ -63,7 +63,14 @@ export function BuildCenter({ project }: Props) {
     recordedRef.current = snap.id;
 
     const durationMs = (snap.endedAt ?? performance.now()) - snap.startedAt;
-    const artifact = snap.result as { aabPath?: string; aabSize?: number } | undefined;
+    const artifact = snap.result as
+      | {
+          aabPath?: string;
+          aabSize?: number;
+          sourceCommit?: string;
+          sourceDirty?: boolean;
+        }
+      | undefined;
 
     if (snap.status === "success") {
       HistoryService.record({
@@ -78,6 +85,8 @@ export function BuildCenter({ project }: Props) {
         kind: "build",
         artifactPath: artifact?.aabPath,
         artifactSizeBytes: artifact?.aabSize,
+        sourceCommit: artifact?.sourceCommit,
+        sourceDirty: artifact?.sourceDirty,
       });
       notify(
         "Build terminé",

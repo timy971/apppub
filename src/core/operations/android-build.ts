@@ -46,6 +46,8 @@ export interface AndroidBuildResult {
   aabSize?: number;
   durationMs: number;
   succeeded: boolean;
+  sourceCommit?: string;
+  sourceDirty?: boolean;
 }
 
 /**
@@ -72,6 +74,13 @@ export function createAndroidBuildOperation(project: Project): OperationDef {
         `Version ${project.currentVersion} · Build ${project.currentBuild}`,
         "prepare",
       );
+      if (project.source?.type === "git") {
+        ctrl.log(
+          "info",
+          `Source : ${project.source.branch} @ ${project.source.shortSha ?? "commit à vérifier"}`,
+          "prepare",
+        );
+      }
       throwIfAborted();
       ctrl.setStep("prepare", "success", "Projet prêt.");
 

@@ -22,6 +22,7 @@ interface AppPublisherApi {
     importFile(): Promise<{ path: string; keys: string[] } | null>;
   };
   projects: SystemBridge["projects"];
+  git: SystemBridge["git"];
   gradle: SystemBridge["gradle"];
   backups: SystemBridge["backups"];
   exec: {
@@ -71,6 +72,14 @@ export const electronBridge: SystemBridge = {
     scan: (root) => ensure().projects.scan(root),
     chooseFolder: () => ensure().projects.chooseFolder(),
     reauthorizeFolder: (expectedPath) => ensure().projects.reauthorizeFolder(expectedPath),
+  },
+
+  git: {
+    inspectRemote: (remoteUrl) => ensure().git.inspectRemote(remoteUrl),
+    clone: (args) => ensure().git.clone(args),
+    status: (args) => ensure().git.status(args),
+    check: (args) => ensure().git.check(args),
+    sync: (args) => ensure().git.sync(args),
   },
 
   gradle: {

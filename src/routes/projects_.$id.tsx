@@ -14,6 +14,8 @@ import {
   Rocket,
   Info,
   AlertTriangle,
+  GitBranch,
+  RefreshCw,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { ProfilesStore as SigningProfilesStore } from "@/features/android-signing";
@@ -84,6 +86,7 @@ import type {
   ProjectLifecycle,
   PublishRecord,
 } from "@/core/types";
+import type { GitProjectStatus } from "@/core/bridge/types";
 import { toast } from "sonner";
 
 const COCKPIT_TABS: CockpitTab[] = [
@@ -526,6 +529,61 @@ function ConfigurationTab({
   project: Project;
   update: UpdateFn;
 }) {
+  const [gitStatus, setGitStatus] = useState<GitProjectStatus | null>(null);
+  const [gitLoading, setGitLoading] = useState(false);
+
+  const refreshGit = useCallback(async () => {
+    if (project.source?.type !== "git") return;
+    setGitLoading(true);
+    try {
+      const status = await ProjectsService.gitStatus(project.id);
+      setGitStatus(status);
+      AppStore.refreshProjects();
+    } catch (error) {
+      toast.error("État Git indisponible", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setGitLoading(false);
+    }
+  }, [project.id, project.source?.type]);
+
+  useEffect(() => {
+    if (project.source?.type !== "git") return;
+    void refreshGit();
+  }, [project.source?.type, refreshGit]);
+
+  async function syncGit() {
+    if (project.source?.type !== "git") return;
+    setGitLoading(true);
+    try {
+      const before = gitStatus?.headSha;
+      const status = await ProjectsService.syncGit(project.id);
+      setGitStatus(status);
+      AppStore.refreshProjects();
+      toast.success(
+        before && before !== status.headSha ? "Projet mis à jour" : "Projet déjà à jour",
+        {
+          description: `${status.branch} · ${status.shortSha}`,
+        },
+      );
+    } catch (error) {
+      toast.error("Synchronisation bloquée", {
+        description: error instanceof Error ? error.message : String(error),
+        duration: 10_000,
+      });
+      try {
+        const status = await ProjectsService.gitStatus(project.id);
+        setGitStatus(status);
+        AppStore.refreshProjects();
+      } catch {
+        // Le message de synchronisation initial reste la meilleure explication.
+      }
+    } finally {
+      setGitLoading(false);
+    }
+  }
+
   async function openProjectFolder() {
     try {
       await bridge().shell.openFolder(project.localPath);
@@ -561,6 +619,16 @@ function ConfigurationTab({
         automatiquement ou saisies manuellement.
       </DiscoveryHint>
 
+      {project.source?.type === "git" && (
+        <GitSourcePanel
+          project={project}
+          status={gitStatus}
+          loading={gitLoading}
+          onRefresh={refreshGit}
+          onSync={syncGit}
+        />
+      )}
+
       <div>
         <Label>Dossier local</Label>
         <div className="mt-1.5 flex gap-2">
@@ -584,29 +652,33 @@ function ConfigurationTab({
         </p>
       </div>
 
-      <InlineText
-        fieldKey="githubRepo"
-        source={sourceOf(project, "githubRepo")}
-        label="Dépôt Git"
-        value={project.githubRepo ?? ""}
-        placeholder="git@github.com:vous/depot.git"
-        validate={validateGitUrl}
-        onSave={(v) =>
-          update({ githubRepo: v.trim() || undefined }, ["githubRepo"])
-        }
-      />
+      {project.source?.type !== "git" && (
+        <>
+          <InlineText
+            fieldKey="githubRepo"
+            source={sourceOf(project, "githubRepo")}
+            label="Dépôt Git"
+            value={project.githubRepo ?? ""}
+            placeholder="git@github.com:vous/depot.git"
+            validate={validateGitUrl}
+            onSave={(v) =>
+              update({ githubRepo: v.trim() || undefined }, ["githubRepo"])
+            }
+          />
 
-      <InlineText
-        fieldKey="defaultBranch"
-        source={sourceOf(project, "defaultBranch")}
-        label="Branche par défaut"
-        value={project.defaultBranch ?? ""}
-        placeholder="main"
-        validate={validateBranchName}
-        onSave={(v) =>
-          update({ defaultBranch: v.trim() || undefined }, ["defaultBranch"])
-        }
-      />
+          <InlineText
+            fieldKey="defaultBranch"
+            source={sourceOf(project, "defaultBranch")}
+            label="Branche par défaut"
+            value={project.defaultBranch ?? ""}
+            placeholder="main"
+            validate={validateBranchName}
+            onSave={(v) =>
+              update({ defaultBranch: v.trim() || undefined }, ["defaultBranch"])
+            }
+          />
+        </>
+      )}
 
       <InlineText
         fieldKey="packageName"
@@ -664,6 +736,101 @@ function ConfigurationTab({
         est conservé dans l'onglet Historique.
       </div>
     </Card>
+  );
+}
+
+function GitSourcePanel({
+  project,
+  status,
+  loading,
+  onRefresh,
+  onSync,
+}: {
+  project: Project;
+  status: GitProjectStatus | null;
+  loading: boolean;
+  onRefresh: () => void;
+  onSync: () => void;
+}) {
+  const source = project.source;
+  if (source?.type !== "git") return null;
+  const relationLabels: Record<GitProjectStatus["relation"], string> = {
+    "up-to-date": "À jour",
+    behind: status?.behind ? `${status.behind} commit(s) à récupérer` : "Mise à jour disponible",
+    ahead: "Commits locaux non publiés",
+    diverged: "Historique divergent",
+    "no-upstream": "Branche distante non suivie",
+  };
+  const dirty = status?.workingTree === "dirty";
+  return (
+    <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 font-medium">
+            <GitBranch className="h-4 w-4 text-primary" />
+            Projet Git géré
+          </div>
+          <div
+            className="mt-1 truncate text-xs text-muted-foreground font-mono"
+            title={source.remoteUrl}
+          >
+            {source.remoteUrl}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onRefresh} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Vérifier
+          </Button>
+          <Button size="sm" onClick={onSync} disabled={loading || dirty}>
+            Synchroniser
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-2 text-xs sm:grid-cols-3">
+        <div className="rounded-md bg-background p-2">
+          <div className="text-muted-foreground">Branche</div>
+          <div className="mt-0.5 font-mono">{status?.branch ?? source.branch}</div>
+        </div>
+        <div className="rounded-md bg-background p-2">
+          <div className="text-muted-foreground">Commit local</div>
+          <div className="mt-0.5 font-mono">{status?.shortSha ?? source.shortSha ?? "—"}</div>
+        </div>
+        <div className="rounded-md bg-background p-2">
+          <div className="text-muted-foreground">État</div>
+          <div className={`mt-0.5 ${dirty ? "text-warning" : ""}`}>
+            {dirty
+              ? "Modifications locales"
+              : status
+                ? relationLabels[status.relation]
+                : "Vérification…"}
+          </div>
+        </div>
+      </div>
+
+      {dirty && (
+        <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs">
+          <div className="flex items-start gap-2 text-warning">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              La synchronisation ne modifiera rien tant que ces changements locaux ne sont pas
+              traités. Vous pouvez toujours construire cette version locale.
+            </div>
+          </div>
+          {status.changedFiles.length > 0 && (
+            <div className="mt-2 space-y-1 font-mono text-muted-foreground">
+              {status.changedFiles.slice(0, 4).map((file) => (
+                <div key={file}>{file}</div>
+              ))}
+              {status.changedFiles.length > 4 && (
+                <div>… et {status.changedFiles.length - 4} autre(s)</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1016,6 +1183,12 @@ function HistoryRow({ record }: { record: PublishRecord }) {
         {record.message && (
           <div className="text-xs text-muted-foreground truncate">
             {record.message}
+          </div>
+        )}
+        {record.sourceCommit && (
+          <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
+            Git {record.sourceCommit.slice(0, 10)}
+            {record.sourceDirty ? " · modifications locales" : ""}
           </div>
         )}
       </div>

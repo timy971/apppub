@@ -10,6 +10,9 @@ import {
   FolderOpen,
   Pencil,
   ChevronRight,
+  GitBranch,
+  CloudDownload,
+  Laptop,
 } from "lucide-react";
 import { ProjectStatusService } from "@/core/projects/status";
 import { ProjectLifecycleBadge, LIFECYCLE_OPTIONS } from "@/components/project-lifecycle-badge";
@@ -26,6 +29,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +52,7 @@ import { AppStore, useProjects, useSettings } from "@/core/store/app-store";
 import { ProjectsService } from "@/core/projects/service";
 import { bridge } from "@/core/bridge";
 import type { Project, ProjectDraft, ScannedProject } from "@/core/types";
+import type { GitRemoteInfo } from "@/core/bridge/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/projects")({
@@ -64,6 +69,12 @@ function ProjectsPage() {
   const [rootPath, setRootPath] = useState(settings.projectsRootPath ?? "");
   const [preview, setPreview] = useState<ProjectDraft | null>(null);
   const [detecting, setDetecting] = useState(false);
+  const [addMode, setAddMode] = useState<"local" | "git">("local");
+  const [remoteUrl, setRemoteUrl] = useState("");
+  const [remoteInfo, setRemoteInfo] = useState<GitRemoteInfo | null>(null);
+  const [remoteBranch, setRemoteBranch] = useState("");
+  const [inspectingRemote, setInspectingRemote] = useState(false);
+  const [importingRemote, setImportingRemote] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState<ScannedProject[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -107,6 +118,49 @@ function ProjectsPage() {
     setAddOpen(false);
     setPath("");
     setPreview(null);
+  }
+
+  async function inspectRemote() {
+    if (!remoteUrl.trim()) return;
+    setInspectingRemote(true);
+    setRemoteInfo(null);
+    try {
+      const info = await ProjectsService.inspectRemote(remoteUrl.trim());
+      setRemoteInfo(info);
+      setRemoteBranch(info.defaultBranch);
+    } catch (error) {
+      toast.error("Dépôt inaccessible", {
+        description: error instanceof Error ? error.message : String(error),
+        duration: 8_000,
+      });
+    } finally {
+      setInspectingRemote(false);
+    }
+  }
+
+  async function importRemote() {
+    if (!remoteInfo || !remoteBranch) return;
+    setImportingRemote(true);
+    try {
+      const created = await ProjectsService.importFromGit(remoteInfo.remoteUrl, remoteBranch);
+      AppStore.refreshProjects();
+      if (!settings.activeProjectId) AppStore.setActiveProject(created.id);
+      toast.success("Projet Git importé", {
+        description: `${created.name} · ${remoteBranch} · ${created.source?.shortSha ?? "commit détecté"}`,
+      });
+      setAddOpen(false);
+      setRemoteUrl("");
+      setRemoteInfo(null);
+      setRemoteBranch("");
+      navigate({ to: "/projects/$id", params: { id: created.id } });
+    } catch (error) {
+      toast.error("Import Git impossible", {
+        description: error instanceof Error ? error.message : String(error),
+        duration: 10_000,
+      });
+    } finally {
+      setImportingRemote(false);
+    }
   }
 
   async function scan() {
@@ -245,44 +299,125 @@ function ProjectsPage() {
                   Ajouter un projet
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                   <DialogTitle>Ajouter un projet</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Dossier du projet</label>
-                    <div className="mt-2 flex gap-2">
-                      <Input
-                        placeholder="/chemin/vers/le/projet"
-                        value={path}
-                        onChange={(e) => setPath(e.target.value)}
-                        className="font-mono"
-                      />
-                      <Button variant="secondary" onClick={() => chooseFolder(setPath)}>
-                        Parcourir
-                      </Button>
-                      <Button onClick={detect} disabled={!path.trim() || detecting}>
-                        {detecting ? "Détection…" : "Détecter"}
-                      </Button>
-                    </div>
-                  </div>
-                  {preview && (
-                    <div className="rounded-lg border bg-muted/40 p-4">
-                      <div className="text-sm font-medium">{preview.name}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Version {preview.currentVersion} · Build {preview.currentBuild}
+                <Tabs
+                  value={addMode}
+                  onValueChange={(value) => setAddMode(value as "local" | "git")}
+                >
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="local">
+                      <Laptop className="h-4 w-4" />
+                      Sur cet ordinateur
+                    </TabsTrigger>
+                    <TabsTrigger value="git">
+                      <GitBranch className="h-4 w-4" />
+                      Depuis Git
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="local" className="mt-4 space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">Dossier du projet</label>
+                      <div className="mt-2 flex gap-2">
+                        <Input
+                          placeholder="/chemin/vers/le/projet"
+                          value={path}
+                          onChange={(e) => setPath(e.target.value)}
+                          className="font-mono"
+                        />
+                        <Button variant="secondary" onClick={() => chooseFolder(setPath)}>
+                          Parcourir
+                        </Button>
+                        <Button onClick={detect} disabled={!path.trim() || detecting}>
+                          {detecting ? "Détection…" : "Détecter"}
+                        </Button>
                       </div>
                     </div>
-                  )}
-                </div>
+                    {preview && (
+                      <div className="rounded-lg border bg-muted/40 p-4">
+                        <div className="text-sm font-medium">{preview.name}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Version {preview.currentVersion} · Build {preview.currentBuild}
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="git" className="mt-4 space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">Adresse du dépôt</label>
+                      <div className="mt-2 flex gap-2">
+                        <Input
+                          placeholder="https://github.com/vous/application.git"
+                          value={remoteUrl}
+                          onChange={(event) => {
+                            setRemoteUrl(event.target.value);
+                            setRemoteInfo(null);
+                            setRemoteBranch("");
+                          }}
+                          className="font-mono"
+                          disabled={importingRemote}
+                        />
+                        <Button
+                          onClick={inspectRemote}
+                          disabled={!remoteUrl.trim() || inspectingRemote || importingRemote}
+                        >
+                          {inspectingRemote ? "Connexion…" : "Continuer"}
+                        </Button>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        GitHub, GitLab et les projets Lovable synchronisés vers GitHub sont
+                        compatibles. Pour un dépôt privé, Git doit déjà être authentifié sur ce Mac.
+                      </p>
+                    </div>
+
+                    {remoteInfo && (
+                      <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+                        <div>
+                          <label className="text-sm font-medium">Branche à importer</label>
+                          <Select value={remoteBranch} onValueChange={setRemoteBranch}>
+                            <SelectTrigger className="mt-2 font-mono">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {remoteInfo.branches.map((branch) => (
+                                <SelectItem key={branch} value={branch} className="font-mono">
+                                  {branch}
+                                  {branch === remoteInfo.defaultBranch ? " · par défaut" : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                          <CloudDownload className="mt-0.5 h-4 w-4 shrink-0" />
+                          AppPublisher créera une copie locale privée et conservera le commit exact
+                          utilisé lors de chaque build.
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setAddOpen(false)}>
                     Annuler
                   </Button>
-                  <Button onClick={add} disabled={!preview}>
-                    Ajouter
-                  </Button>
+                  {addMode === "local" ? (
+                    <Button onClick={add} disabled={!preview}>
+                      Ajouter
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={importRemote}
+                      disabled={!remoteInfo || !remoteBranch || importingRemote}
+                    >
+                      <CloudDownload className="h-4 w-4" />
+                      {importingRemote ? "Import en cours…" : "Importer le dépôt"}
+                    </Button>
+                  )}
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -498,6 +633,16 @@ function ProjectCard({
           <div className="text-xs text-muted-foreground truncate font-mono mt-0.5">
             {project.localPath}
           </div>
+          {project.source?.type === "git" && (
+            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <GitBranch className="h-3 w-3" />
+              <span className="font-mono">{project.source.branch}</span>
+              {project.source.shortSha && <span>· {project.source.shortSha}</span>}
+              {project.source.workingTree === "dirty" && (
+                <span className="text-warning">· modifications locales</span>
+              )}
+            </div>
+          )}
         </div>
         <div className="text-right text-xs text-muted-foreground tabular-nums hidden sm:block">
           v{project.currentVersion} · build {project.currentBuild}

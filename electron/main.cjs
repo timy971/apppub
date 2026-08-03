@@ -54,6 +54,7 @@ const { ProjectTrustStore, ensureProjectTrusted } = require("./project-trust.cjs
 const { installWindowGuards } = require("./window-security.cjs");
 const { SigningSessionRegistry } = require("./signing-session.cjs");
 const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
+const { GitProjectManager } = require("./git-projects.cjs");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
 const activeExecutions = new ExecutionRegistry();
@@ -442,6 +443,9 @@ const trustStore = new ProjectTrustStore(
   path.join(app.getPath("userData"), "trusted-projects.json"),
 );
 const durableStore = new DurableStore(path.join(app.getPath("userData"), "data", "store-v1.json"));
+const gitProjectManager = new GitProjectManager(
+  path.join(app.getPath("userData"), "managed-projects"),
+);
 
 function registerAllowedRoot(p) {
   try {
@@ -1188,6 +1192,28 @@ ipcMain.handle("projects:reauthorizeFolder", async (_e, expectedPath) => {
       : expectedReal === selectedReal;
   if (!same) return null;
   return registerAllowedRoot(selectedReal);
+});
+
+/* ---------- IPC : dépôts Git gérés ---------- */
+
+ipcMain.handle("git:inspectRemote", (_e, remoteUrl) => gitProjectManager.inspectRemote(remoteUrl));
+
+ipcMain.handle("git:clone", async (_e, args) => {
+  const result = await gitProjectManager.clone(args);
+  const authorized = registerAllowedRoot(result.localPath);
+  if (!authorized) throw new Error("La copie Git n’a pas pu être autorisée par AppPublisher.");
+  return { ...result, localPath: authorized, detected: detectProjectFiles(authorized) };
+});
+
+ipcMain.handle("git:status", (_e, args) => gitProjectManager.status(args));
+
+ipcMain.handle("git:check", (_e, args) => gitProjectManager.check(args));
+
+ipcMain.handle("git:sync", async (_e, args) => {
+  const result = await gitProjectManager.sync(args);
+  const safe = resolveWithinAllowed(args?.projectPath);
+  if (!safe) throw new Error("La copie locale du projet n’est plus autorisée.");
+  return { ...result, detected: detectProjectFiles(safe) };
 });
 
 /* ---------- IPC : Gradle (opérations dédiées) ---------- */
