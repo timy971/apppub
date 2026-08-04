@@ -1,159 +1,69 @@
-# Phase 1 — Stabilisation d'AppPublisher
+# Audit intégral d'AppPublisher — plan d'exécution
 
-Objectif : rendre AppPublisher **totalement fiable**. Aucune nouvelle fonctionnalité. Aucun refactoring gratuit. Une fonctionnalité que je ne peux pas prouver comme fiable sera soit corrigée, soit retirée de l'UI.
+Objectif : produire un audit factuel, contradictoire et actionnable, couvrant produit, parcours, UX/UI, accessibilité, architecture, Electron, sécurité, Git, build Android/signature, publication, tests, performance, fiabilité, observabilité, multiplateforme, conformité, business et roadmap. Aucune modification du code fonctionnel pendant l'audit : seuls les documents d'audit sont créés.
 
-Règle transversale : **un bouton n'existe que s'il réalise une action réelle**. Sinon il est supprimé ou remplacé par un état informatif en lecture seule.
+## Livrables
 
----
+Dossier `docs/audit-complet/` avec les 16 fichiers demandés :
 
-## Lot 0 — Audit fonctionnel complet (obligatoire, aucune modification de code)
+`00-index-audit.md` (sommaire + avancement), `01-etat-des-lieux.md`, `02-audit-produit.md`, `03-inventaire-fonctionnel.md`, `04-parcours-utilisateurs.md`, `05-audit-ux-ui-accessibilite.md`, `06-audit-architecture-code.md`, `07-audit-electron-securite.md`, `08-audit-git-projets-distants.md`, `09-audit-build-android-signature-publication.md`, `10-audit-tests-qualite.md`, `11-audit-performance-fiabilite-observabilite.md`, `12-audit-business-concurrence.md`, `13-backlog-priorise.md`, `14-roadmap.md`, `15-rapport-final.md`.
 
-Je parcours statiquement tout le code (`src/routes/`, `src/components/`, `src/core/`, `electron/`) et je produis une **matrice d'état réel** de toutes les fonctionnalités visibles pour l'utilisateur.
+Chaque fichier est écrit dès que sa passe est terminée (pas de rédaction finale unique), et `00-index-audit.md` est mis à jour au fil de l'eau.
 
-Classification, une seule valeur par ligne :
-- ✅ Fonctionnelle — le code exécute réellement l'action de bout en bout.
-- ⚠ Partiellement fonctionnelle — l'action existe mais un maillon manque (pas de persistance, pas de refresh, dépend d'un champ absent…).
-- ❌ Cassée — le code est présent mais échoue en pratique (mauvais chemin, IPC absent, référence morte…).
-- ⛔ Placeholder — bouton/carte/onglet visible mais aucune logique derrière.
+## Conventions imposées à tous les constats
 
-Périmètre couvert par la matrice :
-- **Projets** (list + cockpit) : identité, description, notes, dépôt Git, package, versions Android/iOS, keystore, notes de release, signing profile lié.
-- **Dashboard 2.0** : TodayCard, CopilotHero, ProjectsGrid, ActivityTimeline, GlobalHealthCard, StatsStrip — chaque CTA.
-- **Build Center** : préflight, chaque check, correction automatique, création Android, build, sync, logs, annulation, timeline.
-- **Publish Center** : chaque onglet (dépôt Git, keystore, Android ID, version, release notes, checklist).
-- **Signing** : création, import, inspection, association profil↔projet.
-- **Support / Diagnostic / Journal / Logs / Historique / Version / Settings / Setup wizard**.
-- **Sidebar + Palette (Cmd+K)** : chaque entrée.
-- **Bridge Electron** : chaque IPC exposé (ouvrir Android Studio, dossier Android, dépôt Git, dossier projet, cap add android, gradlew, cap sync, keytool, security, backup, restore, fs.pickFile/Folder…).
+- Statut de preuve obligatoire : Vérifié par exécution / Vérifié par lecture du code / Partiellement vérifié / Inféré / Non vérifiable ici / Non implémenté / Simulé ou mocké / Cassé / Obsolète / Code mort.
+- Identifiants uniques par famille : `FUNC-`, `UX-`, `A11Y-`, `ARCH-`, `CODE-`, `ELEC-`, `SEC-`, `GIT-`, `BUILD-`, `SIGN-`, `PUB-`, `QA-`, `PERF-`, `REL-`, `OBS-`, `PLAT-`, `PRIV-`, `BUS-`.
+- Fiche problème complète : titre, catégorie, sévérité P0–P4, preuve (fichier + zone de lignes), repro, attendu, réel, impact utilisateur, impact technique/commercial, probabilité, recommandation, effort XS–XL, dépendances, critères d'acceptation.
+- Toute affirmation « ça marche » exige une preuve d'exécution ou une lecture de code citée. Sinon : Inféré ou Non vérifiable.
 
-Livrable Lot 0 : un rapport tabulaire complet posté dans le chat, section par section, chaque ligne portant l'état + la preuve courte (référence `fichier:ligne`). Aucun fichier modifié.
+## Déroulé des passes
 
-Je ne passe au Lot A qu'après ta validation de ce rapport.
+**Passe 1 — État des lieux (`01`)**
+Branche, commit, état Git, fichiers non suivis. Versions Node/npm/Electron/Vite/React/TypeScript. Scripts réellement disponibles (`test`, `typecheck`, `lint`, `build`, `build:electron`, `pack:mac`, `pack:win`, `make:icons`, `sync:version`). Lockfile. Structure des dossiers, points d'entrée (`src/server.ts`, `src/start.ts`, `src/main.electron.tsx`, `electron/main.cjs`, `electron/preload.cjs`). Dépendances risquées ou incohérentes. Schéma Mermaid de l'architecture réelle.
 
----
+**Passe 2 — Commandes de validation (`01`, section dédiée)**
+Exécution des scripts existants uniquement : `lint`, `typecheck`, `test` (vitest + `node --test tests/*.node-test.cjs`), `build`, `build:electron`, et tentative de `pack:mac`/`pack:win` avec constat explicite des limites du sandbox Linux. Tableau Commande / Résultat / Durée / Avertissements / Erreurs / Conclusion. Vérification que chaque code de sortie 0 produit bien l'artefact attendu (présence réelle de `dist/`, `dist-electron/`, `dist-app/`). Chaque échec est documenté, cause racine séparée des erreurs secondaires, et l'audit continue.
 
-## Lot A — Keystore : analyse d'abord, correction ensuite
+**Passe 3 — Produit (`02`)**
+Problème résolu, cibles, clarté de la promesse en 30 s, écart promesse/capacités réelles, zones de faux sentiment de simplicité ou de sécurité, comparaison rationnelle contre terminal / Android Studio / Capacitor / PWABuilder / Expo / Codemagic / Appflow / accompagnement humain. Notes sur 10 justifiées (valeur, utilité, différenciation, maturité, crédibilité, adoption, potentiel, rétention).
 
-**Étape A.1 — Diagnostic factuel** (aucune modification de code).
+**Passe 4 — Inventaire fonctionnel (`03`)**
+Balayage exhaustif de `src/routes/*`, `src/components/*`, `src/core/*`, `src/features/android-signing/*`, `electron/*`, avec table ID / fonctionnalité / écran ou fichier / état réel / preuve / valeur / risque / UX / tests / priorité. Chasse explicite aux boutons sans effet, formulaires non persistés, écrans déconnectés du bridge Electron, succès prématurés, mocks dans un parcours présenté comme réel (`src/core/bridge/web.ts`), champs persistés jamais lus (ex. `buildCommand`), placeholders iOS/publication, doublons et navigations mortes.
 
-Je réponds précisément à chacune de ces questions, avec citations `fichier:ligne` :
+**Passe 5 — Parcours (`04`)**
+Parcours A à J tels que définis, avec préconditions, étapes, attendu, obtenu, frictions, gravité, probabilité d'abandon, confiance, recommandations. Vérification en preview headless (Playwright) pour ce qui est atteignable côté renderer ; les branches nécessitant le main process Electron réel, un keystore, un SDK Android ou macOS sont marquées Non vérifiable ici avec le test précis qui les couvrirait.
 
-1. Comment `keystorePath` est-il stocké dans le `Project` et dans le `SigningProfile` ? Absolu ou relatif ? À quel moment est-il écrit ?
-2. Comment le `SigningProfile` est-il résolu au moment du build (via projet lié ? via `keystorePath` legacy ?) ?
-3. Que fait exactement `BuildService` avant l'appel Gradle ? Écrit-il quelque chose dans le projet Android ? Passe-t-il des `-P` à Gradle ?
-4. Que contient réellement le `build.gradle` généré par Capacitor pour ce projet ? (Je te fournis la commande précise à exécuter chez toi pour me remonter le fichier.)
-5. Existe-t-il déjà un `keystore.properties` dans `android/` ? Un bloc `signingConfigs.release` a-t-il été édité manuellement ?
-6. Le problème est-il :
-   - (a) un `storeFile` relatif dans un template Gradle historique, résolu depuis `android/app/`, alors que le fichier est dans `android/` ?
-   - (b) une valeur `keystorePath` incorrecte persistée par AppPublisher ?
-   - (c) une absence totale de pont entre AppPublisher et Gradle (le chemin stocké dans AppPublisher n'est jamais consommé par Gradle) ?
+**Passe 6 — UX, UI, accessibilité (`05`)**
+Table par écran (objectif, compréhension, frictions, risque d'erreur, améliorations, priorité), lecture par persona (débutant, no-code, dev occasionnel, dev expérimenté, freelance, agence). Cohérence lexicale build/package/signer/générer/publier/envoyer au store. Design system : tokens, contrastes, états hover/focus/disabled/loading/error, densité, débordements, scrolls imbriqués, ressenti desktop vs site web. Accessibilité : parcours clavier, ordre et visibilité du focus, pièges de focus, labels, annonces d'erreurs, cibles tactiles, dépendance à la couleur, structure des titres, `prefers-reduced-motion`, zoom. Défauts classés bloquant/majeur/modéré/mineur. Wireframes textuels pour les écrans les plus faibles.
 
-**Étape A.2 — Décision**.
+**Passe 7 — Architecture et qualité du code (`06`)**
+Frontières renderer/preload/main, surface exposée par `contextBridge`, typage et validation des contrats IPC, propagation des erreurs, état et stockage (`src/core/storage`, `electron/durable-store.cjs`), tâches longues, annulation, idempotence, atomicité, migrations, extensibilité iOS/plugins. Schéma actuel + schéma cible + écarts. Notes sur 10. Registre de dette technique (fichiers surdimensionnés, `any`, catch génériques, promesses non attendues, code mort, logique métier dans l'UI, TODO/FIXME).
 
-En fonction du diagnostic :
-- Si (a) : je documente la correction à apporter au `build.gradle` du projet utilisateur et je propose un correctif automatique **ciblé** (réécriture du `storeFile` avec le bon chemin), sans créer d'injecteur global.
-- Si (b) : je corrige la logique de stockage/résolution du `keystorePath` dans AppPublisher (`android-config.ts`, `signing-profile.ts`, `projects.$id.tsx`), et j'ajoute la détection « fichier déplacé → proposer d'adopter le nouveau chemin ».
-- Si (c) : et seulement dans ce cas, je crée le `signing-injector` (écriture `keystore.properties` + bloc `signingConfigs` idempotent, mots de passe lus juste-à-temps depuis le Keychain, jamais persistés en clair).
+**Passe 8 — Electron et sécurité (`07`)**
+`BrowserWindow`/`webPreferences`, `contextIsolation`, `sandbox`, CSP d'`index.html`, navigation externe, permissions, single instance, cycle de vie, crashs, processus enfants, chemins packagés, différences dev/packagé. Registre de vulnérabilités (ID, sévérité critique→informationnel, composant, scénario d'exploitation, impact, probabilité, preuve, correction) : injection d'arguments, path traversal, contournement d'allowlist (`electron/execution-policy.cjs`, `electron/path-security.cjs`), secrets keystore, fuite dans les logs, exécution de code tiers d'un projet importé (npm/Gradle) et avertissement utilisateur. Séparation vulnérabilité exploitable / mauvaise pratique / durcissement / hypothèse.
 
-Le choix sera **justifié par le diagnostic**, pas anticipé.
+**Passe 9 — Git et projets distants (`08`)**
+Validation d'URL et protocoles, auth et stockage d'identifiants, clone, branches, fetch, détection de nouveaux commits, divergence, modifications locales, conflits, sous-modules, LFS, remote modifié, accès révoqué, historique réécrit, rollback, traçabilité commit→build. Vérification des risques d'écrasement silencieux et de perte du lien build/commit. Proposition d'un modèle d'état Git lisible par un non-développeur.
 
-**Étape A.3 — Rapport de lot** (voir format ci-dessous).
+**Passe 10 — Commandes, build Android, signature, publication (`09`)**
+Allowlist et construction d'arguments, cwd, env, timeouts, annulation, concurrence, nettoyage. Chaîne Capacitor → Android : détection, `cap add/sync`, Java/SDK/Gradle, package ID, versionCode/Name, icônes, manifest, debug/release, APK/AAB, localisation et validation d'artefact, reproductibilité. Signature : modèle de données, création/import, alias, secrets, keychain, migration, plus les scénarios d'échec listés (faux `.jks`, corrompu, mauvais mot de passe, alias absent, keystore déplacé/supprimé, chemins accentués, profil orphelin ou partagé). Risque produit majeur : perte définitive du keystore — vérifier l'avertissement et la stratégie de sauvegarde. Publication : distinguer générer / signer / vérifier / téléverser / soumettre / publier, et statuer sans complaisance sur Google Play et iOS, avec architecture cible et roadmap iOS.
 
----
+**Passe 11 — Tests et qualité (`10`)**
+Inventaire des 15 suites `tests/*.node-test.cjs` et des tests vitest de `src/core/**`. Classement par type, table Zone / tests existants / qualité / cas couverts / cas manquants / risque de régression. Analyse des assertions faibles, tests structurels ne pouvant échouer, mocks irréalistes, écarts web simulé vs Electron réel et dev vs packagé. Matrice de test minimale avant commercialisation (macOS/Windows, environnements complets/incomplets, réseau, projets anormaux, interruption, redémarrage, restauration).
 
-## Lot B — Suppression des faux boutons (règle « pas de bouton mort »)
+**Passe 12 — Performance, fiabilité, observabilité (`11`)**
+Temps de démarrage et de première peinture mesurés en preview, taille de bundle mesurée, coût d'analyse projet, listes volumineuses, console de logs, fuites de listeners et de processus, croissance du stockage. Résilience : fermeture brutale, crash, build interrompu, disque plein, fichier verrouillé, store corrompu, migration de schéma, mise à jour d'AppPublisher ; atomicité, sauvegardes, détection d'état incomplet. Modèle d'état de tâche proposé. Logs et diagnostic : emplacement, format, rotation, niveaux, corrélation, redaction (`electron/diagnostic-redaction.cjs`), export, reconstitution d'un incident par le support. Multiplateforme et confidentialité traités ici : chemins, exécutables, permissions, signature/notarisation, données locales vs transmises.
 
-Passe unique sur toutes les routes et tous les composants. Pour chaque `onClick`, `<Link>`, `<Button asChild>`, action de menu, action de palette, action de widget :
+**Passe 13 — Business et concurrence (`12`)**
+Vendabilité en l'état, conditions, cibles, fonctionnalités payantes vs confort vs anti-remboursement, charge de support, risques de responsabilité et de réputation, modèles économiques et niveaux de prix crédibles, promesse commerciale honnête aujourd'hui et après corrections. Comparatif concurrentiel marqué comme indicatif et daté pour toute donnée externe non vérifiable.
 
-- Si l'action est réelle → conservée.
-- Si l'action renvoie vers `/projects` sans destination utile → soit ciblée sur la bonne route/onglet/champ, soit supprimée.
-- Si l'action est un placeholder (« bientôt disponible », « à connecter ») → **le bouton est supprimé** et remplacé par un état en lecture seule discret, ou l'entrée disparaît complètement.
+**Passe 14 — Backlog, remédiation, roadmap (`13`, `14`)**
+Backlog consolidé et classé (P0 interdiction de commercialiser → P4 confort) avec vue Rang / ID / sujet / priorité / impact / effort / risque / dépendances / lot. Plan de remédiation en lots (objectif, problèmes, valeur, dépendances, risques, effort, ordre, tests à ajouter, critères de sortie), découpage adapté aux problèmes réellement observés et écarts expliqués. Roadmap 0–6 semaines, 2–4 mois, 5–12 mois, vision 24–36 mois, chaque évolution avec problème résolu, cible, valeur, difficulté, dépendances, risque, indicateur de succès.
 
-Cibles déjà repérées à traiter dans ce lot :
-- `publication-card.tsx` L171 / L212 : CTA « À connecter (bientôt disponible) » pour Play Store et App Store Connect.
-- `projects.$id.tsx` L818 : encart iOS « Configuration disponible — publication à venir ».
-- Toute icône chevron / menu contextuel qui n'a pas d'action.
+**Passe 15 — Rapport final (`15`)**
+Résumé exécutif non technique, verdict unique justifié, Go/No-Go point par point, 10 forces observées, 20 faiblesses classées, risques majeurs, liste explicite des fonctionnalités trompeuses ou incomplètes, corrections préalables obligatoires (P0/P1), quick wins, plan recommandé, vision, conclusion sans complaisance. Scorecard finale par domaine (note, confiance, justification) avec note globale plafonnée tant qu'un P0 subsiste.
 
----
+## Garde-fous respectés
 
-## Lot C — Cockpit : sauvegarde et deep-linking réellement vérifiés
-
-Pour chaque champ éditable du cockpit :
-1. Vérifier que l'édition appelle bien `ProjectsService.update` **et** invalide `CopilotBus`.
-2. Vérifier que `data-cockpit-field` correspond aux `field` produits par les recommandations Copilot (voir Lot D).
-3. Vérifier que le bouton crayon de `projects.tsx` amène réellement le focus sur `displayName`.
-
-Toute recommandation Copilot ciblant un champ inexistant est un défaut à corriger dans ce lot ou dans le Lot D.
-
----
-
-## Lot D — Copilot : ne jamais proposer une action impossible
-
-Au moment de générer une recommandation, l'`engine` doit valider **avant émission** :
-1. La route ciblée existe (whitelist statique dérivée du routeur).
-2. L'onglet ciblé existe pour cette route.
-3. Le champ ciblé (`data-cockpit-field`) existe dans le DOM déclaré (whitelist statique dérivée du cockpit).
-4. Le prérequis de l'action est rempli (par exemple : ne pas proposer « lier un profil de signature » si aucun profil n'existe encore — proposer plutôt « créer un profil »).
-
-Toute recommandation qui ne passe pas ces contrôles est filtrée silencieusement.
-
-Widgets consommateurs (`CopilotHero`, `NextActionCard`, `copilot-strip`, `validation-summary`, `HealthCard`) sont alignés sur la même source filtrée.
-
----
-
-## Lot E — Bridge Electron : validation du parcours utilisateur complet
-
-Pour chaque commande exposée par le bridge :
-1. J'identifie le bouton dans le renderer qui la déclenche.
-2. Je trace l'IPC (`electron/main.cjs` → handler).
-3. Je vérifie que le handler exécute réellement la commande système et renvoie un résultat exploité par l'UI.
-4. Je te fournis, en fin de lot, une checklist de tests manuels macOS à cocher : ouvrir Android Studio, dossier Android, dépôt Git, dossier projet, `cap add android`, `gradlew`, `cap sync`, `keytool`, Keychain (`security`), backup, restore, sélection fichier/dossier.
-
-Toute commande sans IPC réel côté main → bouton supprimé du renderer (règle Lot B).
-
----
-
-## Lot F — Wizard de premier lancement
-
-Parcours complet, chaque bouton « Continuer » écrit réellement dans le store, `autoFocus` reste désactivé (correctif focus thrashing conservé), sortie propre vers `/`.
-
----
-
-## Format de rapport imposé à chaque fin de lot
-
-```
-### Lot X — <titre>
-
-Problèmes détectés
-1. <symptôme observé>
-   Cause : <mécanisme précis, avec fichier:ligne>
-   Correction : <changement effectué, fichiers touchés>
-   Pourquoi cela résout réellement : <raisonnement>
-   Tests manuels à cocher :
-     □ …
-     □ …
-2. …
-
-Validation automatique
-- Typecheck ✅
-- Build ✅
-
-Validation fonctionnelle
-- Checklist ci-dessus à exécuter côté macOS.
-- Statut : en attente de ta validation.
-```
-
-Je n'enchaîne jamais deux lots sans ta validation explicite.
-
----
-
-## Ordre d'exécution
-
-Lot 0 (audit, aucune modif) → validation → Lot A → validation → Lot B → validation → Lot C → validation → Lot D → validation → Lot E → validation → Lot F → clôture.
-
-## Limites honnêtes
-
-- Je ne peux pas cliquer réellement dans l'application Electron packagée depuis ce sandbox. Toute vérification « clic → système → UI » qui dépend de macOS te reviendra sous forme de checklist explicite.
-- Toute vérification statique (typecheck, build, grep exhaustif des liens et handlers, cohérence des `data-cockpit-field`, whitelist des routes/onglets) est intégrale de mon côté.
-
-Confirme ce plan (ou ajuste-le) et je démarre le **Lot 0 — audit fonctionnel complet** immédiatement.
+Aucune modification du code applicatif, aucune publication, aucun secret ni compte de production, aucun keystore créé ou remplacé, aucun push, aucune suppression de fichier utilisateur, aucune réécriture d'historique Git. Les seules commandes lancées sont les scripts de vérification déjà présents dans `package.json` et des lectures en preview headless. Un échec n'arrête pas l'audit : il est documenté avec sa cause probable et ce qu'il empêche de vérifier.
