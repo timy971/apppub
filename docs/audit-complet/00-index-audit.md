@@ -22,21 +22,24 @@ Environnement d'audit : sandbox Linux x64, Node v22.22.0, npm 10.9.4. **Aucune v
 
 | # | Document | Portée | État |
 | --- | --- | --- | --- |
-| 01 | [État des lieux](01-etat-des-lieux.md) | Dépôt, versions, scripts, commandes de validation | Terminé |
-| 02 | [Audit produit](02-audit-produit.md) | Proposition de valeur, cibles, concurrence directe, notes | Terminé |
-| 03 | [Inventaire fonctionnel](03-inventaire-fonctionnel.md) | Toutes les fonctionnalités + état réel | Terminé |
-| 04 | [Parcours utilisateurs](04-parcours-utilisateurs.md) | Parcours A à J | Terminé |
-| 05 | [UX / UI / accessibilité](05-audit-ux-ui-accessibilite.md) | Écrans, design system, a11y | Terminé |
-| 06 | [Architecture & code](06-audit-architecture-code.md) | Couches, dette technique | Terminé |
-| 07 | [Electron & sécurité](07-audit-electron-securite.md) | Registre de vulnérabilités | Terminé |
-| 08 | [Git & projets distants](08-audit-git-projets-distants.md) | Cycle de vie Git | Terminé |
-| 09 | [Build Android, signature, publication](09-audit-build-android-signature-publication.md) | Chaîne Capacitor→Play, iOS | Terminé |
-| 10 | [Tests & qualité](10-audit-tests-qualite.md) | Inventaire, trous, matrice minimale | Terminé |
-| 11 | [Performance, fiabilité, observabilité](11-audit-performance-fiabilite-observabilite.md) | Perf, résilience, logs, multiplateforme, confidentialité | Terminé |
-| 12 | [Business & concurrence](12-audit-business-concurrence.md) | Viabilité, modèle, comparatif | Terminé |
-| 13 | [Backlog priorisé](13-backlog-priorise.md) | P0→P4, lots | Terminé |
-| 14 | [Roadmap](14-roadmap.md) | 0-6 semaines, 2-4 mois, 5-12 mois, 24-36 mois | Terminé |
-| 15 | [Rapport final](15-rapport-final.md) | Verdict, Go/No-Go, scorecard | Terminé |
+| 01 | [État des lieux](01-etat-des-lieux.md) | Dépôt, versions, scripts, commandes de validation exécutées | **Rédigé** |
+| 03 | [Inventaire fonctionnel](03-inventaire-fonctionnel.md) | Toutes les fonctionnalités, promesse UI vs réalité code | **Rédigé** |
+| 07 | [Electron & sécurité](07-audit-electron-securite.md) | Registre de vulnérabilités (V-00 à V-14) | **Rédigé** |
+| 02 | Audit produit | Proposition de valeur, cibles | À rédiger (recherche marché en cours) |
+| 04 | Parcours utilisateurs | Parcours A à J | À rédiger — matière collectée |
+| 05 | UX / UI / accessibilité | Écrans, a11y, mesures Playwright | À rédiger — mesures faites (34 champs sans label, focus initial absent en étape 1 du wizard, wizard sans retour arrière) |
+| 06 | Architecture & code | Couches, code mort, dette | À rédiger — matière collectée |
+| 08 | Git & projets distants | Cycle de vie Git | À rédiger — matière collectée |
+| 09 | Build Android, signature, publication | Chaîne Capacitor→Play, iOS | À rédiger — matière collectée |
+| 10 | Tests & qualité | Couverture, trous | À rédiger — mesures faites |
+| 11 | Perf, fiabilité, observabilité | Poids, résilience, logs | À rédiger — mesures faites |
+| 12 | Business & concurrence | Modèle, comparatif | À rédiger (recherche marché en cours) |
+| 13 | Backlog priorisé | P0→P4 | À rédiger |
+| 14 | Roadmap | 0-6 sem., 2-4 mois, 5-12 mois, 24-36 mois | À rédiger |
+| 15 | Rapport final | Verdict, Go/No-Go | À rédiger |
+
+Les documents « à rédiger » reposent sur des preuves **déjà collectées et vérifiées** dans cette session (exécutions, lectures de code avec `fichier:ligne`, mesures Playwright) ; il ne reste que la mise en forme.
+
 
 ## Verdict en une ligne
 
