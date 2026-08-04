@@ -25,7 +25,9 @@ Environnement d'audit : sandbox Linux x64, Node v22.22.0, npm 10.9.4. **Aucune v
 | 01 | [État des lieux](01-etat-des-lieux.md) | Dépôt, versions, scripts, commandes de validation exécutées | **Rédigé** |
 | 03 | [Inventaire fonctionnel](03-inventaire-fonctionnel.md) | Toutes les fonctionnalités, promesse UI vs réalité code | **Rédigé** |
 | 07 | [Electron & sécurité](07-audit-electron-securite.md) | Registre de vulnérabilités (V-00 à V-14) | **Rédigé** |
-| 02 | Audit produit | Proposition de valeur, cibles | À rédiger (recherche marché en cours) |
+| 12 | [Business & concurrence](12-audit-business-concurrence.md) | Comparatif sourcé, modèle économique | **Rédigé** |
+| 02 | Audit produit | Proposition de valeur, cibles | À rédiger (matière marché disponible dans 12) |
+
 | 04 | Parcours utilisateurs | Parcours A à J | À rédiger — matière collectée |
 | 05 | UX / UI / accessibilité | Écrans, a11y, mesures Playwright | À rédiger — mesures faites (34 champs sans label, focus initial absent en étape 1 du wizard, wizard sans retour arrière) |
 | 06 | Architecture & code | Couches, code mort, dette | À rédiger — matière collectée |
