@@ -18,34 +18,43 @@ Environnement d'audit : sandbox Linux x64, Node v22.22.0, npm 10.9.4. **Aucune v
 | `BROKEN` | Cassé |
 | `DEAD` | Code mort ou probablement inutilisé |
 
-## Sommaire et avancement
+## Sommaire
 
 | # | Document | Portée | État |
 | --- | --- | --- | --- |
 | 01 | [État des lieux](01-etat-des-lieux.md) | Dépôt, versions, scripts, commandes de validation exécutées | **Rédigé** |
+| 02 | [Audit produit](02-audit-produit.md) | Promesse vs réalité, proposition de valeur, cibles, 7 principes | **Rédigé** |
 | 03 | [Inventaire fonctionnel](03-inventaire-fonctionnel.md) | Toutes les fonctionnalités, promesse UI vs réalité code | **Rédigé** |
+| 04 | [Parcours utilisateurs](04-audit-parcours-utilisateurs.md) | Parcours A à J et premier point de rupture | **Rédigé** |
+| 05 | [UX / UI / accessibilité](05-audit-ux-ui-accessibilite.md) | 14 écrans, densité, a11y mesurée | **Rédigé** |
+| 06 | [Architecture & code](06-audit-architecture-code.md) | Couches, volumétrie, code mort, dette | **Rédigé** |
 | 07 | [Electron & sécurité](07-audit-electron-securite.md) | Registre de vulnérabilités (V-00 à V-14) | **Rédigé** |
+| 08 | [Git & projets distants](08-audit-git-projets-distants.md) | Cycle de vie Git, tests rouges, autonomie du dépôt | **Rédigé** |
+| 09 | [Build Android, signature, publication](09-audit-build-android-publication.md) | Chaîne Capacitor→Play, versionCode, iOS | **Rédigé** |
+| 10 | [Tests & qualité](10-audit-tests-qualite.md) | Mesures d'exécution, couverture par domaine | **Rédigé** |
+| 11 | [Perf, fiabilité, observabilité](11-audit-performance-fiabilite-observabilite.md) | Poids, résilience, logs | **Rédigé** |
 | 12 | [Business & concurrence](12-audit-business-concurrence.md) | Comparatif sourcé, modèle économique | **Rédigé** |
-| 02 | Audit produit | Proposition de valeur, cibles | À rédiger (matière marché disponible dans 12) |
+| 13 | [Backlog priorisé](13-backlog-priorise.md) | 31 constats, P0→P4, définitions de « terminé » | **Rédigé** |
+| 14 | [Roadmap](14-roadmap.md) | 0-6 sem., 2-4 mois, 5-12 mois, 24-36 mois | **Rédigé** |
+| 15 | [Rapport final](15-rapport-final.md) | Verdict, Go/No-Go | **Rédigé** |
 
-| 04 | Parcours utilisateurs | Parcours A à J | À rédiger — matière collectée |
-| 05 | UX / UI / accessibilité | Écrans, a11y, mesures Playwright | À rédiger — mesures faites (34 champs sans label, focus initial absent en étape 1 du wizard, wizard sans retour arrière) |
-| 06 | Architecture & code | Couches, code mort, dette | À rédiger — matière collectée |
-| 08 | Git & projets distants | Cycle de vie Git | À rédiger — matière collectée |
-| 09 | Build Android, signature, publication | Chaîne Capacitor→Play, iOS | À rédiger — matière collectée |
-| 10 | Tests & qualité | Couverture, trous | À rédiger — mesures faites |
-| 11 | Perf, fiabilité, observabilité | Poids, résilience, logs | À rédiger — mesures faites |
-| 12 | Business & concurrence | Modèle, comparatif | À rédiger (recherche marché en cours) |
-| 13 | Backlog priorisé | P0→P4 | À rédiger |
-| 14 | Roadmap | 0-6 sem., 2-4 mois, 5-12 mois, 24-36 mois | À rédiger |
-| 15 | Rapport final | Verdict, Go/No-Go | À rédiger |
-
-Les documents « à rédiger » reposent sur des preuves **déjà collectées et vérifiées** dans cette session (exécutions, lectures de code avec `fichier:ligne`, mesures Playwright) ; il ne reste que la mise en forme.
-
+Note : les documents initialement numérotés jusqu'à 15 couvrent l'intégralité du périmètre demandé ; aucun document n'est manquant.
 
 ## Verdict en une ligne
 
-**Alpha interne solide, non commercialisable en l'état** : l'ossature Electron est sérieusement pensée (allowlist d'exécution, isolation, redaction des logs), mais la chaîne de valeur promise — build Android signé puis publication — n'est **prouvée nulle part**, la publication store est **inexistante** (préparation uniquement), le paquet macOS est **non signé et non notarisé sans installeur**, et la porte de qualité (`npm run lint`, `npm test`) est **rouge**. Détail : [15-rapport-final.md](15-rapport-final.md).
+**Alpha interne solide, non commercialisable en l'état** : l'ossature Electron est sérieusement pensée (allowlist d'exécution, isolation, redaction des logs), mais la chaîne de valeur promise — build Android signé puis publication — n'est **prouvée nulle part**, la publication store est **inexistante** (préparation uniquement), la 2ᵉ release est cassée (`versionCode`), le paquet macOS est **non signé et non notarisé sans installeur**, et la porte de qualité (`npm run lint`, `npm test`) est **rouge**. Détail : [15-rapport-final.md](15-rapport-final.md).
+
+## Décompte des constats
+
+| Priorité | Nombre |
+| --- | --- |
+| P0 — bloque la distribution | 7 |
+| P1 — bloque la commercialisation | 10 |
+| P2 — dette structurante | 8 |
+| P3 — confort | 5 |
+| P4 — cosmétique | 1 |
+| **Total** | **31** |
+
 
 ## Limites de cet audit
 
