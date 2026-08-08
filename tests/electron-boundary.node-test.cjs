@@ -34,6 +34,9 @@ test("the renderer has no generic filesystem or secret-reading bridge", () => {
   assert.equal(preload.includes("git:run"), false);
   assert.match(preload, /android-preparation:inspect/);
   assert.match(preload, /android-preparation:createConfig/);
+  assert.match(preload, /android-preparation:beginRollbackGuard/);
+  assert.match(preload, /android-preparation:rollbackCreatedArtifacts/);
+  assert.match(preload, /android-preparation:completeRollbackGuard/);
   assert.equal(preload.includes("android-preparation:writeFile"), false);
   assert.match(preload, /aab:inspect/);
   assert.equal(preload.includes("aab:writeReport"), false);
@@ -59,6 +62,9 @@ test("the main process does not register removed generic IPC handlers", () => {
   const correctionApply = main.indexOf("androidCorrectionManager.apply(project, desired, token)");
   assert.ok(correctionBackup > 0, "Android corrections must create a native backup");
   assert.ok(correctionApply > correctionBackup, "the native backup must precede every correction");
+  assert.match(main, /android-preparation:beginRollbackGuard/);
+  assert.match(main, /android-preparation:rollbackCreatedArtifacts/);
+  assert.match(main, /android-preparation:completeRollbackGuard/);
 });
 
 test("the packaged page declares a restrictive content security policy", () => {

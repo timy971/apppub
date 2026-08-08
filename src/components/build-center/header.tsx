@@ -1,4 +1,12 @@
-import { Hammer, Loader2, CheckCircle2, XCircle, StopCircle, Clock } from "lucide-react";
+import {
+  Hammer,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  StopCircle,
+  Clock,
+  Smartphone,
+} from "lucide-react";
 import type { Project } from "@/core/types";
 import type { OperationSnapshot } from "@/core/operations/types";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +22,8 @@ interface Props {
   onCancel: () => void;
   onReset: () => void;
   canStart?: boolean;
+  canInitializeAndroid?: boolean;
+  onInitializeAndroid?: () => void;
 }
 
 export function BuildCenterHeader({
@@ -24,6 +34,8 @@ export function BuildCenterHeader({
   onCancel,
   onReset,
   canStart = true,
+  canInitializeAndroid = false,
+  onInitializeAndroid,
 }: Props) {
   const status = snap?.status ?? "idle";
   const isRunning = status === "running";
@@ -53,7 +65,13 @@ export function BuildCenterHeader({
           {isRunning || isFinished ? formatDuration(elapsedMs) : "—"}
         </div>
         <div className="flex items-center gap-2">
-          {!isRunning && !isFinished && (
+          {!isRunning && !isFinished && canInitializeAndroid && (
+            <Button size="lg" onClick={onInitializeAndroid}>
+              <Smartphone className="h-4 w-4" />
+              Créer le projet Android
+            </Button>
+          )}
+          {!isRunning && !isFinished && !canInitializeAndroid && (
             <Button
               size="lg"
               onClick={onStart}

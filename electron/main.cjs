@@ -1244,6 +1244,18 @@ ipcMain.handle("android-preparation:inspect", (_e, projectPath) =>
   androidPreparationManager.inspect(projectPath),
 );
 
+ipcMain.handle("android-preparation:beginRollbackGuard", (_e, projectPath, request) =>
+  androidPreparationManager.beginRollbackGuard(projectPath, request),
+);
+
+ipcMain.handle("android-preparation:rollbackCreatedArtifacts", (_e, projectPath, token) =>
+  androidPreparationManager.rollbackCreatedArtifacts(projectPath, token),
+);
+
+ipcMain.handle("android-preparation:completeRollbackGuard", (_e, projectPath, token) =>
+  androidPreparationManager.completeRollbackGuard(projectPath, token),
+);
+
 ipcMain.handle("android-preparation:createConfig", async (_e, projectPath, request) => {
   const project = resolveWithinAllowed(projectPath);
   if (!project) throw new Error("Projet non autorisé.");

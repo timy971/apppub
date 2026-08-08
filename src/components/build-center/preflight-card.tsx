@@ -11,12 +11,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CheckItem } from "./check-item";
-import { AndroidCreateDialog } from "./android-create-dialog";
 import { cn } from "@/lib/utils";
 
 interface Props {
   project: Project;
   onReady: (ready: boolean) => void;
+  onAndroidInitializationAvailable: (available: boolean) => void;
+  onInitializeAndroid: () => void;
+  refreshToken?: number;
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -27,11 +29,16 @@ const CATEGORY_LABEL: Record<string, string> = {
   capacitor: "Capacitor",
 };
 
-export function PreflightCard({ project, onReady }: Props) {
+export function PreflightCard({
+  project,
+  onReady,
+  onAndroidInitializationAvailable,
+  onInitializeAndroid,
+  refreshToken = 0,
+}: Props) {
   const [state, setState] = useState<BuildPreflight | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyCheckId, setBusyCheckId] = useState<string | null>(null);
-  const [createAndroidOpen, setCreateAndroidOpen] = useState(false);
   const navigate = useNavigate();
 
   const refresh = useCallback(async () => {
@@ -40,10 +47,13 @@ export function PreflightCard({ project, onReady }: Props) {
       const result = await PreflightService.run(project);
       setState(result);
       onReady(result.ok);
+      onAndroidInitializationAvailable(
+        result.checks.some((check) => check.fix?.kind === "create-android"),
+      );
     } finally {
       setLoading(false);
     }
-  }, [project, onReady]);
+  }, [project, onAndroidInitializationAvailable, onReady, refreshToken]);
 
   useEffect(() => {
     void refresh();
@@ -105,7 +115,7 @@ export function PreflightCard({ project, onReady }: Props) {
             return;
           }
           case "create-android": {
-            setCreateAndroidOpen(true);
+            onInitializeAndroid();
             return;
           }
         }
@@ -114,7 +124,7 @@ export function PreflightCard({ project, onReady }: Props) {
         setBusyCheckId(null);
       }
     },
-    [navigate, project, refresh],
+    [navigate, onInitializeAndroid, project, refresh],
   );
 
   const tone = state?.hasBlockers
@@ -124,8 +134,7 @@ export function PreflightCard({ project, onReady }: Props) {
       : "border-success/30";
 
   return (
-    <>
-      <Card className={cn("p-5 shadow-soft", tone)}>
+    <Card className={cn("p-5 shadow-soft", tone)}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="mt-0.5">
@@ -179,17 +188,6 @@ export function PreflightCard({ project, onReady }: Props) {
             ))}
           </div>
         )}
-      </Card>
-
-      <AndroidCreateDialog
-        project={project}
-        open={createAndroidOpen}
-        onOpenChange={setCreateAndroidOpen}
-        onSuccess={() => {
-          void refresh();
-          toast.success("Projet Android prêt.");
-        }}
-      />
-    </>
+    </Card>
   );
 }

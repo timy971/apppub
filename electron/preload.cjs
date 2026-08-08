@@ -133,6 +133,12 @@ contextBridge.exposeInMainWorld("appPublisher", {
 
   androidPreparation: {
     inspect: (projectPath) => inv("android-preparation:inspect", projectPath),
+    beginRollbackGuard: (projectPath, request) =>
+      inv("android-preparation:beginRollbackGuard", projectPath, request),
+    rollbackCreatedArtifacts: (projectPath, token) =>
+      inv("android-preparation:rollbackCreatedArtifacts", projectPath, token),
+    completeRollbackGuard: (projectPath, token) =>
+      inv("android-preparation:completeRollbackGuard", projectPath, token),
     createConfig: (projectPath, request) =>
       inv("android-preparation:createConfig", projectPath, request),
   },

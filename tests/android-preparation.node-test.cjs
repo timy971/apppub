@@ -41,6 +41,25 @@ test("classifies a Vite repository as preparable and infers safe defaults", (t) 
   assert.equal(analysis.applicationId, "app.cranioscan.android");
   assert.equal(analysis.webDir, "dist");
   assert.ok(analysis.changes.some((change) => change.includes("capacitor.config.json")));
+  assert.ok(analysis.changes.some((change) => change.includes("7.6.8")));
+});
+
+test("classifies a Lovable Vite export without Capacitor or android as preparable", (t) => {
+  const { project } = projectFixture(t, {
+    name: "lovable-new-app",
+    private: true,
+    scripts: { build: "vite build" },
+    dependencies: { react: "18.3.1" },
+    devDependencies: { vite: "8.0.16" },
+  });
+  fs.writeFileSync(path.join(project, "bun.lock"), "");
+
+  const analysis = inspectAndroidPreparation(project);
+  assert.equal(analysis.status, "preparable");
+  assert.equal(analysis.hasAndroid, false);
+  assert.equal(analysis.hasCapacitorConfig, false);
+  assert.equal(analysis.packageManager, "npm");
+  assert.equal(analysis.webDir, "dist");
 });
 
 test("blocks server-rendered Next.js projects and incomplete Android folders", (t) => {
@@ -135,4 +154,51 @@ test("warns when a repository documents environment variables without a local en
   const analysis = inspectAndroidPreparation(project);
   assert.equal(analysis.status, "preparable");
   assert.match(analysis.warnings.join(" "), /\.env\.example/);
+});
+
+test("rollback guard removes only artifacts created during Android preparation", (t) => {
+  const { project, manager } = projectFixture(t, {
+    name: "rollback-app",
+    scripts: { build: "vite build" },
+  });
+  fs.writeFileSync(path.join(project, "bun.lock"), "keep");
+  const request = {
+    appName: "Rollback App",
+    applicationId: "app.rollback.android",
+    webDir: "dist",
+  };
+  const { token } = manager.beginRollbackGuard(project, request);
+
+  fs.mkdirSync(path.join(project, "android"), { recursive: true });
+  fs.mkdirSync(path.join(project, "node_modules"), { recursive: true });
+  fs.mkdirSync(path.join(project, "dist"), { recursive: true });
+  fs.writeFileSync(path.join(project, "capacitor.config.json"), "{}");
+  fs.writeFileSync(path.join(project, "package-lock.json"), "{}");
+
+  const result = manager.rollbackCreatedArtifacts(project, token);
+  assert.deepEqual(
+    new Set(result.removed),
+    new Set(["android", "node_modules", "package-lock.json", "capacitor.config.json", "dist"]),
+  );
+  assert.equal(fs.existsSync(path.join(project, "android")), false);
+  assert.equal(fs.existsSync(path.join(project, "package-lock.json")), false);
+  assert.equal(fs.readFileSync(path.join(project, "bun.lock"), "utf8"), "keep");
+  assert.throws(() => manager.rollbackCreatedArtifacts(project, token), /invalide ou expirée/);
+});
+
+test("completed rollback guards cannot later delete a successful Android project", (t) => {
+  const { project, manager } = projectFixture(t, {
+    name: "completed-app",
+    scripts: { build: "vite build" },
+  });
+  const request = {
+    appName: "Completed App",
+    applicationId: "app.completed.android",
+    webDir: "dist",
+  };
+  const { token } = manager.beginRollbackGuard(project, request);
+  fs.mkdirSync(path.join(project, "android"));
+  assert.deepEqual(manager.completeRollbackGuard(project, token), { completed: true });
+  assert.throws(() => manager.rollbackCreatedArtifacts(project, token), /invalide ou expirée/);
+  assert.equal(fs.existsSync(path.join(project, "android")), true);
 });

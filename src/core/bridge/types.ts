@@ -257,6 +257,12 @@ export interface SystemBridge {
 
   androidPreparation: {
     inspect(projectPath: string): Promise<AndroidPreparationAnalysis>;
+    beginRollbackGuard(
+      projectPath: string,
+      request: AndroidPreparationRequest,
+    ): Promise<{ token: string }>;
+    rollbackCreatedArtifacts(projectPath: string, token: string): Promise<{ removed: string[] }>;
+    completeRollbackGuard(projectPath: string, token: string): Promise<{ completed: boolean }>;
     createConfig(
       projectPath: string,
       request: AndroidPreparationRequest,
