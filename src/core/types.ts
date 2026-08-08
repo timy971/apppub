@@ -164,6 +164,48 @@ export interface HealthCheck {
 export type PublishOutcome = "success" | "failure";
 export type PublishKind = "version" | "build" | "publish";
 
+export type AabValidationVerdict = "ready" | "warnings" | "blocked";
+export type AabIssueSeverity = "warning" | "error";
+
+export interface AabValidationIssue {
+  id: string;
+  severity: AabIssueSeverity;
+  title: string;
+  detail: string;
+}
+
+export interface AabExpectedIdentity {
+  packageName?: string;
+  versionName?: string;
+  versionCode?: number;
+  signerSha256?: string;
+}
+
+export interface AabValidationReport {
+  schemaVersion: 1;
+  inspectedAt: string;
+  verdict: AabValidationVerdict;
+  packageName?: string;
+  versionName?: string;
+  versionCode?: number;
+  minSdk?: number;
+  targetSdk?: number;
+  modules: string[];
+  artifactSha256?: string;
+  artifactSizeBytes: number;
+  signatureValid: boolean;
+  signerSha256?: string;
+  signerCertificate?: string;
+  expected: AabExpectedIdentity;
+  bundletool: {
+    status: "passed" | "failed" | "unavailable";
+    version?: string;
+    detail?: string;
+  };
+  issues: AabValidationIssue[];
+  reportPath?: string;
+}
+
 export interface PublishRecord {
   id: UUID;
   projectId: UUID;
@@ -179,6 +221,10 @@ export interface PublishRecord {
   kind?: PublishKind;
   artifactPath?: string;
   artifactSizeBytes?: number;
+  /** Rapport d'identité et de validité produit à partir de l'AAB réel. */
+  aabValidation?: AabValidationReport;
+  /** Copie JSON exportable du rapport, enregistrée à côté de l'AAB. */
+  aabReportPath?: string;
   /** Commit exact du dépôt ayant servi au build, lorsqu'il existe. */
   sourceCommit?: string;
   /** Signale qu'un build Git contenait aussi des changements non commités. */

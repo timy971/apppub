@@ -1,10 +1,10 @@
-import type { Project } from "@/core/types";
+import type { AabValidationReport, Project } from "@/core/types";
 import { bridge } from "@/core/bridge";
 import { JournalService } from "@/core/journal/logger";
 import { SigningInjector } from "./signing-injector";
 import { SigningValidator } from "@/features/android-signing/services/signing-validator";
-import { ProfilesStore } from "@/features/android-signing/storage/profiles-store";
 import { dependencyInstall, webBuild } from "@/core/capacitor/service";
+import { AabValidationService } from "@/core/aab/service";
 
 /**
  * BuildService — orchestre la construction Android.
@@ -27,6 +27,9 @@ export interface BuildResult {
   signed?: boolean;
   signingProfileName?: string;
   signatureSha256?: string;
+  artifactSha256?: string;
+  aabValidation?: AabValidationReport;
+  aabReportPath?: string;
   sourceCommit?: string;
   sourceDirty?: boolean;
 }
@@ -96,6 +99,21 @@ export const BuildService = {
         opts.onStep(id, "success", "Terminé.");
       }
       const name = `${project.name.toLowerCase().replace(/\s+/g, "-")}-v${project.currentVersion}.aab`;
+      opts.onStep("validation", "running", "Contrôle de l'identité Android…");
+      const validation = await AabValidationService.inspect(project, name, { persistReport: true });
+      opts.onStep(
+        "validation",
+        validation.verdict === "blocked"
+          ? "error"
+          : validation.verdict === "warnings"
+            ? "warning"
+            : "success",
+        validation.verdict === "blocked"
+          ? "AAB bloqué pour Google Play."
+          : validation.verdict === "warnings"
+            ? "AAB construit avec des avertissements."
+            : "AAB prêt pour Google Play.",
+      );
       return {
         aabPath: name,
         aabSize: 42_000_000,
@@ -103,6 +121,10 @@ export const BuildService = {
         succeeded: true,
         sourceCommit: project.source?.headSha,
         sourceDirty: project.source?.workingTree === "dirty",
+        artifactSha256: validation.artifactSha256,
+        signatureSha256: validation.signerSha256,
+        aabValidation: validation,
+        aabReportPath: validation.reportPath,
       };
     }
 
@@ -339,40 +361,55 @@ export const BuildService = {
       throw new Error("Le fichier AAB produit est vide ou illisible.");
     }
     diagnostic(`✓ AAB trouvé : ${aab} (${stat.size} octets)`);
-    const verified = await b.signing.verifyAab(aab);
-    if (!verified.ok) {
-      opts.onStep("artifact", "error", "La vérification de signature du fichier AAB a échoué.");
-      throw new Error(verified.errorHint ?? "La signature du fichier AAB n'est pas valide.");
-    }
-    diagnostic(`✓ Signature AAB vérifiée avec jarsigner`);
-    if (verified.certificate) diagnostic(`✓ Certificat : ${verified.certificate}`);
-    if (verified.sha256) diagnostic(`✓ Empreinte SHA-256 : ${verified.sha256}`);
-    const profile = ProfilesStore.get(prep.preparation.profileId);
-    const expectedSha = profile?.certificate?.sha256?.replace(/\s+/g, "").toUpperCase();
-    if (expectedSha && verified.sha256 && expectedSha !== verified.sha256) {
-      opts.onStep(
-        "artifact",
-        "error",
-        "Le certificat de l'AAB ne correspond pas au profil de signature.",
+    opts.onStep("artifact", "success", "AAB trouvé et non vide.");
+
+    // 7. Inspection complète de l'AAB réel. Cette étape ne modifie jamais le
+    // projet : elle lit le manifeste, vérifie la signature, calcule le hash du
+    // fichier et produit un rapport JSON à côté de l'artefact.
+    abortIfNeeded(signal);
+    opts.onStep("validation", "running", "Contrôle du package, de la version et de la clé…");
+    const validation = await AabValidationService.inspect(project, aab, { persistReport: true });
+    diagnostic(`### Rapport AAB : ${validation.verdict}`);
+    diagnostic(`Package : ${validation.packageName ?? "illisible"}`);
+    diagnostic(`Version : ${validation.versionName ?? "?"} (${validation.versionCode ?? "?"})`);
+    diagnostic(`SDK : min ${validation.minSdk ?? "?"} · cible ${validation.targetSdk ?? "?"}`);
+    diagnostic(`SHA-256 AAB : ${validation.artifactSha256 ?? "indisponible"}`);
+    diagnostic(`SHA-256 certificat : ${validation.signerSha256 ?? "indisponible"}`);
+    diagnostic(`Bundletool : ${validation.bundletool.status}`);
+    for (const issue of validation.issues) {
+      diagnostic(
+        `${issue.severity === "error" ? "✗" : "!"} ${issue.title} — ${issue.detail}`,
+        issue.severity === "error" ? "error" : "info",
       );
-      throw new Error(
-        `L'empreinte SHA-256 de l'AAB ne correspond pas au profil « ${prep.preparation.profileName} ».`,
-      );
     }
-    if (expectedSha) diagnostic(`✓ Empreinte conforme au profil`);
-    opts.onStep("artifact", "success", "AAB trouvé et signature vérifiée.");
+    opts.onStep(
+      "validation",
+      validation.verdict === "blocked"
+        ? "error"
+        : validation.verdict === "warnings"
+          ? "warning"
+          : "success",
+      validation.verdict === "blocked"
+        ? `${validation.issues.filter((issue) => issue.severity === "error").length} erreur(s) bloquante(s).`
+        : validation.verdict === "warnings"
+          ? `${validation.issues.length} avertissement(s) à contrôler.`
+          : "Package, version et signature conformes.",
+    );
 
     // Trace la dernière utilisation du profil (aucun secret impliqué).
-    SigningValidator.markUsed(prep.preparation.profileId);
+    if (validation.signatureValid) SigningValidator.markUsed(prep.preparation.profileId);
 
     return {
       aabPath: aab,
       aabSize: stat?.size,
       durationMs: performance.now() - start,
       succeeded: true,
-      signed: true,
+      signed: validation.signatureValid,
       signingProfileName: prep.preparation.profileName,
-      signatureSha256: verified.sha256,
+      signatureSha256: validation.signerSha256,
+      artifactSha256: validation.artifactSha256,
+      aabValidation: validation,
+      aabReportPath: validation.reportPath,
       sourceCommit,
       sourceDirty,
     };

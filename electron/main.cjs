@@ -59,6 +59,11 @@ const {
   AndroidPreparationManager,
   inspectAndroidPreparation,
 } = require("./android-preparation.cjs");
+const {
+  buildValidationReport,
+  inspectAabArchive,
+  normalizeFingerprint,
+} = require("./aab-inspector.cjs");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
 const activeExecutions = new ExecutionRegistry();
@@ -2059,10 +2064,7 @@ function runJdkTool(tool, args, timeoutMs = 60_000) {
   });
 }
 
-ipcMain.handle("signing:verifyAab", async (_e, inputPath) => {
-  const safe = resolveWithinAllowed(inputPath);
-  if (!safe)
-    return { ok: false, errorCode: "file-missing", errorHint: "Le fichier AAB est introuvable." };
+async function verifyAabSignature(safe) {
   let stat;
   try {
     stat = fs.statSync(safe);
@@ -2112,6 +2114,191 @@ ipcMain.handle("signing:verifyAab", async (_e, inputPath) => {
     };
   }
   return { ok: true, sha256, certificate: owner };
+}
+
+function runProcess(command, args, timeoutMs = 120_000) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { shell: false });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch {}
+      finish({ code: -1, stdout, stderr: `${stderr}\n[timeout]` });
+    }, timeoutMs);
+    child.stdout?.on("data", (data) => (stdout += data.toString()));
+    child.stderr?.on("data", (data) => (stderr += data.toString()));
+    child.on("error", (error) =>
+      finish({ code: -1, stdout, stderr: `${stderr}\n${String(error)}`, spawnError: error }),
+    );
+    child.on("close", (code) => finish({ code: code ?? -1, stdout, stderr }));
+  });
+}
+
+async function validateWithBundletool(aabPath) {
+  const candidates = [];
+  if (process.env.APPPUBLISHER_BUNDLETOOL_JAR) {
+    candidates.push(process.env.APPPUBLISHER_BUNDLETOOL_JAR);
+  }
+  if (process.resourcesPath)
+    candidates.push(path.join(process.resourcesPath, "tools", "bundletool.jar"));
+  try {
+    candidates.push(path.join(app.getAppPath(), "tools", "bundletool.jar"));
+  } catch {}
+
+  for (const candidate of [...new Set(candidates)]) {
+    try {
+      if (!fs.statSync(candidate).isFile()) continue;
+    } catch {
+      continue;
+    }
+    const versionResult = await runJdkTool("java", ["-jar", candidate, "version"]);
+    const version = `${versionResult.stdout}\n${versionResult.stderr}`.trim().split(/\r?\n/)[0];
+    const result = await runJdkTool("java", ["-jar", candidate, "validate", `--bundle=${aabPath}`]);
+    return result.code === 0
+      ? { status: "passed", version: version || undefined }
+      : {
+          status: "failed",
+          version: version || undefined,
+          detail: redactSensitiveText(`${result.stderr}\n${result.stdout}`).trim().slice(-2_000),
+        };
+  }
+
+  const probe = await runProcess(process.platform === "win32" ? "bundletool.exe" : "bundletool", [
+    "version",
+  ]);
+  if (probe.spawnError?.code === "ENOENT") return { status: "unavailable" };
+  if (probe.code !== 0) {
+    return {
+      status: "unavailable",
+      detail: "La commande bundletool est présente, mais ne peut pas être exécutée.",
+    };
+  }
+  const version = `${probe.stdout}\n${probe.stderr}`.trim().split(/\r?\n/)[0];
+  const result = await runProcess(process.platform === "win32" ? "bundletool.exe" : "bundletool", [
+    "validate",
+    `--bundle=${aabPath}`,
+  ]);
+  return result.code === 0
+    ? { status: "passed", version: version || undefined }
+    : {
+        status: "failed",
+        version: version || undefined,
+        detail: redactSensitiveText(`${result.stderr}\n${result.stdout}`).trim().slice(-2_000),
+      };
+}
+
+function safeExpectedAab(value) {
+  const cleanString = (candidate, max) =>
+    typeof candidate === "string" && candidate.trim().length <= max ? candidate.trim() : undefined;
+  const versionCode =
+    Number.isSafeInteger(value?.versionCode) && value.versionCode >= 0
+      ? value.versionCode
+      : undefined;
+  return {
+    packageName: cleanString(value?.packageName, 255),
+    versionName: cleanString(value?.versionName, 255),
+    versionCode,
+    signerSha256: normalizeFingerprint(cleanString(value?.signerSha256, 128)),
+  };
+}
+
+function writeAabReport(aabPath, report) {
+  const reportPath = `${aabPath}.apppublisher-report.json`;
+  const safePath = projectAccess.resolveForCreate(reportPath);
+  if (!safePath) throw new Error("Le rapport AAB ne peut pas être écrit hors du projet autorisé.");
+  const temporary = `${safePath}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    fs.writeFileSync(
+      temporary,
+      `${JSON.stringify({ ...report, reportPath: safePath }, null, 2)}\n`,
+      {
+        encoding: "utf8",
+        mode: 0o600,
+      },
+    );
+    fs.renameSync(temporary, safePath);
+  } catch (error) {
+    try {
+      fs.unlinkSync(temporary);
+    } catch {}
+    throw error;
+  }
+  return safePath;
+}
+
+function persistAabReport(aabPath, report) {
+  try {
+    report.reportPath = writeAabReport(aabPath, report);
+  } catch {
+    report.issues.push({
+      id: "report-write-failed",
+      severity: "warning",
+      title: "Rapport non exporté",
+      detail: "Le contrôle est terminé, mais sa copie JSON n'a pas pu être écrite à côté de l'AAB.",
+    });
+    if (report.verdict === "ready") report.verdict = "warnings";
+  }
+  return report;
+}
+
+ipcMain.handle("signing:verifyAab", async (_e, inputPath) => {
+  const safe = resolveWithinAllowed(inputPath);
+  if (!safe)
+    return { ok: false, errorCode: "file-missing", errorHint: "Le fichier AAB est introuvable." };
+  return verifyAabSignature(safe);
+});
+
+ipcMain.handle("aab:inspect", async (_e, request) => {
+  const safe = resolveWithinAllowed(request?.path);
+  if (!safe) throw new Error("Le fichier AAB est introuvable ou hors du projet autorisé.");
+  const inspectedAt = new Date().toISOString();
+  const expected = safeExpectedAab(request?.expected);
+  let archive;
+  try {
+    archive = inspectAabArchive(safe);
+  } catch (error) {
+    const stat = (() => {
+      try {
+        return fs.statSync(safe);
+      } catch {
+        return null;
+      }
+    })();
+    const report = {
+      schemaVersion: 1,
+      inspectedAt,
+      verdict: "blocked",
+      artifactSizeBytes: stat?.isFile() ? stat.size : 0,
+      signatureValid: false,
+      expected,
+      bundletool: { status: "unavailable" },
+      modules: [],
+      issues: [
+        {
+          id: "aab-unreadable",
+          severity: "error",
+          title: "AAB illisible",
+          detail: error instanceof Error ? error.message : String(error),
+        },
+      ],
+    };
+    return request?.persistReport ? persistAabReport(safe, report) : report;
+  }
+  const [signature, bundletool] = await Promise.all([
+    verifyAabSignature(safe),
+    validateWithBundletool(safe),
+  ]);
+  const report = buildValidationReport({ archive, signature, bundletool, expected, inspectedAt });
+  return request?.persistReport ? persistAabReport(safe, report) : report;
 });
 
 /* ==========================================================================

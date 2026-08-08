@@ -12,6 +12,8 @@ import type {
   ScannedProject,
   SystemInfo,
   GitRelation,
+  AabExpectedIdentity,
+  AabValidationReport,
 } from "@/core/types";
 
 export interface GitRemoteInfo {
@@ -154,6 +156,12 @@ export interface SigningAabVerifyResult {
   errorHint?: string;
 }
 
+export interface AabInspectionRequest {
+  path: string;
+  expected: AabExpectedIdentity;
+  persistReport?: boolean;
+}
+
 export type SigningStoredValidationResult = Omit<SigningKeystoreListResult, "errorCode"> & {
   errorCode?:
     | SigningKeystoreListResult["errorCode"]
@@ -250,6 +258,11 @@ export interface SystemBridge {
       projectPath: string,
       request: AndroidPreparationRequest,
     ): Promise<AndroidPreparationConfigResult>;
+  };
+
+  aab: {
+    /** Inspecte l'identité, la signature et la structure d'un Android App Bundle. */
+    inspect(request: AabInspectionRequest): Promise<AabValidationReport>;
   };
 
   gradle: {

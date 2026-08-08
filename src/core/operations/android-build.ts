@@ -1,4 +1,4 @@
-import type { Project } from "@/core/types";
+import type { AabValidationReport, Project } from "@/core/types";
 import { BuildService } from "@/core/build/service";
 import type { OperationDef } from "./runner";
 import type { StepStatus } from "./types";
@@ -37,7 +37,12 @@ export const ANDROID_BUILD_STEPS = [
   {
     id: "artifact",
     title: "Récupération du fichier final",
-    description: "Localisation, taille et validation du .aab produit.",
+    description: "Localisation et contrôle de la taille du .aab produit.",
+  },
+  {
+    id: "validation",
+    title: "Contrôle complet de l'AAB",
+    description: "Package, version, SDK, signature, empreinte et bundletool.",
   },
 ] as const;
 
@@ -48,6 +53,8 @@ export interface AndroidBuildResult {
   succeeded: boolean;
   sourceCommit?: string;
   sourceDirty?: boolean;
+  aabValidation?: AabValidationReport;
+  aabReportPath?: string;
 }
 
 /**

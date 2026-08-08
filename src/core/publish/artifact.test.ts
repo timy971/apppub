@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   runtime: "electron" as "electron" | "web",
   stat: vi.fn(),
-  verifyAab: vi.fn(),
+  inspectAab: vi.fn(),
 }));
 
 vi.mock("@/core/bridge", () => ({
   bridge: () => ({
     runtime: mocks.runtime,
     fs: { stat: mocks.stat },
-    signing: { verifyAab: mocks.verifyAab },
+    aab: { inspect: mocks.inspectAab },
   }),
 }));
 
@@ -44,7 +44,17 @@ describe("verifyPublishArtifact", () => {
   beforeEach(() => {
     mocks.runtime = "electron";
     mocks.stat.mockReset().mockResolvedValue({ size: 2048, isFile: true, isDir: false });
-    mocks.verifyAab.mockReset().mockResolvedValue({ ok: true });
+    mocks.inspectAab.mockReset().mockResolvedValue({
+      schemaVersion: 1,
+      inspectedAt: "2026-08-03T00:00:00.000Z",
+      verdict: "ready",
+      modules: ["base"],
+      artifactSizeBytes: 2048,
+      signatureValid: true,
+      expected: {},
+      bundletool: { status: "passed" },
+      issues: [],
+    });
   });
 
   it("rejects stale build history", async () => {
@@ -61,7 +71,24 @@ describe("verifyPublishArtifact", () => {
   });
 
   it("rejects an unsigned or corrupted AAB", async () => {
-    mocks.verifyAab.mockResolvedValue({ ok: false, errorHint: "Signature absente." });
+    mocks.inspectAab.mockResolvedValue({
+      schemaVersion: 1,
+      inspectedAt: "2026-08-03T00:00:00.000Z",
+      verdict: "blocked",
+      modules: ["base"],
+      artifactSizeBytes: 2048,
+      signatureValid: false,
+      expected: {},
+      bundletool: { status: "passed" },
+      issues: [
+        {
+          id: "signature-invalid",
+          severity: "error",
+          title: "Signature invalide",
+          detail: "Signature absente.",
+        },
+      ],
+    });
     const result = await verifyPublishArtifact(project, [build()]);
     expect(result.status).toBe("invalid");
     expect(result.detail).toBe("Signature absente.");
