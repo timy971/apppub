@@ -1,12 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  Hammer,
-  Rocket,
-  GitBranch,
-  Archive,
-  CheckCircle2,
-  XCircle,
-} from "lucide-react";
+import { Hammer, Rocket, GitBranch, Archive, CheckCircle2, XCircle } from "lucide-react";
 import type { Project, ProjectBackup, PublishRecord } from "@/core/types";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,9 +65,7 @@ export function buildActivityEvents(
     detail: `${backup.files.length} fichier(s) sauvegardé(s)`,
     success: true,
   }));
-  return [...fromHistory, ...fromBackups].sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt),
-  );
+  return [...fromHistory, ...fromBackups].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 function reasonLabel(r: ProjectBackup["reason"]): string {
@@ -85,6 +76,8 @@ function reasonLabel(r: ProjectBackup["reason"]): string {
       return "Sauvegarde avant version";
     case "build":
       return "Sauvegarde avant build";
+    case "correction":
+      return "Sauvegarde avant correction Android";
     case "publish":
       return "Sauvegarde avant publication";
   }
@@ -138,18 +131,14 @@ export function ActivityTimeline({
     <Card className="p-6 shadow-soft">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-base font-semibold">Activité récente</h3>
-        <Link
-          to="/history"
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
+        <Link to="/history" className="text-xs text-muted-foreground hover:text-foreground">
           Tout l'historique →
         </Link>
       </div>
 
       {items.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          Aucune activité pour l'instant. Vos versions, builds et publications
-          apparaîtront ici.
+          Aucune activité pour l'instant. Vos versions, builds et publications apparaîtront ici.
         </p>
       ) : (
         <ol className="space-y-4">

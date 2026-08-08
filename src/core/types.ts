@@ -206,6 +206,41 @@ export interface AabValidationReport {
   reportPath?: string;
 }
 
+export interface AndroidCorrectionDesired {
+  packageName?: string;
+  versionName?: string;
+  versionCode?: number;
+  targetSdk?: number;
+}
+
+export interface AndroidCorrectionAction {
+  id: string;
+  kind: "package" | "version" | "sdk";
+  title: string;
+  file: string;
+  before: string;
+  after: string;
+  sensitive: boolean;
+}
+
+export interface AndroidCorrectionPlan {
+  token: string;
+  desired: AndroidCorrectionDesired;
+  actions: AndroidCorrectionAction[];
+  blocked: string[];
+  changedFiles: string[];
+  canApply: boolean;
+  sensitive: boolean;
+}
+
+export interface AndroidCorrectionResult {
+  applied: boolean;
+  cancelled?: boolean;
+  actions?: AndroidCorrectionAction[];
+  changedFiles?: string[];
+  backup?: { location: string; files: { path: string; size: number }[] };
+}
+
 export interface PublishRecord {
   id: UUID;
   projectId: UUID;
@@ -446,7 +481,7 @@ export interface ProjectBackup {
   id: UUID;
   projectId: UUID;
   createdAt: string;
-  reason: "version" | "build" | "publish" | "manual";
+  reason: "version" | "build" | "publish" | "correction" | "manual";
   /** Fichiers dont l'état a été mémorisé (chemin relatif au projet). */
   files: { path: string; size: number }[];
   /** Emplacement du snapshot sur disque (bridge Electron uniquement). */

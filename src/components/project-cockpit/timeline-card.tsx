@@ -40,9 +40,7 @@ export function TimelineCard({ project }: { project: Project }) {
         <h2 className="text-base font-semibold">Chronologie</h2>
       </div>
       {events.length === 0 ? (
-        <div className="text-sm text-muted-foreground">
-          Aucun événement pour le moment.
-        </div>
+        <div className="text-sm text-muted-foreground">Aucun événement pour le moment.</div>
       ) : (
         <ol className="relative space-y-4 border-l pl-5">
           {events.slice(0, 8).map((e) => (
@@ -59,9 +57,7 @@ export function TimelineCard({ project }: { project: Project }) {
                 <div className="min-w-0">
                   <div className="text-sm font-medium">{e.title}</div>
                   {e.detail && (
-                    <div className="text-xs text-muted-foreground truncate">
-                      {e.detail}
-                    </div>
+                    <div className="text-xs text-muted-foreground truncate">{e.detail}</div>
                   )}
                 </div>
                 <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
@@ -133,6 +129,8 @@ function labelForReason(reason: string): string {
       return "avant version";
     case "build":
       return "avant build";
+    case "correction":
+      return "avant correction Android";
     case "publish":
       return "avant publication";
     default:

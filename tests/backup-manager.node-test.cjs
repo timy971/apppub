@@ -59,3 +59,13 @@ test("refuses restoring files outside the fixed backup manifest", (t) => {
     /Métadonnées/,
   );
 });
+
+test("captures Android SDK variables for a correction snapshot", (t) => {
+  const { project, manager } = fixture(t);
+  fs.writeFileSync(
+    path.join(project, "android", "variables.gradle"),
+    "ext { targetSdkVersion = 35 }\n",
+  );
+  const snapshot = manager.create(project, "correction");
+  assert.ok(snapshot.files.some((file) => file.path === "android/variables.gradle"));
+});

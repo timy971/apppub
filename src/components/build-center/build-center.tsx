@@ -207,7 +207,13 @@ export function BuildCenter({ project }: Props) {
           )}
 
           {snap.status === "success" && (
-            <ResultCard project={project} snap={snap} elapsedMs={elapsedMs} stats={stats} />
+            <ResultCard
+              project={project}
+              snap={snap}
+              elapsedMs={elapsedMs}
+              stats={stats}
+              onCorrected={reset}
+            />
           )}
 
           {translated && <BuildErrorPanel error={translated} onRetry={reset} />}

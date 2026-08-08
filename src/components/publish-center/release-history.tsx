@@ -65,9 +65,7 @@ export function ReleaseHistoryCard({ project, history }: Props) {
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">{e.title}</div>
                   {e.detail && (
-                    <div className="text-xs text-muted-foreground truncate">
-                      {e.detail}
-                    </div>
+                    <div className="text-xs text-muted-foreground truncate">{e.detail}</div>
                   )}
                 </div>
                 <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
@@ -136,6 +134,8 @@ function labelReason(reason: string): string {
       return "avant version";
     case "build":
       return "avant build";
+    case "correction":
+      return "avant correction Android";
     case "publish":
       return "avant publication";
     default:

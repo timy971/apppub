@@ -222,6 +222,37 @@ export const webBridge: SystemBridge = {
     },
   },
 
+  androidCorrections: {
+    async preview(_projectPath, desired) {
+      const actions = Object.entries(desired).map(([key, value]) => ({
+        id: `preview:${key}`,
+        kind:
+          key === "packageName"
+            ? ("package" as const)
+            : key === "targetSdk"
+              ? ("sdk" as const)
+              : ("version" as const),
+        title: `Corriger ${key}`,
+        file: key === "packageName" ? "capacitor.config.json" : "android/app/build.gradle",
+        before: "valeur actuelle",
+        after: String(value),
+        sensitive: key === "packageName",
+      }));
+      return {
+        token: "web-preview-token",
+        desired,
+        actions,
+        blocked: [],
+        changedFiles: [...new Set(actions.map((action) => action.file))],
+        canApply: actions.length > 0,
+        sensitive: actions.some((action) => action.sensitive),
+      };
+    },
+    async apply(_projectPath, _desired, _token) {
+      return { applied: true, actions: [], changedFiles: [] };
+    },
+  },
+
   aab: {
     async inspect(request) {
       const reportPath = request.persistReport
