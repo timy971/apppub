@@ -58,12 +58,17 @@ export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: 
   const snap = useOperationSnapshot(runner);
   const [now, setNow] = useState(() => performance.now());
   const completedRef = useRef<string | null>(null);
+  const recoveryRef = useRef<string | null>(null);
+  const transactionRef = useRef<{ backupId: string; guardToken: string } | null>(null);
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
 
   const inspect = useCallback(async () => {
     setAnalyzing(true);
     setAnalysisError(null);
     setGitBlocker(null);
     setRunner(null);
+    setRecoveryMessage(null);
+    transactionRef.current = null;
     setIdentifierConfirmed(false);
     try {
       const result = await CapacitorService.inspect(project.localPath);
@@ -105,11 +110,60 @@ export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: 
     completedRef.current = snap.id;
     const result = snap.result as { applicationId?: string } | undefined;
     void (async () => {
+      const transaction = transactionRef.current;
+      if (transaction) {
+        try {
+          await bridge().androidPreparation.completeRollbackGuard(
+            project.localPath,
+            transaction.guardToken,
+          );
+        } catch {
+          setRecoveryMessage(
+            "Android a été créé, mais la finalisation de la garde de restauration n’a pas pu être vérifiée.",
+          );
+        } finally {
+          transactionRef.current = null;
+        }
+      }
       await ProjectsService.refreshDetection(project.id, result?.applicationId);
       AppStore.refreshProjects();
       onSuccess();
     })();
-  }, [onSuccess, project.id, snap.id, snap.result, snap.status]);
+  }, [onSuccess, project.id, project.localPath, snap.id, snap.result, snap.status]);
+
+  useEffect(() => {
+    if (snap.status !== "error" && snap.status !== "cancelled") return;
+    if (recoveryRef.current === snap.id) return;
+    const transaction = transactionRef.current;
+    if (!transaction) return;
+    recoveryRef.current = snap.id;
+    setRecoveryMessage("Restauration automatique du projet en cours…");
+    void (async () => {
+      let restored = false;
+      let cleaned = false;
+      try {
+        restored = await BackupService.restore(project, transaction.backupId);
+      } catch {
+        restored = false;
+      }
+      try {
+        await bridge().androidPreparation.rollbackCreatedArtifacts(
+          project.localPath,
+          transaction.guardToken,
+        );
+        cleaned = true;
+      } catch {
+        cleaned = false;
+      } finally {
+        transactionRef.current = null;
+      }
+      setRecoveryMessage(
+        restored && cleaned
+          ? "Le projet a été restauré dans son état initial."
+          : "La restauration automatique n’a pas pu être entièrement vérifiée. La sauvegarde reste disponible dans la fiche du projet.",
+      );
+    })();
+  }, [project, snap.id, snap.status]);
 
   const translated = useMemo(
     () => (snap.status === "error" ? translateError(snap.error) : null),
@@ -139,7 +193,12 @@ export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: 
       packageManager: analysis.packageManager,
     };
     try {
-      await BackupService.create(project, "manual");
+      const backup = await BackupService.create(project, "manual");
+      const guard = await bridge().androidPreparation.beginRollbackGuard(
+        project.localPath,
+        request,
+      );
+      transactionRef.current = { backupId: backup.id, guardToken: guard.token };
       const next = new OperationRunner(createAndroidCreateOperation(project, request));
       setRunner(next);
       void next.run();
@@ -345,8 +404,12 @@ export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: 
             )}
             {snap.status === "cancelled" && (
               <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
-                La préparation Android a été interrompue. La sauvegarde créée avant l’opération est
-                disponible dans la fiche du projet.
+                La préparation Android a été interrompue.
+              </div>
+            )}
+            {recoveryMessage && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                {recoveryMessage}
               </div>
             )}
             <LogConsole logs={snap.logs} mode={settings.mode} />

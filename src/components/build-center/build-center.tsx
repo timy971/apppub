@@ -21,6 +21,7 @@ import { BuildErrorPanel } from "./error-panel";
 import { LiveStatus } from "./live-status";
 import { BuildTips } from "./build-tips";
 import { PreflightCard } from "./preflight-card";
+import { AndroidCreateDialog } from "./android-create-dialog";
 
 interface Props {
   project: Project;
@@ -42,6 +43,11 @@ export function BuildCenter({ project }: Props) {
   const [now, setNow] = useState<number>(() => performance.now());
   const recordedRef = useRef<string | null>(null);
   const [preflightReady, setPreflightReady] = useState(false);
+  const [androidInitializationAvailable, setAndroidInitializationAvailable] = useState(
+    !project.detected.hasAndroid && project.detected.androidReadiness !== "blocked",
+  );
+  const [androidCreateOpen, setAndroidCreateOpen] = useState(false);
+  const [preflightRevision, setPreflightRevision] = useState(0);
 
   // Chronomètre à 1Hz — suffit pour l'affichage humain, économe en CPU.
   useEffect(() => {
@@ -186,6 +192,8 @@ export function BuildCenter({ project }: Props) {
         onCancel={cancel}
         onReset={reset}
         canStart={preflightReady}
+        canInitializeAndroid={androidInitializationAvailable}
+        onInitializeAndroid={() => setAndroidCreateOpen(true)}
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -201,7 +209,13 @@ export function BuildCenter({ project }: Props) {
             </>
           ) : (
             <>
-              <PreflightCard project={project} onReady={setPreflightReady} />
+              <PreflightCard
+                project={project}
+                onReady={setPreflightReady}
+                onAndroidInitializationAvailable={setAndroidInitializationAvailable}
+                onInitializeAndroid={() => setAndroidCreateOpen(true)}
+                refreshToken={preflightRevision}
+              />
               <IntroCard />
             </>
           )}
@@ -228,6 +242,17 @@ export function BuildCenter({ project }: Props) {
       </div>
 
       {runner && <LogConsole logs={snap.logs} mode={settings.mode} />}
+
+      <AndroidCreateDialog
+        project={project}
+        open={androidCreateOpen}
+        onOpenChange={setAndroidCreateOpen}
+        onSuccess={() => {
+          setAndroidInitializationAvailable(false);
+          setPreflightRevision((value) => value + 1);
+          toast.success("Projet Android créé. Configurez maintenant la clé de signature.");
+        }}
+      />
     </div>
   );
 }

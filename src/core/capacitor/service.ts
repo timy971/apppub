@@ -32,6 +32,13 @@ export interface PrepareAndroidResult {
   applicationId: string;
 }
 
+export const CERTIFIED_CAPACITOR_VERSION = "7.6.8";
+const CERTIFIED_CAPACITOR_PACKAGES = [
+  "@capacitor/cli",
+  "@capacitor/android",
+  "@capacitor/core",
+].map((name) => `${name}@${CERTIFIED_CAPACITOR_VERSION}`);
+
 function abortIfNeeded(signal?: AbortSignal) {
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 }
@@ -71,11 +78,15 @@ export function dependencyInstall(manager: SupportedPackageManager): {
   return { cmd: manager, args: ["install"] };
 }
 
-function capacitorInstall(manager: SupportedPackageManager): { cmd: string; args: string[] } {
-  const packages = ["@capacitor/cli", "@capacitor/android", "@capacitor/core"];
-  return manager === "npm"
-    ? { cmd: "npm", args: ["install", ...packages] }
-    : { cmd: manager, args: ["add", ...packages] };
+export function capacitorInstall(manager: SupportedPackageManager): {
+  cmd: string;
+  args: string[];
+} {
+  if (manager === "npm") {
+    return { cmd: "npm", args: ["install", "--save-exact", ...CERTIFIED_CAPACITOR_PACKAGES] };
+  }
+  const exactFlag = manager === "pnpm" ? "--save-exact" : "--exact";
+  return { cmd: manager, args: ["add", exactFlag, ...CERTIFIED_CAPACITOR_PACKAGES] };
 }
 
 export function webBuild(manager: SupportedPackageManager): { cmd: string; args: string[] } {
@@ -186,7 +197,7 @@ export const CapacitorService = {
       );
     }
     if (!analysis.hasCapacitorCore || !analysis.hasCapacitorCli || !analysis.hasCapacitorAndroid) {
-      opts.onLine?.("Installation des composants Capacitor Android…");
+      opts.onLine?.(`Installation de Capacitor ${CERTIFIED_CAPACITOR_VERSION} certifié…`);
       const capInstall = capacitorInstall(request.packageManager);
       const capInstalled = await exec(
         project,

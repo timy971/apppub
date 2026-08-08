@@ -87,6 +87,12 @@ export const electronBridge: SystemBridge = {
 
   androidPreparation: {
     inspect: (projectPath) => ensure().androidPreparation.inspect(projectPath),
+    beginRollbackGuard: (projectPath, request) =>
+      ensure().androidPreparation.beginRollbackGuard(projectPath, request),
+    rollbackCreatedArtifacts: (projectPath, token) =>
+      ensure().androidPreparation.rollbackCreatedArtifacts(projectPath, token),
+    completeRollbackGuard: (projectPath, token) =>
+      ensure().androidPreparation.completeRollbackGuard(projectPath, token),
     createConfig: (projectPath, request) =>
       ensure().androidPreparation.createConfig(projectPath, request),
   },

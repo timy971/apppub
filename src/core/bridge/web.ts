@@ -220,6 +220,15 @@ export const webBridge: SystemBridge = {
     async createConfig(projectPath) {
       return { created: true, path: `${projectPath}/capacitor.config.json` };
     },
+    async beginRollbackGuard() {
+      return { token: "web-android-rollback-guard" };
+    },
+    async rollbackCreatedArtifacts() {
+      return { removed: [] };
+    },
+    async completeRollbackGuard() {
+      return { completed: true };
+    },
   },
 
   androidCorrections: {

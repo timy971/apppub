@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const CAPACITOR_CONFIG_FILES = Object.freeze([
   "capacitor.config.json",
@@ -16,6 +17,17 @@ const PACKAGE_MANAGERS = Object.freeze([
 ]);
 
 const APPLICATION_ID = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
+const CERTIFIED_CAPACITOR_VERSION = "7.6.8";
+const ROLLBACK_CANDIDATES = Object.freeze([
+  "android",
+  "node_modules",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb",
+  ...CAPACITOR_CONFIG_FILES,
+]);
 
 function readTextSafe(filePath, fsModule = fs) {
   try {
@@ -213,7 +225,7 @@ function inspectAndroidPreparation(projectPath, fsModule = fs) {
   if (status === "preparable") {
     changes.push(`Installer les dépendances avec ${manager}`);
     if (!hasCapacitorCore || !hasCapacitorCli || !hasCapacitorAndroid) {
-      changes.push("Ajouter @capacitor/core, @capacitor/cli et @capacitor/android");
+      changes.push(`Ajouter Capacitor ${CERTIFIED_CAPACITOR_VERSION} (version certifiée)`);
     }
     if (!config) changes.push("Créer capacitor.config.json");
     changes.push(`Exécuter le build web vers ${webDir}/`);
@@ -261,6 +273,8 @@ class AndroidPreparationManager {
   constructor(accessRegistry, options = {}) {
     this.access = accessRegistry;
     this.fs = options.fsModule ?? fs;
+    this.randomBytes = options.randomBytes ?? crypto.randomBytes;
+    this.rollbackGuards = new Map();
   }
 
   resolveProject(projectPath) {
@@ -275,6 +289,49 @@ class AndroidPreparationManager {
 
   inspect(projectPath) {
     return inspectAndroidPreparation(this.resolveProject(projectPath), this.fs);
+  }
+
+  beginRollbackGuard(projectPath, input) {
+    const project = this.resolveProject(projectPath);
+    const validated = validatePreparationInput(input);
+    const webDir = safeWebDir(validated.webDir);
+    const candidates = [...ROLLBACK_CANDIDATES, webDir].filter(
+      (value, index, values) => values.indexOf(value) === index,
+    );
+    const existed = Object.fromEntries(
+      candidates.map((relative) => [relative, this.fs.existsSync(path.join(project, relative))]),
+    );
+    const token = this.randomBytes(24).toString("hex");
+    this.rollbackGuards.set(token, { project, existed });
+    return { token };
+  }
+
+  rollbackCreatedArtifacts(projectPath, token) {
+    const project = this.resolveProject(projectPath);
+    const guard = this.rollbackGuards.get(token);
+    if (!guard || guard.project !== project) {
+      throw new Error("Garde de restauration Android invalide ou expirée.");
+    }
+    this.rollbackGuards.delete(token);
+    const removed = [];
+    for (const [relative, existedBefore] of Object.entries(guard.existed)) {
+      if (existedBefore) continue;
+      const target = this.access.resolveExisting(path.join(project, relative));
+      if (!target) continue;
+      this.fs.rmSync(target, { recursive: true, force: true });
+      removed.push(relative);
+    }
+    return { removed };
+  }
+
+  completeRollbackGuard(projectPath, token) {
+    const project = this.resolveProject(projectPath);
+    const guard = this.rollbackGuards.get(token);
+    if (!guard || guard.project !== project) {
+      throw new Error("Garde de restauration Android invalide ou expirée.");
+    }
+    this.rollbackGuards.delete(token);
+    return { completed: true };
   }
 
   createConfig(projectPath, input) {
@@ -323,6 +380,7 @@ module.exports = {
   APPLICATION_ID,
   AndroidPreparationManager,
   CAPACITOR_CONFIG_FILES,
+  CERTIFIED_CAPACITOR_VERSION,
   inferWebDir,
   inspectAndroidPreparation,
   parseCapacitorConfig,

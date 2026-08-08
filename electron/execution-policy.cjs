@@ -11,35 +11,38 @@ function sameArgs(actual, expected) {
   );
 }
 
-const CAPACITOR_PACKAGES = ["@capacitor/cli", "@capacitor/android", "@capacitor/core"];
+const CERTIFIED_CAPACITOR_VERSION = "7.6.8";
+const CAPACITOR_PACKAGES = ["@capacitor/cli", "@capacitor/android", "@capacitor/core"].map(
+  (name) => `${name}@${CERTIFIED_CAPACITOR_VERSION}`,
+);
 
 function isPackageManagerWorkflow(command, args) {
   if (["npm", "npm.cmd"].includes(command)) {
     return (
       sameArgs(args, ["install"]) ||
       sameArgs(args, ["run", "build"]) ||
-      sameArgs(args, ["install", ...CAPACITOR_PACKAGES])
+      sameArgs(args, ["install", "--save-exact", ...CAPACITOR_PACKAGES])
     );
   }
   if (["pnpm", "pnpm.cmd"].includes(command)) {
     return (
       sameArgs(args, ["install"]) ||
       sameArgs(args, ["run", "build"]) ||
-      sameArgs(args, ["add", ...CAPACITOR_PACKAGES])
+      sameArgs(args, ["add", "--save-exact", ...CAPACITOR_PACKAGES])
     );
   }
   if (["yarn", "yarn.cmd"].includes(command)) {
     return (
       sameArgs(args, ["install"]) ||
       sameArgs(args, ["build"]) ||
-      sameArgs(args, ["add", ...CAPACITOR_PACKAGES])
+      sameArgs(args, ["add", "--exact", ...CAPACITOR_PACKAGES])
     );
   }
   if (["bun", "bun.exe"].includes(command)) {
     return (
       sameArgs(args, ["install"]) ||
       sameArgs(args, ["run", "build"]) ||
-      sameArgs(args, ["add", ...CAPACITOR_PACKAGES])
+      sameArgs(args, ["add", "--exact", ...CAPACITOR_PACKAGES])
     );
   }
   return false;
@@ -146,6 +149,7 @@ function validateExecutionRequest(opts, accessRegistry, options = {}) {
 
 module.exports = {
   CAPACITOR_PACKAGES,
+  CERTIFIED_CAPACITOR_VERSION,
   findProjectRoot,
   isPackageManagerWorkflow,
   sameArgs,

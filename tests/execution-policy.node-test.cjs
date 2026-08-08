@@ -74,7 +74,13 @@ test("allows only the exact Android preparation commands", (t) => {
   for (const request of [
     {
       cmd: "npm",
-      args: ["install", "@capacitor/cli", "@capacitor/android", "@capacitor/core"],
+      args: [
+        "install",
+        "--save-exact",
+        "@capacitor/cli@7.6.8",
+        "@capacitor/android@7.6.8",
+        "@capacitor/core@7.6.8",
+      ],
       cwd: project,
     },
     { cmd: "pnpm", args: ["run", "build"], cwd: project },
@@ -87,6 +93,17 @@ test("allows only the exact Android preparation commands", (t) => {
   assert.equal(
     validateExecutionRequest(
       { cmd: "npm", args: ["install", "malicious-package"], cwd: project },
+      access,
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateExecutionRequest(
+      {
+        cmd: "npm",
+        args: ["install", "@capacitor/cli", "@capacitor/android", "@capacitor/core"],
+        cwd: project,
+      },
       access,
     ).ok,
     false,
