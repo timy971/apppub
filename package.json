@@ -12,6 +12,8 @@
     "test": "vitest run && node --test tests/*.node-test.cjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
+    "lint:ci": "eslint . --quiet --rule 'prettier/prettier: off'",
+    "certify:android": "node scripts/certify-android-pipeline.cjs",
     "format": "prettier --write .",
     "sync:version": "node scripts/sync-version.cjs",
     "build:electron": "vite build --config vite.electron.config.ts",
