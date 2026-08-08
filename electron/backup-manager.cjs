@@ -3,29 +3,10 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { BACKUP_REASONS, SNAPSHOT_FILES, safeRelativeFile } = require("./backup-schema.cjs");
 
 const BACKUPS_FOLDER = ".apppublisher-backups";
-const SNAPSHOT_FILES = Object.freeze([
-  "version.json",
-  "package.json",
-  "package-lock.json",
-  "pnpm-lock.yaml",
-  "yarn.lock",
-  "bun.lock",
-  "bun.lockb",
-  "capacitor.config.json",
-  "capacitor.config.ts",
-  "capacitor.config.js",
-  "CHANGELOG.md",
-  "android/app/build.gradle",
-  "android/app/build.gradle.kts",
-  "android/variables.gradle",
-]);
-const REASONS = new Set(["build", "correction", "manual", "publish", "version"]);
-
-function safeRelativeFile(value) {
-  return typeof value === "string" && SNAPSHOT_FILES.includes(value);
-}
+const REASONS = new Set(BACKUP_REASONS);
 
 function makeStamp(now = new Date()) {
   return now.toISOString().replace(/[:.]/g, "-");

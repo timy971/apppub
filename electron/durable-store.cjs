@@ -1,5 +1,11 @@
 const fs = require("fs");
 const path = require("path");
+const {
+  BACKUP_REASONS,
+  MAX_STORED_BACKUPS,
+  SNAPSHOT_FILES,
+  safeRelativeFile,
+} = require("./backup-schema.cjs");
 
 const STORE_SCHEMA_VERSION = 1;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
@@ -51,6 +57,52 @@ function hasString(value, key) {
 
 function validArray(value, max, validator) {
   return Array.isArray(value) && value.length <= max && value.every(validator);
+}
+
+function validateBackupValue(value) {
+  if (!Array.isArray(value)) return "la liste des sauvegardes n'est pas un tableau";
+  if (value.length > MAX_STORED_BACKUPS) {
+    return `la liste contient plus de ${MAX_STORED_BACKUPS} sauvegardes`;
+  }
+
+  for (const [backupIndex, backup] of value.entries()) {
+    if (!isPlainObject(backup)) return `la sauvegarde ${backupIndex + 1} n'est pas un objet`;
+    for (const field of ["id", "projectId", "createdAt"]) {
+      if (!hasString(backup, field)) {
+        return `la sauvegarde ${backupIndex + 1} a un champ « ${field} » invalide`;
+      }
+    }
+    if (!BACKUP_REASONS.includes(backup.reason)) {
+      return `la sauvegarde ${backupIndex + 1} a un motif non pris en charge`;
+    }
+    if (!Array.isArray(backup.files)) {
+      return `la sauvegarde ${backupIndex + 1} n'a pas de liste de fichiers valide`;
+    }
+    if (backup.files.length > SNAPSHOT_FILES.length) {
+      return `la sauvegarde ${backupIndex + 1} contient plus de ${SNAPSHOT_FILES.length} fichiers`;
+    }
+    for (const [fileIndex, file] of backup.files.entries()) {
+      if (!isPlainObject(file)) {
+        return `le fichier ${fileIndex + 1} de la sauvegarde ${backupIndex + 1} est invalide`;
+      }
+      if (!safeRelativeFile(file.path)) {
+        const pathLabel = typeof file.path === "string" ? ` « ${file.path} »` : "";
+        return `le chemin${pathLabel} n'est pas sauvegardable`;
+      }
+      if (!Number.isSafeInteger(file.size) || file.size < 0) {
+        return `la taille de « ${file.path} » est invalide`;
+      }
+    }
+  }
+  return null;
+}
+
+function invalidStoredValueReason(key, value) {
+  if (!validateJsonValue(value)) return "la valeur n'est pas un document JSON sûr";
+  if (key === "backups") return validateBackupValue(value);
+  return validateStoredValue(key, value)
+    ? null
+    : "la structure ne correspond pas au schéma attendu";
 }
 
 function validateStoredValue(key, value) {
@@ -124,30 +176,7 @@ function validateStoredValue(key, value) {
     );
   }
   if (key === "backups") {
-    return validArray(
-      value,
-      20,
-      (backup) =>
-        hasString(backup, "id") &&
-        hasString(backup, "projectId") &&
-        hasString(backup, "createdAt") &&
-        ["version", "build", "publish", "manual"].includes(backup.reason) &&
-        validArray(
-          backup.files,
-          10,
-          (file) =>
-            hasString(file, "path") &&
-            [
-              "version.json",
-              "package.json",
-              "CHANGELOG.md",
-              "android/app/build.gradle",
-              "android/app/build.gradle.kts",
-            ].includes(file.path) &&
-            Number.isSafeInteger(file.size) &&
-            file.size >= 0,
-        ),
-    );
+    return validateBackupValue(value) === null;
   }
   if (key === "android-signing.profiles.v1") {
     return validArray(value, 100, (profile) => {
@@ -299,8 +328,9 @@ class DurableStore {
 
   set(key, value) {
     if (!ALLOWED_KEYS.has(key)) return { ok: false, error: "Clé de stockage interdite." };
-    if (!validateStoredValue(key, value)) {
-      return { ok: false, error: "Valeur de stockage invalide pour cette clé." };
+    const invalidReason = invalidStoredValueReason(key, value);
+    if (invalidReason) {
+      return { ok: false, error: `Valeur invalide pour « ${key} » : ${invalidReason}.` };
     }
     try {
       const next = {
@@ -366,4 +396,5 @@ module.exports = {
   validateDocument,
   validateJsonValue,
   validateStoredValue,
+  invalidStoredValueReason,
 };
