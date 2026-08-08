@@ -24,6 +24,7 @@ interface AppPublisherApi {
   projects: SystemBridge["projects"];
   git: SystemBridge["git"];
   androidPreparation: SystemBridge["androidPreparation"];
+  androidCorrections: SystemBridge["androidCorrections"];
   aab: SystemBridge["aab"];
   gradle: SystemBridge["gradle"];
   backups: SystemBridge["backups"];
@@ -88,6 +89,12 @@ export const electronBridge: SystemBridge = {
     inspect: (projectPath) => ensure().androidPreparation.inspect(projectPath),
     createConfig: (projectPath, request) =>
       ensure().androidPreparation.createConfig(projectPath, request),
+  },
+
+  androidCorrections: {
+    preview: (projectPath, desired) => ensure().androidCorrections.preview(projectPath, desired),
+    apply: (projectPath, desired, token) =>
+      ensure().androidCorrections.apply(projectPath, desired, token),
   },
 
   aab: {

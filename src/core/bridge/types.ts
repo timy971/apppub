@@ -14,6 +14,9 @@ import type {
   GitRelation,
   AabExpectedIdentity,
   AabValidationReport,
+  AndroidCorrectionDesired,
+  AndroidCorrectionPlan,
+  AndroidCorrectionResult,
 } from "@/core/types";
 
 export interface GitRemoteInfo {
@@ -260,6 +263,15 @@ export interface SystemBridge {
     ): Promise<AndroidPreparationConfigResult>;
   };
 
+  androidCorrections: {
+    preview(projectPath: string, desired: AndroidCorrectionDesired): Promise<AndroidCorrectionPlan>;
+    apply(
+      projectPath: string,
+      desired: AndroidCorrectionDesired,
+      token: string,
+    ): Promise<AndroidCorrectionResult>;
+  };
+
   aab: {
     /** Inspecte l'identité, la signature et la structure d'un Android App Bundle. */
     inspect(request: AabInspectionRequest): Promise<AabValidationReport>;
@@ -282,7 +294,7 @@ export interface SystemBridge {
   backups: {
     create(
       projectPath: string,
-      reason: "build" | "manual" | "publish" | "version",
+      reason: "build" | "correction" | "manual" | "publish" | "version",
     ): Promise<NativeBackupResult>;
     restore(
       projectPath: string,

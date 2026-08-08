@@ -137,6 +137,12 @@ contextBridge.exposeInMainWorld("appPublisher", {
       inv("android-preparation:createConfig", projectPath, request),
   },
 
+  androidCorrections: {
+    preview: (projectPath, desired) => inv("android-corrections:preview", projectPath, desired),
+    apply: (projectPath, desired, token) =>
+      inv("android-corrections:apply", projectPath, desired, token),
+  },
+
   aab: {
     inspect: (request) => inv("aab:inspect", request),
   },

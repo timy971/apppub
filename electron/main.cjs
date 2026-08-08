@@ -59,6 +59,7 @@ const {
   AndroidPreparationManager,
   inspectAndroidPreparation,
 } = require("./android-preparation.cjs");
+const { AndroidCorrectionManager, publicPlan } = require("./android-corrections.cjs");
 const {
   buildValidationReport,
   inspectAabArchive,
@@ -456,6 +457,7 @@ const gitProjectManager = new GitProjectManager(
   path.join(app.getPath("userData"), "managed-projects"),
 );
 const androidPreparationManager = new AndroidPreparationManager(projectAccess);
+const androidCorrectionManager = new AndroidCorrectionManager(projectAccess);
 
 function registerAllowedRoot(p) {
   try {
@@ -1248,6 +1250,44 @@ ipcMain.handle("android-preparation:createConfig", async (_e, projectPath, reque
   const trusted = await ensureProjectTrusted(project, trustStore, confirmProjectTrust);
   if (!trusted) throw new Error("Préparation Android annulée par l’utilisateur.");
   return androidPreparationManager.createConfig(project, request);
+});
+
+/* ---------- IPC : corrections Android guidées ---------- */
+
+ipcMain.handle("android-corrections:preview", (_e, projectPath, desired) =>
+  publicPlan(androidCorrectionManager.preview(projectPath, desired)),
+);
+
+ipcMain.handle("android-corrections:apply", async (_e, projectPath, desired, token) => {
+  const project = resolveWithinAllowed(projectPath);
+  if (!project) throw new Error("Projet non autorisé.");
+  const trusted = await ensureProjectTrusted(project, trustStore, confirmProjectTrust);
+  if (!trusted) throw new Error("Correction Android annulée par l’utilisateur.");
+
+  const plan = androidCorrectionManager.preview(project, desired);
+  if (plan.token !== token) {
+    throw new Error("Le projet a changé depuis la prévisualisation. Relancez l'analyse.");
+  }
+  if (!plan.canApply) throw new Error(plan.blocked[0] ?? "Aucune correction sûre à appliquer.");
+  const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: plan.sensitive ? "warning" : "question",
+    title: plan.sensitive
+      ? "Confirmer la correction de l'identité Android"
+      : "Appliquer les corrections Android ?",
+    message: plan.sensitive
+      ? "Le package Android identifie définitivement l'application sur Google Play."
+      : `${plan.actions.length} correction${plan.actions.length > 1 ? "s" : ""} prête${plan.actions.length > 1 ? "s" : ""} à être appliquée${plan.actions.length > 1 ? "s" : ""}.`,
+    detail: `${plan.actions.map((action) => `• ${action.title} — ${action.file}`).join("\n")}\n\nUne sauvegarde vérifiée sera créée avant toute écriture.`,
+    buttons: ["Appliquer", "Annuler"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (confirmation.response !== 0) return { applied: false, cancelled: true };
+
+  const backup = backupManager.create(project, "correction");
+  const result = androidCorrectionManager.apply(project, desired, token);
+  return { ...result, backup };
 });
 
 /* ---------- IPC : Gradle (opérations dédiées) ---------- */

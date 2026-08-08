@@ -19,8 +19,9 @@ const SNAPSHOT_FILES = Object.freeze([
   "CHANGELOG.md",
   "android/app/build.gradle",
   "android/app/build.gradle.kts",
+  "android/variables.gradle",
 ]);
-const REASONS = new Set(["build", "manual", "publish", "version"]);
+const REASONS = new Set(["build", "correction", "manual", "publish", "version"]);
 
 function safeRelativeFile(value) {
   return typeof value === "string" && SNAPSHOT_FILES.includes(value);

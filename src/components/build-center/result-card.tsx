@@ -20,6 +20,7 @@ import { bridge } from "@/core/bridge";
 import { toast } from "sonner";
 import { formatDuration, formatSize, formatRelativeDelta, shortChecksum } from "./shared";
 import { cn } from "@/lib/utils";
+import { AndroidCorrectionAssistant } from "./correction-assistant";
 
 interface Artifact {
   aabPath?: string;
@@ -35,9 +36,10 @@ interface Props {
   snap: OperationSnapshot;
   elapsedMs: number;
   stats: DurationStats;
+  onCorrected: () => void;
 }
 
-export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
+export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Props) {
   const result = snap.result as Artifact | undefined;
   const artifact: Artifact = result ?? {};
   const filename = artifact.aabPath ? artifact.aabPath.split(/[\\/]/).pop() : undefined;
@@ -184,6 +186,15 @@ export function ResultCard({ project, snap, elapsedMs, stats }: Props) {
                   <div className="mt-0.5 text-xs text-muted-foreground">{issue.detail}</div>
                 </div>
               ))}
+            </div>
+          )}
+          {validation.issues.length > 0 && (
+            <div className="mt-4">
+              <AndroidCorrectionAssistant
+                project={project}
+                report={validation}
+                onApplied={onCorrected}
+              />
             </div>
           )}
         </div>

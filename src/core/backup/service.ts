@@ -37,6 +37,7 @@ const SNAPSHOT_FILES = [
   "CHANGELOG.md",
   "android/app/build.gradle",
   "android/app/build.gradle.kts",
+  "android/variables.gradle",
 ];
 
 function uid(): UUID {
@@ -87,6 +88,31 @@ export const BackupService = {
       reason,
       files: files.length,
       location,
+    });
+    CopilotBus.notify();
+    return backup;
+  },
+
+  rememberNative(
+    project: Project,
+    reason: ProjectBackup["reason"],
+    snapshot: { location: string; files: ProjectBackup["files"] },
+  ): ProjectBackup {
+    const backup: StoredBackup = {
+      id: uid(),
+      projectId: project.id,
+      reason,
+      createdAt: new Date().toISOString(),
+      files: snapshot.files,
+      location: snapshot.location,
+    };
+    const all = storage.get<StoredBackup[]>(KEY, []);
+    storage.set(KEY, [backup, ...all].slice(0, 20));
+    JournalService.log("info", "Sauvegarde native du projet enregistrée", {
+      project: project.name,
+      reason,
+      files: backup.files.length,
+      location: backup.location,
     });
     CopilotBus.notify();
     return backup;
