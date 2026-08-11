@@ -8,6 +8,7 @@ import type { AndroidPublishingConfig, Project } from "@/core/types";
 export function getAndroidConfig(project: Project): AndroidPublishingConfig {
   const inner = project.publishing?.android ?? {};
   return {
+    ...inner,
     applicationId: inner.applicationId,
     keystorePath: inner.keystorePath ?? project.keystorePath,
     keystoreAlias: inner.keystoreAlias,

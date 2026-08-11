@@ -43,6 +43,12 @@ test("the renderer has no generic filesystem or secret-reading bridge", () => {
   assert.match(preload, /android-corrections:preview/);
   assert.match(preload, /android-corrections:apply/);
   assert.equal(preload.includes("android-corrections:writeFile"), false);
+  assert.match(preload, /google-play:importServiceAccount/);
+  assert.match(preload, /google-play:testConnection/);
+  assert.match(preload, /google-play:publishInternal/);
+  assert.match(preload, /google-play:disconnect/);
+  assert.equal(preload.includes("google-play:getCredentials"), false);
+  assert.equal(preload.includes("google-play:publishProduction"), false);
 });
 
 test("the main process does not register removed generic IPC handlers", () => {
@@ -65,6 +71,17 @@ test("the main process does not register removed generic IPC handlers", () => {
   assert.match(main, /android-preparation:beginRollbackGuard/);
   assert.match(main, /android-preparation:rollbackCreatedArtifacts/);
   assert.match(main, /android-preparation:completeRollbackGuard/);
+  assert.match(main, /google-play:publishInternal/);
+  assert.match(main, /GOOGLE_PLAY_KEYCHAIN_SERVICE/);
+  assert.match(main, /buttons: \["Publier sur internal", "Annuler"\]/);
+  const playIdentityCheck = main.indexOf("archive = inspectAabArchive(aabPath)");
+  const playConfirmation = main.indexOf('title: "Publier sur la piste interne ?"');
+  assert.ok(playIdentityCheck > 0, "Google Play publication must inspect the real AAB identity");
+  assert.ok(
+    playConfirmation > playIdentityCheck,
+    "the real AAB identity must be checked before native confirmation",
+  );
+  assert.equal(main.includes('ipcMain.handle("google-play:publishProduction"'), false);
 });
 
 test("the packaged page declares a restrictive content security policy", () => {

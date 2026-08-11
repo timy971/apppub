@@ -43,6 +43,7 @@ interface AppPublisherApi {
   fs: SystemBridge["fs"];
   shell: SystemBridge["shell"];
   net: SystemBridge["net"];
+  googlePlay: SystemBridge["googlePlay"];
   secrets: SystemBridge["secrets"];
   signing: SystemBridge["signing"];
 }
@@ -157,6 +158,13 @@ export const electronBridge: SystemBridge = {
 
   net: {
     online: () => ensure().net.online(),
+  },
+
+  googlePlay: {
+    importServiceAccount: (args) => ensure().googlePlay.importServiceAccount(args),
+    testConnection: (args) => ensure().googlePlay.testConnection(args),
+    disconnect: (args) => ensure().googlePlay.disconnect(args),
+    publishInternal: (args) => ensure().googlePlay.publishInternal(args),
   },
 
   secrets: {

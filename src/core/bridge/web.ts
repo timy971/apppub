@@ -360,6 +360,33 @@ export const webBridge: SystemBridge = {
     },
   },
 
+  googlePlay: {
+    async importServiceAccount() {
+      return {
+        ok: false,
+        errorCode: "keychain-unavailable",
+        errorHint: "La connexion Google Play nécessite l'application de bureau macOS.",
+      };
+    },
+    async testConnection() {
+      return {
+        ok: false,
+        errorCode: "keychain-unavailable",
+        errorHint: "La connexion Google Play nécessite l'application de bureau macOS.",
+      };
+    },
+    async disconnect() {
+      return false;
+    },
+    async publishInternal() {
+      return {
+        ok: false,
+        errorCode: "desktop-required",
+        errorHint: "La publication Google Play nécessite l'application de bureau macOS.",
+      };
+    },
+  },
+
   secrets: {
     async supported() {
       return {

@@ -19,6 +19,7 @@ import { PublishHeader } from "./header";
 import { PublishCopilotStrip } from "./copilot-strip";
 import { PublishExplainer } from "./publish-explainer";
 import { PublishHandoffCard } from "./handoff-card";
+import { GooglePlayCard } from "./google-play-card";
 import { ReleaseOverviewCard } from "./release-overview";
 import { ChecklistCard } from "./checklist";
 import { ReleaseNotesCard } from "./release-notes";
@@ -176,7 +177,16 @@ export function PublishCenter({ project }: { project: Project }) {
         })()}
       />
 
-      {preparedRelease && <PublishHandoffCard release={preparedRelease} />}
+      {preparedRelease && (
+        <>
+          <PublishHandoffCard release={preparedRelease} />
+          <GooglePlayCard
+            project={project}
+            release={preparedRelease}
+            onChanged={() => setRefreshKey((n) => n + 1)}
+          />
+        </>
+      )}
 
       <ReleaseOverviewCard project={project} />
 
