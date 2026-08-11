@@ -88,7 +88,9 @@ function buildItems(project: Project, history: PublishRecord[]): TimelineItem[] 
     items.push({
       id: r.id,
       kind,
-      title: titleFor(kind, r.version, r.build, r.outcome),
+      title: r.storeRelease
+        ? `Publiée sur Google Play — v${r.version} · build ${r.build}`
+        : titleFor(kind, r.version, r.build, r.outcome),
       detail: r.message,
       at: r.createdAt,
       outcome: r.outcome,

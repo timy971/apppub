@@ -26,6 +26,12 @@ export interface AndroidPublishingConfig {
   signingProfileId?: string;
   defaultTrack?: "internal" | "alpha" | "beta" | "production";
   primaryLanguage?: string;
+  /** Identifiant opaque de la clé Google Play conservée dans le trousseau système. */
+  googlePlayConnectionId?: string;
+  /** Métadonnée publique du compte connecté. La clé privée n'entre jamais dans ce modèle. */
+  googlePlayServiceAccountEmail?: string;
+  googlePlayCloudProjectId?: string;
+  googlePlayLastCheckedAt?: string;
 }
 
 /** Phase 3 : configuration iOS — structure posée, publication future. */
@@ -265,6 +271,17 @@ export interface PublishRecord {
   /** Signale qu'un build Git contenait aussi des changements non commités. */
   sourceDirty?: boolean;
   notes?: string;
+  /** Résultat d'un envoi réel à Google Play. Absent pour une simple préparation locale. */
+  storeRelease?: {
+    provider: "google-play";
+    track: "internal";
+    packageName: string;
+    versionCode: number;
+    releaseStatus: "completed";
+    editId: string;
+    serviceAccountEmail: string;
+    committedAt: string;
+  };
 }
 
 /* ---------- Workflow Engine ---------- */

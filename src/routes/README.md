@@ -33,6 +33,6 @@ Convention TanStack Router : un fichier `*.tsx` = une route. La chaîne dans
 - **Phase 2** : brancher les services `projects`, `version`, `build` sur des
   appels IPC Electron. Les interfaces publiques ne changent pas.
 - **Phase 3** : GitHub via un nouveau module `src/core/github`.
-- **Phase 4** : Google Play via un nouveau module `src/core/playstore` et
-  activation de `publish.tsx`.
+- **Lot 6** : Google Play via le bridge natif `googlePlay`, limité à la piste
+  `internal`, avec identifiants dans le trousseau et confirmation explicite.
 - **Phase 5** : iOS + plugins, via un module `src/core/plugins`.

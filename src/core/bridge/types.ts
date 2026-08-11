@@ -225,6 +225,30 @@ export interface NativeBackupResult {
   files: BackupFileRecord[];
 }
 
+export interface GooglePlayConnectionArgs {
+  projectPath: string;
+  packageName: string;
+  connectionId: string;
+}
+
+export type GooglePlayResult<T extends object = Record<string, never>> =
+  | ({ ok: true } & T)
+  | {
+      ok: false;
+      errorCode: string;
+      errorHint?: string;
+      status?: number;
+    };
+
+export interface GooglePlayPublishResult {
+  packageName: string;
+  track: "internal";
+  editId: string;
+  versionCode: number;
+  releaseStatus: "completed";
+  serviceAccountEmail: string;
+}
+
 export interface SystemBridge {
   readonly runtime: "electron" | "web";
 
@@ -330,6 +354,26 @@ export interface SystemBridge {
 
   net: {
     online(): Promise<boolean>;
+  };
+
+  googlePlay: {
+    importServiceAccount(args: { projectPath: string; packageName: string }): Promise<
+      GooglePlayResult<{
+        connectionId: string;
+        serviceAccountEmail: string;
+        cloudProjectId?: string;
+      }>
+    >;
+    testConnection(
+      args: GooglePlayConnectionArgs,
+    ): Promise<GooglePlayResult<{ serviceAccountEmail: string; packageName: string }>>;
+    disconnect(args: GooglePlayConnectionArgs): Promise<boolean>;
+    publishInternal(
+      args: GooglePlayConnectionArgs & {
+        aabPath: string;
+        notes: string;
+      },
+    ): Promise<GooglePlayResult<GooglePlayPublishResult>>;
   };
 
   /**

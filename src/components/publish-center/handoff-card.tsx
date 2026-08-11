@@ -48,10 +48,10 @@ export function PublishHandoffCard({ release }: { release: PublishRecord }) {
             <CheckCircle2 className="h-6 w-6" />
           </div>
           <div className="min-w-0">
-            <h2 className="font-semibold">Release prête pour Google Play</h2>
+            <h2 className="font-semibold">Release locale prête</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              L'AAB a été retrouvé et sa signature a été vérifiée. AppPublisher peut maintenant vous
-              accompagner jusqu'à l'envoi manuel dans la console.
+              L'AAB a été retrouvé et sa signature a été vérifiée. Vous pouvez le publier sur la
+              piste interne ci-dessous, ou conserver l'envoi manuel comme solution de secours.
             </p>
             <div
               className="mt-2 truncate font-mono text-xs text-muted-foreground"

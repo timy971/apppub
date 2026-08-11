@@ -196,6 +196,13 @@ contextBridge.exposeInMainWorld("appPublisher", {
     online: () => inv("net:online"),
   },
 
+  googlePlay: {
+    importServiceAccount: (args) => inv("google-play:importServiceAccount", args),
+    testConnection: (args) => inv("google-play:testConnection", args),
+    disconnect: (args) => inv("google-play:disconnect", args),
+    publishInternal: (args) => inv("google-play:publishInternal", args),
+  },
+
   secrets: {
     supported: () => inv("secrets:supported"),
     set: (profileId, field, value) => inv("secrets:set", profileId, field, value),

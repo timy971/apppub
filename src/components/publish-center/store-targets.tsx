@@ -38,7 +38,7 @@ export function StoreTargetsCard({
           readiness={android}
           icon={<Smartphone className="h-4 w-4" />}
           title="Android"
-          integrationHint="Intégration Google Play prévue."
+          integrationHint="Envoi direct disponible sur la piste interne Google Play."
         />
         <PlatformTile
           project={project}

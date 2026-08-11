@@ -5,9 +5,7 @@ import { PublishCenter, NoProjectPublish } from "@/components/publish-center/pub
 
 /**
  * /publish — Publish Center.
- * Aucun accès store réel : la préparation crée une trace historique
- * et une sauvegarde. Les intégrations Google Play / App Store viendront
- * s'ajouter comme widgets sans refonte.
+ * Prépare une release puis permet son envoi explicite sur Google Play internal.
  */
 export const Route = createFileRoute("/publish")({
   component: PublishPage,
@@ -27,7 +25,7 @@ function PublishPage() {
         help={{
           title: "À propos du Publish Center",
           content:
-            "Le Publish Center rassemble tout ce qui est nécessaire à la préparation d'une release : résumé, vérifications, notes, cibles et historique. L'envoi automatique vers Google Play et App Store sera disponible dans une phase future.",
+            "Le Publish Center rassemble la préparation d'une release et son envoi sécurisé sur la piste interne Google Play. Les autres pistes et App Store Connect restent désactivés.",
         }}
       />
       {project ? <PublishCenter project={project} /> : <NoProjectPublish />}

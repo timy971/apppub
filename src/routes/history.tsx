@@ -59,7 +59,7 @@ function HistoryPage() {
                   <div className="flex items-center gap-2">
                     <div className="font-medium truncate">{r.projectName}</div>
                     <span className="text-[11px] rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
-                      {r.kind ?? "action"}
+                      {r.storeRelease ? "Google Play · internal" : (r.kind ?? "action")}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">

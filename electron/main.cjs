@@ -32,6 +32,7 @@ const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
 const os = require("os");
 const https = require("https");
+const crypto = require("crypto");
 const {
   RedactedOutputCollector,
   redactSensitiveText,
@@ -65,6 +66,11 @@ const {
   inspectAabArchive,
   normalizeFingerprint,
 } = require("./aab-inspector.cjs");
+const {
+  GooglePlayError,
+  GooglePlayPublisher,
+  validateServiceAccountCredentials,
+} = require("./google-play-publisher.cjs");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
 const activeExecutions = new ExecutionRegistry();
@@ -458,6 +464,7 @@ const gitProjectManager = new GitProjectManager(
 );
 const androidPreparationManager = new AndroidPreparationManager(projectAccess);
 const androidCorrectionManager = new AndroidCorrectionManager(projectAccess);
+const googlePlayPublisher = new GooglePlayPublisher();
 
 function registerAllowedRoot(p) {
   try {
@@ -2362,6 +2369,7 @@ ipcMain.handle("aab:inspect", async (_e, request) => {
  * ========================================================================== */
 
 const KEYCHAIN_SERVICE = "com.apppublisher.signing";
+const GOOGLE_PLAY_KEYCHAIN_SERVICE = "com.apppublisher.google-play";
 
 function secretsSupported() {
   if (process.platform === "darwin") {
@@ -2413,6 +2421,97 @@ function runSecurity(args, input) {
 
 function accountFor(profileId, field) {
   return `${profileId}:${field}`;
+}
+
+function googlePlayAccountFor(connectionId) {
+  return `google-play:${connectionId}:service-account`;
+}
+
+function validGooglePlayConnectionId(value) {
+  return typeof value === "string" && /^gplay_[a-f0-9]{32}$/.test(value);
+}
+
+function storedProjectForGooglePlay(
+  projectPathInput,
+  packageName,
+  connectionId,
+  requireConnection,
+) {
+  const projectPath = resolveWithinAllowed(projectPathInput);
+  if (!projectPath) return null;
+  const stored = durableStore.get("projects");
+  if (!stored.ok || !stored.found || !Array.isArray(stored.value)) return null;
+  return (
+    stored.value.find((project) => {
+      const savedPath = resolveWithinAllowed(project?.localPath);
+      const android = project?.publishing?.android ?? {};
+      const savedPackage = android.applicationId ?? project.packageName ?? project.playStoreAppId;
+      return (
+        savedPath === projectPath &&
+        savedPackage === packageName &&
+        (!requireConnection || android.googlePlayConnectionId === connectionId)
+      );
+    }) ?? null
+  );
+}
+
+async function setGooglePlayCredentials(connectionId, credentials) {
+  if (!validGooglePlayConnectionId(connectionId)) return false;
+  const serialized = JSON.stringify(credentials);
+  knownSecretValues.add(credentials.private_key);
+  const line =
+    [
+      "add-generic-password",
+      "-a",
+      quoteForSecurityInteractive(googlePlayAccountFor(connectionId)),
+      "-s",
+      quoteForSecurityInteractive(GOOGLE_PLAY_KEYCHAIN_SERVICE),
+      "-w",
+      quoteForSecurityInteractive(serialized),
+      "-U",
+    ].join(" ") + "\n";
+  await runSecurity(["-i"], line);
+  const stored = await getGooglePlayCredentials(connectionId);
+  return (
+    stored?.client_email === credentials.client_email &&
+    stored?.private_key === credentials.private_key
+  );
+}
+
+async function getGooglePlayCredentials(connectionId) {
+  if (!validGooglePlayConnectionId(connectionId)) return null;
+  const result = await runSecurity([
+    "find-generic-password",
+    "-a",
+    googlePlayAccountFor(connectionId),
+    "-s",
+    GOOGLE_PLAY_KEYCHAIN_SERVICE,
+    "-w",
+  ]);
+  if (result.code !== 0) return null;
+  try {
+    const credentials = validateServiceAccountCredentials(JSON.parse(result.stdout));
+    knownSecretValues.add(credentials.private_key);
+    return credentials;
+  } catch {
+    return null;
+  }
+}
+
+function publicGooglePlayError(error) {
+  if (error instanceof GooglePlayError) {
+    return {
+      ok: false,
+      errorCode: error.code,
+      errorHint: error.message,
+      status: error.status,
+    };
+  }
+  return {
+    ok: false,
+    errorCode: "unknown",
+    errorHint: "La communication avec Google Play a échoué.",
+  };
 }
 
 function storedSigningProfile(profileId) {
@@ -2633,4 +2732,251 @@ ipcMain.handle("secrets:remove", async (_e, profileId) => {
   }
   diagSigning("info", "secrets:remove", { profileId });
   return true;
+});
+
+/* ==========================================================================
+ *  IPC : publication Google Play (piste interne uniquement)
+ *
+ *  Les identifiants restent dans le processus principal et le trousseau.
+ *  L'interface ne reçoit que l'adresse publique du compte de service.
+ * ========================================================================== */
+
+ipcMain.handle("google-play:importServiceAccount", async (_event, args) => {
+  const support = secretsSupported();
+  if (!support.available) {
+    return { ok: false, errorCode: "keychain-unavailable", errorHint: support.reason };
+  }
+  if (!args || typeof args !== "object") return { ok: false, errorCode: "invalid-args" };
+  const project = storedProjectForGooglePlay(args.projectPath, args.packageName, null, false);
+  if (!project) return { ok: false, errorCode: "project-mismatch" };
+
+  const selected = await dialog.showOpenDialog(mainWindow ?? undefined, {
+    title: "Importer un compte de service Google Play",
+    properties: ["openFile"],
+    filters: [{ name: "Clé de compte de service Google", extensions: ["json"] }],
+  });
+  if (selected.canceled || !selected.filePaths[0]) return { ok: false, errorCode: "cancelled" };
+
+  try {
+    const source = selected.filePaths[0];
+    const stat = fs.statSync(source);
+    if (!stat.isFile() || stat.size <= 0 || stat.size > 64 * 1024) {
+      throw new GooglePlayError(
+        "credentials-invalid",
+        "Le fichier JSON est vide ou trop volumineux.",
+      );
+    }
+    let parsedCredentials;
+    try {
+      parsedCredentials = JSON.parse(fs.readFileSync(source, "utf8"));
+    } catch {
+      throw new GooglePlayError("credentials-invalid", "Le fichier JSON est illisible.");
+    }
+    const credentials = validateServiceAccountCredentials(parsedCredentials);
+    const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
+      type: "warning",
+      title: "Autoriser la publication Google Play ?",
+      message: `Associer ${credentials.client_email} à « ${project.name} » ?`,
+      detail:
+        `Application : ${args.packageName}\n\n` +
+        "La clé sera copiée dans le trousseau macOS. Le fichier JSON d'origine ne sera ni modifié ni supprimé.",
+      buttons: ["Importer dans le trousseau", "Annuler"],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+    });
+    if (confirmation.response !== 0) return { ok: false, errorCode: "cancelled" };
+
+    const connectionId = `gplay_${crypto.randomBytes(16).toString("hex")}`;
+    const stored = await setGooglePlayCredentials(connectionId, credentials);
+    if (!stored) {
+      return {
+        ok: false,
+        errorCode: "keychain-write-failed",
+        errorHint: "La clé Google n'a pas pu être enregistrée dans le trousseau macOS.",
+      };
+    }
+    diagSigning("info", "google-play:importServiceAccount", {
+      projectId: project.id,
+      packageName: args.packageName,
+      connectionId,
+      serviceAccountEmail: credentials.client_email,
+    });
+    return {
+      ok: true,
+      connectionId,
+      serviceAccountEmail: credentials.client_email,
+      cloudProjectId: credentials.project_id,
+    };
+  } catch (error) {
+    return publicGooglePlayError(error);
+  }
+});
+
+ipcMain.handle("google-play:testConnection", async (_event, args) => {
+  if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
+    return { ok: false, errorCode: "invalid-args" };
+  }
+  const project = storedProjectForGooglePlay(
+    args.projectPath,
+    args.packageName,
+    args.connectionId,
+    true,
+  );
+  if (!project) return { ok: false, errorCode: "project-mismatch" };
+  const credentials = await getGooglePlayCredentials(args.connectionId);
+  if (!credentials) {
+    return {
+      ok: false,
+      errorCode: "credentials-missing",
+      errorHint: "La clé Google Play est absente du trousseau macOS.",
+    };
+  }
+  try {
+    const result = await googlePlayPublisher.testConnection(credentials, args.packageName);
+    diagSigning("info", "google-play:testConnection", {
+      projectId: project.id,
+      packageName: args.packageName,
+      serviceAccountEmail: result.serviceAccountEmail,
+    });
+    return result;
+  } catch (error) {
+    return publicGooglePlayError(error);
+  }
+});
+
+ipcMain.handle("google-play:disconnect", async (_event, args) => {
+  if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
+    return false;
+  }
+  const project = storedProjectForGooglePlay(
+    args.projectPath,
+    args.packageName,
+    args.connectionId,
+    true,
+  );
+  if (!project) return false;
+  const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: "warning",
+    title: "Déconnecter Google Play ?",
+    message: `Retirer l'accès Google Play de « ${project.name} » ?`,
+    detail:
+      "La clé du compte de service sera supprimée du trousseau. Aucun projet ni aucune release Google Play ne sera supprimé.",
+    buttons: ["Déconnecter", "Annuler"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (confirmation.response !== 0) return false;
+  await runSecurity([
+    "delete-generic-password",
+    "-a",
+    googlePlayAccountFor(args.connectionId),
+    "-s",
+    GOOGLE_PLAY_KEYCHAIN_SERVICE,
+  ]);
+  diagSigning("info", "google-play:disconnect", {
+    projectId: project.id,
+    packageName: args.packageName,
+    connectionId: args.connectionId,
+  });
+  return true;
+});
+
+ipcMain.handle("google-play:publishInternal", async (_event, args) => {
+  if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
+    return { ok: false, errorCode: "invalid-args" };
+  }
+  const project = storedProjectForGooglePlay(
+    args.projectPath,
+    args.packageName,
+    args.connectionId,
+    true,
+  );
+  if (!project) return { ok: false, errorCode: "project-mismatch" };
+  const aabPath = resolveWithinAllowed(args.aabPath);
+  if (!aabPath || path.extname(aabPath).toLowerCase() !== ".aab") {
+    return { ok: false, errorCode: "aab-invalid", errorHint: "Le fichier AAB n'est pas autorisé." };
+  }
+  const credentials = await getGooglePlayCredentials(args.connectionId);
+  if (!credentials) {
+    return {
+      ok: false,
+      errorCode: "credentials-missing",
+      errorHint: "La clé Google Play est absente du trousseau macOS.",
+    };
+  }
+  const signature = await verifyAabSignature(aabPath);
+  if (!signature.ok) {
+    return {
+      ok: false,
+      errorCode: "aab-invalid",
+      errorHint: signature.errorHint ?? "La signature de l'AAB n'est pas valide.",
+    };
+  }
+  let archive;
+  try {
+    archive = inspectAabArchive(aabPath);
+  } catch {
+    return {
+      ok: false,
+      errorCode: "aab-invalid",
+      errorHint: "L'identité Android de l'AAB n'a pas pu être vérifiée.",
+    };
+  }
+  if (
+    archive.packageName !== args.packageName ||
+    archive.versionName !== project.currentVersion ||
+    archive.versionCode !== project.currentBuild
+  ) {
+    return {
+      ok: false,
+      errorCode: "aab-identity-mismatch",
+      errorHint:
+        "Le package, la version ou le versionCode de l'AAB ne correspond pas au projet actif.",
+    };
+  }
+  const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: "warning",
+    title: "Publier sur la piste interne ?",
+    message: `Envoyer « ${project.name} » v${project.currentVersion} (build ${project.currentBuild}) à Google Play ?`,
+    detail:
+      `Application : ${args.packageName}\n` +
+      "Piste : internal\n" +
+      `Compte : ${credentials.client_email}\n\n` +
+      "Cette action téléverse l'AAB et valide une nouvelle édition Google Play. Elle ne publie pas en production.",
+    buttons: ["Publier sur internal", "Annuler"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (confirmation.response !== 0) return { ok: false, errorCode: "cancelled" };
+
+  try {
+    const result = await googlePlayPublisher.publishInternal({
+      credentials,
+      packageName: args.packageName,
+      aabPath,
+      notes: args.notes,
+      language: project.publishing?.android?.primaryLanguage ?? "fr-FR",
+      releaseName: `${project.name} ${project.currentVersion} (${project.currentBuild})`,
+    });
+    diagSigning("info", "google-play:publishInternal", {
+      projectId: project.id,
+      packageName: result.packageName,
+      track: result.track,
+      versionCode: result.versionCode,
+      editId: result.editId,
+    });
+    return result;
+  } catch (error) {
+    const publicError = publicGooglePlayError(error);
+    diagSigning("warn", "google-play:publishInternal failed", {
+      projectId: project.id,
+      packageName: args.packageName,
+      errorCode: publicError.errorCode,
+      status: publicError.status,
+    });
+    return publicError;
+  }
 });
