@@ -105,6 +105,7 @@ contextBridge.exposeInMainWorld("appPublisher", {
 
   system: {
     detect: () => inv("system:detect"),
+    copyText: (value) => inv("system:copyText", value),
   },
 
   storage: {
@@ -197,6 +198,8 @@ contextBridge.exposeInMainWorld("appPublisher", {
   },
 
   googlePlay: {
+    oauthStatus: () => inv("google-play:oauthStatus"),
+    connectOAuth: (args) => inv("google-play:connectOAuth", args),
     importServiceAccount: (args) => inv("google-play:importServiceAccount", args),
     testConnection: (args) => inv("google-play:testConnection", args),
     disconnect: (args) => inv("google-play:disconnect", args),

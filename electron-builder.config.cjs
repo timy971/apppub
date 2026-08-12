@@ -11,6 +11,7 @@
  * depuis /version.json par scripts/sync-version.cjs avant chaque build).
  */
 const app = require("./app.config.cjs");
+const fs = require("fs");
 
 module.exports = {
   appId: app.appId,
@@ -24,13 +25,13 @@ module.exports = {
   },
 
   // Fichiers embarqués dans l'application.
-  files: [
-    "dist/**/*",
-    "electron/**/*",
-    "app.config.cjs",
-    "version.json",
-    "package.json",
-  ],
+  files: ["dist/**/*", "electron/**/*", "app.config.cjs", "version.json", "package.json"],
+
+  // Le client OAuth desktop n'est pas versionné. Lorsqu'il est présent au
+  // packaging, il est embarqué comme ressource de l'application.
+  extraResources: fs.existsSync("build/google-play-oauth.json")
+    ? [{ from: "build/google-play-oauth.json", to: "google-play-oauth.json" }]
+    : [],
 
   // Compression raisonnable : équilibre taille / temps de packaging.
   compression: "normal",

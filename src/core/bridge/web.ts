@@ -67,6 +67,15 @@ export const webBridge: SystemBridge = {
         internet: typeof navigator !== "undefined" ? navigator.onLine : true,
       };
     },
+    async copyText(value) {
+      if (typeof navigator === "undefined" || !navigator.clipboard) return false;
+      try {
+        await navigator.clipboard.writeText(value);
+        return true;
+      } catch {
+        return false;
+      }
+    },
   },
 
   projects: {
@@ -361,6 +370,16 @@ export const webBridge: SystemBridge = {
   },
 
   googlePlay: {
+    async oauthStatus() {
+      return { available: false };
+    },
+    async connectOAuth() {
+      return {
+        ok: false,
+        errorCode: "desktop-required",
+        errorHint: "La connexion Google Play nécessite l'application de bureau macOS.",
+      };
+    },
     async importServiceAccount() {
       return {
         ok: false,

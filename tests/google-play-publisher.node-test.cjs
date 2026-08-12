@@ -7,6 +7,7 @@ const {
   GooglePlayPublisher,
   normalizeLocale,
   normalizeNotes,
+  validateOAuthCredentials,
   validateServiceAccountCredentials,
 } = require("../electron/google-play-publisher.cjs");
 
@@ -57,6 +58,48 @@ test("accepts only a Google service-account credential document", () => {
     () => validateServiceAccountCredentials({ ...credentials, token_uri: "https://example.test" }),
     /authentification/,
   );
+});
+
+test("accepts an OAuth refresh token without exposing it as a service-account key", () => {
+  const clean = validateOAuthCredentials({
+    type: "authorized_user",
+    client_id: "desktop-client.apps.googleusercontent.com",
+    client_secret: "desktop-secret",
+    refresh_token: "refresh-token",
+    account_email: "tim@example.com",
+  });
+  assert.equal(clean.account_email, "tim@example.com");
+  assert.equal("private_key" in clean, false);
+  assert.throws(() => validateOAuthCredentials({ ...clean, refresh_token: "" }), /incomplète/);
+});
+
+test("uses OAuth refresh credentials for the same restricted Play connection check", async () => {
+  const calls = [];
+  const api = new GooglePlayPublisher({
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith("/edits")) return response(200, { id: "edit-oauth" });
+      if (url.endsWith("/edits/edit-oauth")) return response(204);
+      throw new Error(`Unexpected URL: ${url}`);
+    },
+    oauthFactory: () => ({
+      async getAccessToken() {
+        return { token: "oauth-access-token" };
+      },
+    }),
+  });
+  const result = await api.testConnection(
+    {
+      type: "authorized_user",
+      client_id: "desktop-client.apps.googleusercontent.com",
+      refresh_token: "refresh-token",
+      account_email: "tim@example.com",
+    },
+    "app.cranioscan.android",
+  );
+  assert.equal(result.accountEmail, "tim@example.com");
+  assert.equal(result.authMode, "oauth");
+  assert.equal(calls[0].options.headers.Authorization, "Bearer oauth-access-token");
 });
 
 test("normalizes Play locales and enforces the 500-character release-note limit", () => {

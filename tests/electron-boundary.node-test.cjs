@@ -44,11 +44,14 @@ test("the renderer has no generic filesystem or secret-reading bridge", () => {
   assert.match(preload, /android-corrections:apply/);
   assert.equal(preload.includes("android-corrections:writeFile"), false);
   assert.match(preload, /google-play:importServiceAccount/);
+  assert.match(preload, /google-play:connectOAuth/);
+  assert.match(preload, /google-play:oauthStatus/);
   assert.match(preload, /google-play:testConnection/);
   assert.match(preload, /google-play:publishInternal/);
   assert.match(preload, /google-play:disconnect/);
   assert.equal(preload.includes("google-play:getCredentials"), false);
   assert.equal(preload.includes("google-play:publishProduction"), false);
+  assert.match(preload, /system:copyText/);
 });
 
 test("the main process does not register removed generic IPC handlers", () => {
