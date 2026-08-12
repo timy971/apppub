@@ -1,19 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  Copy,
-  Search,
-  Maximize2,
-  Minimize2,
-  Terminal,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, Search, Maximize2, Minimize2, Terminal } from "lucide-react";
 import type { LogLine } from "@/core/operations/types";
 import type { ExperienceMode } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { bridge } from "@/core/bridge";
 
 interface Props {
   logs: LogLine[];
@@ -61,12 +54,19 @@ export function LogConsole({ logs, mode }: Props) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [visible, open, autoScroll]);
 
-  function copy() {
+  async function copy() {
     const text = filtered.map((l) => l.message).join("\n");
-    void navigator.clipboard.writeText(text).then(
-      () => toast.success("Logs copiés dans le presse-papiers."),
-      () => toast.error("Impossible de copier les logs."),
-    );
+    if (!text) {
+      toast.info("Aucun log à copier.");
+      return;
+    }
+    try {
+      const copied = await bridge().system.copyText(text);
+      if (copied) toast.success("Logs copiés dans le presse-papiers.");
+      else toast.error("Impossible de copier les logs.");
+    } catch {
+      toast.error("Impossible de copier les logs.");
+    }
   }
 
   function toggleHeight() {
@@ -129,7 +129,9 @@ export function LogConsole({ logs, mode }: Props) {
                 onClick={toggleHeight}
                 className="h-8 w-8"
                 title="Redimensionner"
-                aria-label={heightIdx === HEIGHTS.length - 1 ? "Réduire les logs" : "Agrandir les logs"}
+                aria-label={
+                  heightIdx === HEIGHTS.length - 1 ? "Réduire les logs" : "Agrandir les logs"
+                }
               >
                 {heightIdx === HEIGHTS.length - 1 ? (
                   <Minimize2 className="h-3.5 w-3.5" />

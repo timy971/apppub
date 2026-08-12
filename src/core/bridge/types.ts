@@ -246,7 +246,8 @@ export interface GooglePlayPublishResult {
   editId: string;
   versionCode: number;
   releaseStatus: "completed";
-  serviceAccountEmail: string;
+  accountEmail: string;
+  authMode: "oauth" | "service-account";
 }
 
 export interface SystemBridge {
@@ -254,6 +255,7 @@ export interface SystemBridge {
 
   system: {
     detect(): Promise<SystemInfo>;
+    copyText(value: string): Promise<boolean>;
   };
 
   projects: {
@@ -357,16 +359,31 @@ export interface SystemBridge {
   };
 
   googlePlay: {
+    oauthStatus(): Promise<{ available: boolean }>;
+    connectOAuth(args: { projectPath: string; packageName: string }): Promise<
+      GooglePlayResult<{
+        connectionId: string;
+        accountEmail: string;
+        authMode: "oauth";
+        verified: true;
+      }>
+    >;
     importServiceAccount(args: { projectPath: string; packageName: string }): Promise<
       GooglePlayResult<{
         connectionId: string;
+        accountEmail: string;
+        authMode: "service-account";
         serviceAccountEmail: string;
         cloudProjectId?: string;
       }>
     >;
-    testConnection(
-      args: GooglePlayConnectionArgs,
-    ): Promise<GooglePlayResult<{ serviceAccountEmail: string; packageName: string }>>;
+    testConnection(args: GooglePlayConnectionArgs): Promise<
+      GooglePlayResult<{
+        accountEmail: string;
+        authMode: "oauth" | "service-account";
+        packageName: string;
+      }>
+    >;
     disconnect(args: GooglePlayConnectionArgs): Promise<boolean>;
     publishInternal(
       args: GooglePlayConnectionArgs & {

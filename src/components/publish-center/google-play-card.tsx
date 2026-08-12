@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   KeyRound,
@@ -7,11 +7,18 @@ import {
   Send,
   ShieldCheck,
   Unplug,
+  UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { bridge } from "@/core/bridge";
 import { HistoryService } from "@/core/history/service";
 import { patchAndroidConfig } from "@/core/projects/android-config";
@@ -25,15 +32,20 @@ interface Props {
   onChanged: () => void;
 }
 
-type BusyAction = "import" | "test" | "publish" | "disconnect" | null;
+type BusyAction = "oauth" | "import" | "test" | "publish" | "disconnect" | null;
 
 export function GooglePlayCard({ project, release, onChanged }: Props) {
   const settings = useSettings();
   const [busy, setBusy] = useState<BusyAction>(null);
+  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const android = project.publishing?.android ?? {};
   const packageName = android.applicationId ?? project.packageName ?? project.playStoreAppId ?? "";
   const connectionId = android.googlePlayConnectionId;
-  const connected = !!connectionId && !!android.googlePlayServiceAccountEmail;
+  const accountEmail = android.googlePlayAccountEmail ?? android.googlePlayServiceAccountEmail;
+  const authMode =
+    android.googlePlayAuthMode ??
+    (android.googlePlayServiceAccountEmail ? "service-account" : undefined);
+  const connected = !!connectionId && !!accountEmail;
   const verified = connected && !!android.googlePlayLastCheckedAt;
   const alreadyPublished =
     release.storeRelease?.provider === "google-play" && release.storeRelease.track === "internal";
@@ -41,6 +53,60 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   const connectionArgs = connectionId
     ? { projectPath: project.localPath, packageName, connectionId }
     : null;
+
+  useEffect(() => {
+    let active = true;
+    void bridge()
+      .googlePlay.oauthStatus()
+      .then((status) => {
+        if (active) setOauthAvailable(status.available);
+      })
+      .catch(() => {
+        if (active) setOauthAvailable(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function connectWithGoogle() {
+    if (!packageName) {
+      toast.error("Identifiant Android manquant");
+      return;
+    }
+    setBusy("oauth");
+    try {
+      const result = await bridge().googlePlay.connectOAuth({
+        projectPath: project.localPath,
+        packageName,
+      });
+      if (!result.ok) {
+        if (result.errorCode !== "cancelled") showGooglePlayError(result);
+        return;
+      }
+      ProjectsService.update(
+        project.id,
+        patchAndroidConfig(project, {
+          googlePlayConnectionId: result.connectionId,
+          googlePlayAccountEmail: result.accountEmail,
+          googlePlayAuthMode: "oauth",
+          googlePlayServiceAccountEmail: undefined,
+          googlePlayCloudProjectId: undefined,
+          googlePlayLastCheckedAt: new Date().toISOString(),
+          defaultTrack: "internal",
+        }),
+      );
+      AppStore.refreshProjects();
+      toast.success("Google Play connecté", {
+        description: `${result.accountEmail} peut accéder à ${packageName}.`,
+      });
+      onChanged();
+    } catch {
+      toast.error("La connexion avec Google a échoué.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function importAccount() {
     if (!packageName) {
@@ -61,6 +127,8 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         project.id,
         patchAndroidConfig(project, {
           googlePlayConnectionId: result.connectionId,
+          googlePlayAccountEmail: result.accountEmail,
+          googlePlayAuthMode: "service-account",
           googlePlayServiceAccountEmail: result.serviceAccountEmail,
           googlePlayCloudProjectId: result.cloudProjectId,
           googlePlayLastCheckedAt: undefined,
@@ -92,13 +160,14 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         project.id,
         patchAndroidConfig(project, {
           googlePlayLastCheckedAt: new Date().toISOString(),
-          googlePlayServiceAccountEmail: result.serviceAccountEmail,
+          googlePlayAccountEmail: result.accountEmail,
+          googlePlayAuthMode: result.authMode,
           defaultTrack: "internal",
         }),
       );
       AppStore.refreshProjects();
       toast.success("Connexion Google Play vérifiée", {
-        description: `${packageName} est accessible avec les droits du compte de service.`,
+        description: `${packageName} est accessible avec les droits du compte connecté.`,
       });
       onChanged();
     } catch {
@@ -118,6 +187,8 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         project.id,
         patchAndroidConfig(project, {
           googlePlayConnectionId: undefined,
+          googlePlayAccountEmail: undefined,
+          googlePlayAuthMode: undefined,
           googlePlayServiceAccountEmail: undefined,
           googlePlayCloudProjectId: undefined,
           googlePlayLastCheckedAt: undefined,
@@ -198,7 +269,8 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
             versionCode: result.versionCode,
             releaseStatus: result.releaseStatus,
             editId: result.editId,
-            serviceAccountEmail: result.serviceAccountEmail,
+            accountEmail: result.accountEmail,
+            authMode: result.authMode,
             committedAt: new Date().toISOString(),
           },
         });
@@ -244,8 +316,8 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {connected
-                ? android.googlePlayServiceAccountEmail
-                : "Importez une clé JSON de compte de service autorisée dans Google Play Console."}
+                ? `${accountEmail} · ${authMode === "service-account" ? "compte de service" : "compte Google"}`
+                : "Connectez le compte Google autorisé dans votre Play Console."}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
               L'application doit déjà exister dans Play Console. AppPublisher ne peut ni créer la
@@ -262,13 +334,13 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
 
         <div className="flex shrink-0 flex-wrap gap-2">
           {!connected ? (
-            <Button onClick={importAccount} disabled={busy !== null || !packageName}>
-              {busy === "import" ? (
+            <Button onClick={connectWithGoogle} disabled={busy !== null || !packageName}>
+              {busy === "oauth" || oauthAvailable === null ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <KeyRound className="h-4 w-4" />
+                <UserRound className="h-4 w-4" />
               )}
-              Connecter Google Play
+              Se connecter avec Google
             </Button>
           ) : (
             <>
@@ -307,6 +379,44 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           )}
         </div>
       </div>
+      {!connected && (
+        <Accordion type="single" collapsible className="mt-5 border-t">
+          <AccordionItem value="advanced" className="border-b-0">
+            <AccordionTrigger className="py-3 text-muted-foreground hover:no-underline">
+              Options avancées
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <p className="text-sm font-medium">Compte de service Google</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Réservé aux équipes et aux automatisations. Sélectionnez le fichier JSON d'un
+                  compte de service déjà invité dans Google Play Console. Sa clé privée sera
+                  conservée dans le trousseau macOS.
+                </p>
+                <Button
+                  className="mt-3"
+                  variant="outline"
+                  onClick={importAccount}
+                  disabled={busy !== null || !packageName}
+                >
+                  {busy === "import" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <KeyRound className="h-4 w-4" />
+                  )}
+                  Importer une clé JSON
+                </Button>
+              </div>
+              {oauthAvailable === false && (
+                <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+                  La connexion Google doit encore être activée dans cette compilation
+                  d'AppPublisher. L'import JSON reste disponible ci-dessus.
+                </p>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      )}
     </Card>
   );
 }
@@ -323,8 +433,10 @@ function showGooglePlayError(result: { errorCode: string; errorHint?: string }) 
             ? "Une modification est déjà en cours de revue"
             : result.errorCode === "commit-outcome-unknown"
               ? "Résultat de publication à vérifier"
-              : result.errorCode === "credentials-missing"
-                ? "Clé Google Play introuvable"
-                : "Google Play a refusé l'opération";
+              : result.errorCode === "oauth-not-configured"
+                ? "Connexion Google à activer"
+                : result.errorCode === "credentials-missing"
+                  ? "Autorisation Google Play introuvable"
+                  : "Google Play a refusé l'opération";
   toast.error(title, { description: result.errorHint, duration: 12_000 });
 }

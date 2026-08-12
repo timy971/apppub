@@ -26,8 +26,11 @@ export interface AndroidPublishingConfig {
   signingProfileId?: string;
   defaultTrack?: "internal" | "alpha" | "beta" | "production";
   primaryLanguage?: string;
-  /** Identifiant opaque de la clé Google Play conservée dans le trousseau système. */
+  /** Identifiant opaque de l'autorisation Google Play conservée dans le trousseau système. */
   googlePlayConnectionId?: string;
+  /** Adresse publique du compte Google connecté, quelle que soit la méthode. */
+  googlePlayAccountEmail?: string;
+  googlePlayAuthMode?: "oauth" | "service-account";
   /** Métadonnée publique du compte connecté. La clé privée n'entre jamais dans ce modèle. */
   googlePlayServiceAccountEmail?: string;
   googlePlayCloudProjectId?: string;
@@ -279,7 +282,10 @@ export interface PublishRecord {
     versionCode: number;
     releaseStatus: "completed";
     editId: string;
-    serviceAccountEmail: string;
+    accountEmail: string;
+    authMode: "oauth" | "service-account";
+    /** Compatibilité avec les historiques du lot 6. */
+    serviceAccountEmail?: string;
     committedAt: string;
   };
 }

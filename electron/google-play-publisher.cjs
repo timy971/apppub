@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { JWT } = require("google-auth-library");
+const { JWT, OAuth2Client } = require("google-auth-library");
 
 const ANDROID_PUBLISHER_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
 const API_ROOT = "https://androidpublisher.googleapis.com/androidpublisher/v3";
@@ -62,6 +62,41 @@ function validateServiceAccountCredentials(value) {
     auth_uri: typeof value.auth_uri === "string" ? value.auth_uri : undefined,
     token_uri: TOKEN_URI,
   };
+}
+
+function validateOAuthCredentials(value) {
+  if (!value || typeof value !== "object" || value.type !== "authorized_user") {
+    throw new GooglePlayError("credentials-invalid", "L'autorisation Google est invalide.");
+  }
+  if (
+    typeof value.client_id !== "string" ||
+    !value.client_id.endsWith(".apps.googleusercontent.com") ||
+    typeof value.refresh_token !== "string" ||
+    !value.refresh_token.trim() ||
+    typeof value.account_email !== "string" ||
+    !value.account_email.includes("@")
+  ) {
+    throw new GooglePlayError("credentials-invalid", "L'autorisation Google est incomplète.");
+  }
+  return {
+    type: "authorized_user",
+    client_id: value.client_id,
+    client_secret: typeof value.client_secret === "string" ? value.client_secret : undefined,
+    refresh_token: value.refresh_token,
+    account_email: value.account_email,
+  };
+}
+
+function validateGooglePlayCredentials(value) {
+  return value?.type === "authorized_user"
+    ? validateOAuthCredentials(value)
+    : validateServiceAccountCredentials(value);
+}
+
+function credentialIdentity(credentials) {
+  return credentials.type === "authorized_user"
+    ? { accountEmail: credentials.account_email, authMode: "oauth" }
+    : { accountEmail: credentials.client_email, authMode: "service-account" };
 }
 
 function normalizePackageName(value) {
@@ -142,12 +177,25 @@ class GooglePlayPublisher {
           key: credentials.private_key,
           scopes: [ANDROID_PUBLISHER_SCOPE],
         }));
+    this.oauthFactory =
+      options.oauthFactory ??
+      ((credentials) => {
+        const client = new OAuth2Client({
+          clientId: credentials.client_id,
+          clientSecret: credentials.client_secret,
+        });
+        client.setCredentials({ refresh_token: credentials.refresh_token });
+        return client;
+      });
     this.fs = options.fsModule ?? fs;
     if (typeof this.fetch !== "function") throw new Error("fetch indisponible");
   }
 
   async accessToken(credentials) {
-    const client = this.jwtFactory(credentials);
+    const client =
+      credentials.type === "authorized_user"
+        ? this.oauthFactory(credentials)
+        : this.jwtFactory(credentials);
     let token;
     try {
       const result = await client.getAccessToken();
@@ -155,13 +203,13 @@ class GooglePlayPublisher {
     } catch {
       throw new GooglePlayError(
         "credentials-rejected",
-        "Google a refusé l'authentification du compte de service.",
+        "Google a refusé l'authentification du compte connecté.",
       );
     }
     if (!token) {
       throw new GooglePlayError(
         "credentials-rejected",
-        "Google n'a pas fourni de jeton d'accès au compte de service.",
+        "Google n'a pas fourni de jeton d'accès au compte connecté.",
       );
     }
     return token;
@@ -231,16 +279,16 @@ class GooglePlayPublisher {
   }
 
   async testConnection(credentialsInput, packageNameInput) {
-    const credentials = validateServiceAccountCredentials(credentialsInput);
+    const credentials = validateGooglePlayCredentials(credentialsInput);
     const packageName = normalizePackageName(packageNameInput);
     const token = await this.accessToken(credentials);
     const editId = await this.insertEdit(packageName, token);
     await this.deleteEdit(packageName, editId, token);
-    return { ok: true, serviceAccountEmail: credentials.client_email, packageName };
+    return { ok: true, ...credentialIdentity(credentials), packageName };
   }
 
   async publishInternal(input, onStep = () => {}) {
-    const credentials = validateServiceAccountCredentials(input.credentials);
+    const credentials = validateGooglePlayCredentials(input.credentials);
     const packageName = normalizePackageName(input.packageName);
     const notes = normalizeNotes(input.notes);
     const language = normalizeLocale(input.language);
@@ -326,7 +374,7 @@ class GooglePlayPublisher {
         editId,
         versionCode: bundle.versionCode,
         releaseStatus: "completed",
-        serviceAccountEmail: credentials.client_email,
+        ...credentialIdentity(credentials),
       };
     } finally {
       if (!committed) await this.deleteEdit(packageName, editId, token);
@@ -342,5 +390,7 @@ module.exports = {
   normalizeLocale,
   normalizeNotes,
   normalizePackageName,
+  validateGooglePlayCredentials,
+  validateOAuthCredentials,
   validateServiceAccountCredentials,
 };

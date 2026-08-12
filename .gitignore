@@ -37,3 +37,4 @@ dist-ssr
 # Some environments ignore /build/ globally, so explicitly re-include it here.
 !/build/
 !/build/**
+/build/google-play-oauth.json

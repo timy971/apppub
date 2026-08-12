@@ -69,6 +69,7 @@ export const electronBridge: SystemBridge = {
 
   system: {
     detect: () => ensure().system.detect(),
+    copyText: (value) => ensure().system.copyText(value),
   },
 
   projects: {
@@ -161,6 +162,8 @@ export const electronBridge: SystemBridge = {
   },
 
   googlePlay: {
+    oauthStatus: () => ensure().googlePlay.oauthStatus(),
+    connectOAuth: (args) => ensure().googlePlay.connectOAuth(args),
     importServiceAccount: (args) => ensure().googlePlay.importServiceAccount(args),
     testConnection: (args) => ensure().googlePlay.testConnection(args),
     disconnect: (args) => ensure().googlePlay.disconnect(args),
