@@ -97,5 +97,26 @@ test("prefers an explicit build environment and never invents an OAuth client", 
     },
   });
   assert.equal(configured.clientId, "env.apps.googleusercontent.com");
+  assert.equal(new GooglePlayOAuth(configured).available(), true);
   assert.equal(loadGooglePlayOAuthConfig({ env: {}, fsModule: { readFileSync() {} } }), null);
+});
+
+test("keeps a packaged OAuth config available after normalization", () => {
+  const configured = loadGooglePlayOAuthConfig({
+    env: {},
+    resourcesPath: "/mock/resources",
+    fsModule: {
+      readFileSync(filePath) {
+        assert.equal(filePath, "/mock/resources/google-play-oauth.json");
+        return JSON.stringify({
+          installed: {
+            client_id: "packaged.apps.googleusercontent.com",
+            client_secret: "packaged-secret",
+          },
+        });
+      },
+    },
+  });
+
+  assert.equal(new GooglePlayOAuth(configured).available(), true);
 });
