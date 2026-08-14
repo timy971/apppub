@@ -158,7 +158,9 @@ class GooglePlayOAuth {
         code_challenge_method: "S256",
       });
       const opened = await openExternal(authUrl);
-      if (!opened) {
+      // Electron's shell.openExternal() resolves with void on success. Only an
+      // explicit false from an adapter means that the browser did not open.
+      if (opened === false) {
         throw new GooglePlayError(
           "oauth-browser-failed",
           "Le navigateur Google n'a pas pu être ouvert.",

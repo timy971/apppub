@@ -25,7 +25,7 @@ test("accepts only a Google installed-app OAuth client", () => {
   assert.equal(CALLBACK_PATH, "/oauth2/callback");
 });
 
-test("completes the desktop loopback flow with state, PKCE and a verified email", async () => {
+test("completes the desktop loopback flow when Electron openExternal resolves with void", async () => {
   let redirectUri;
   let generated;
   let tokenOptions;
@@ -73,7 +73,6 @@ test("completes the desktop loopback flow with state, PKCE and a verified email"
         response.resume();
       });
     });
-    return true;
   });
 
   assert.equal(credentials.type, "authorized_user");
