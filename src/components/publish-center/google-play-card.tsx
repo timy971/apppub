@@ -25,6 +25,7 @@ import { patchAndroidConfig } from "@/core/projects/android-config";
 import { ProjectsService } from "@/core/projects/service";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import type { Project, PublishRecord } from "@/core/types";
+import { GooglePlaySetupGuide } from "./google-play-setup-guide";
 
 interface Props {
   project: Project;
@@ -47,6 +48,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     (android.googlePlayServiceAccountEmail ? "service-account" : undefined);
   const connected = !!connectionId && !!accountEmail;
   const verified = connected && !!android.googlePlayLastCheckedAt;
+  const initializationRequired = connected && android.googlePlaySetupStatus === "required";
   const alreadyPublished =
     release.storeRelease?.provider === "google-play" && release.storeRelease.track === "internal";
 
@@ -92,14 +94,22 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           googlePlayAuthMode: "oauth",
           googlePlayServiceAccountEmail: undefined,
           googlePlayCloudProjectId: undefined,
-          googlePlayLastCheckedAt: new Date().toISOString(),
+          googlePlayLastCheckedAt: result.verified ? new Date().toISOString() : undefined,
+          googlePlaySetupStatus: result.initializationRequired ? "required" : "ready",
           defaultTrack: "internal",
         }),
       );
       AppStore.refreshProjects();
-      toast.success("Google Play connecté", {
-        description: `${result.accountEmail} peut accéder à ${packageName}.`,
-      });
+      if (result.initializationRequired) {
+        toast.warning("Compte Google connecté — application à initialiser", {
+          description: "Suivez maintenant les quatre étapes affichées dans AppPublisher.",
+          duration: 10_000,
+        });
+      } else {
+        toast.success("Google Play connecté", {
+          description: `${result.accountEmail} peut accéder à ${packageName}.`,
+        });
+      }
       onChanged();
     } catch {
       toast.error("La connexion avec Google a échoué.");
@@ -132,6 +142,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           googlePlayServiceAccountEmail: result.serviceAccountEmail,
           googlePlayCloudProjectId: result.cloudProjectId,
           googlePlayLastCheckedAt: undefined,
+          googlePlaySetupStatus: undefined,
           defaultTrack: "internal",
         }),
       );
@@ -153,6 +164,17 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     try {
       const result = await bridge().googlePlay.testConnection(connectionArgs);
       if (!result.ok) {
+        if (result.errorCode === "app-not-found") {
+          ProjectsService.update(
+            project.id,
+            patchAndroidConfig(project, {
+              googlePlayLastCheckedAt: undefined,
+              googlePlaySetupStatus: "required",
+            }),
+          );
+          AppStore.refreshProjects();
+          onChanged();
+        }
         showGooglePlayError(result);
         return;
       }
@@ -162,6 +184,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           googlePlayLastCheckedAt: new Date().toISOString(),
           googlePlayAccountEmail: result.accountEmail,
           googlePlayAuthMode: result.authMode,
+          googlePlaySetupStatus: "ready",
           defaultTrack: "internal",
         }),
       );
@@ -192,6 +215,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           googlePlayServiceAccountEmail: undefined,
           googlePlayCloudProjectId: undefined,
           googlePlayLastCheckedAt: undefined,
+          googlePlaySetupStatus: undefined,
         }),
       );
       AppStore.refreshProjects();
@@ -222,6 +246,16 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       });
       if (!result.ok) {
         if (result.errorCode !== "cancelled") {
+          if (result.errorCode === "app-not-found") {
+            ProjectsService.update(
+              project.id,
+              patchAndroidConfig(project, {
+                googlePlayLastCheckedAt: undefined,
+                googlePlaySetupStatus: "required",
+              }),
+            );
+            AppStore.refreshProjects();
+          }
           try {
             HistoryService.record({
               projectId: project.id,
@@ -313,6 +347,11 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
                   Connexion vérifiée
                 </Badge>
               )}
+              {initializationRequired && (
+                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-200">
+                  Initialisation requise
+                </Badge>
+              )}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {connected
@@ -320,8 +359,9 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
                 : "Connectez le compte Google autorisé dans votre Play Console."}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              L'application doit déjà exister dans Play Console. AppPublisher ne peut ni créer la
-              fiche, ni compléter les déclarations réglementaires à votre place.
+              {initializationRequired
+                ? "Google demande une première création dans Play Console avant d’autoriser AppPublisher à publier."
+                : "L'application doit déjà exister dans Play Console. AppPublisher ne peut ni créer la fiche, ni compléter les déclarations réglementaires à votre place."}
             </p>
             {alreadyPublished && (
               <div className="mt-3 flex items-center gap-2 text-sm text-success">
@@ -344,14 +384,16 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={testConnection} disabled={busy !== null}>
-                {busy === "test" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                Vérifier l'accès
-              </Button>
+              {!initializationRequired && (
+                <Button variant="outline" onClick={testConnection} disabled={busy !== null}>
+                  {busy === "test" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Vérifier l'accès
+                </Button>
+              )}
               <Button
                 onClick={publish}
                 disabled={busy !== null || !verified || !release.notes || alreadyPublished}
@@ -379,6 +421,15 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           )}
         </div>
       </div>
+      {initializationRequired && (
+        <GooglePlaySetupGuide
+          projectName={project.name}
+          packageName={packageName}
+          aabPath={release.artifactPath}
+          verifying={busy === "test"}
+          onVerify={testConnection}
+        />
+      )}
       {!connected && (
         <Accordion type="single" collapsible className="mt-5 border-t">
           <AccordionItem value="advanced" className="border-b-0">
@@ -438,5 +489,9 @@ function showGooglePlayError(result: { errorCode: string; errorHint?: string }) 
                 : result.errorCode === "credentials-missing"
                   ? "Autorisation Google Play introuvable"
                   : "Google Play a refusé l'opération";
-  toast.error(title, { description: result.errorHint, duration: 12_000 });
+  const description =
+    result.errorCode === "app-not-found"
+      ? "Créez la fiche, ajoutez et enregistrez le premier AAB dans le test interne, puis recommencez la vérification."
+      : result.errorHint;
+  toast.error(title, { description, duration: 12_000 });
 }

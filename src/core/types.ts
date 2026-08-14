@@ -35,6 +35,8 @@ export interface AndroidPublishingConfig {
   googlePlayServiceAccountEmail?: string;
   googlePlayCloudProjectId?: string;
   googlePlayLastCheckedAt?: string;
+  /** État du parcours manuel imposé par Google avant la première publication API. */
+  googlePlaySetupStatus?: "required" | "ready";
 }
 
 /** Phase 3 : configuration iOS — structure posée, publication future. */

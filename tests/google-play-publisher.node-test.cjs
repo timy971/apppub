@@ -111,6 +111,33 @@ test("normalizes Play locales and enforces the 500-character release-note limit"
   assert.throws(() => normalizeNotes("x".repeat(501)), /500/);
 });
 
+test("keeps a valid Google connection when the public Play application is not initialized", async () => {
+  const api = publisherWith(async (url) => {
+    assert.match(url, /applications\/app\.cranioscan\.android\/edits$/);
+    return response(404, { error: { message: "Package not found" } });
+  });
+
+  const result = await api.prepareConnection(credentials, "app.cranioscan.android");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.accountEmail, credentials.client_email);
+  assert.equal(result.verified, false);
+  assert.equal(result.initializationRequired, true);
+});
+
+test("marks an existing Play application ready during connection", async () => {
+  const api = publisherWith(async (url) => {
+    if (url.endsWith("/edits")) return response(200, { id: "edit-ready" });
+    if (url.endsWith("/edits/edit-ready")) return response(204);
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+
+  const result = await api.prepareConnection(credentials, "app.cranioscan.android");
+
+  assert.equal(result.verified, true);
+  assert.equal(result.initializationRequired, false);
+});
+
 test("publishes one AAB only to internal, validates it, then commits without cancelling a review", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
