@@ -11,8 +11,10 @@ const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 
 function cleanOAuthConfig(value) {
   const source = value?.installed ?? value;
-  const clientId = typeof source?.client_id === "string" ? source.client_id.trim() : "";
-  const clientSecret = typeof source?.client_secret === "string" ? source.client_secret.trim() : "";
+  const rawClientId = source?.client_id ?? source?.clientId;
+  const rawClientSecret = source?.client_secret ?? source?.clientSecret;
+  const clientId = typeof rawClientId === "string" ? rawClientId.trim() : "";
+  const clientSecret = typeof rawClientSecret === "string" ? rawClientSecret.trim() : "";
   if (!clientId.endsWith(".apps.googleusercontent.com")) return null;
   return { clientId, clientSecret };
 }
