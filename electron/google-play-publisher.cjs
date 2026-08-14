@@ -287,6 +287,32 @@ class GooglePlayPublisher {
     return { ok: true, ...credentialIdentity(credentials), packageName };
   }
 
+  /**
+   * Google ne permet pas de créer une application publique avec l'API
+   * Publishing. Une connexion OAuth reste néanmoins valable quand la fiche
+   * n'existe pas encore : le renderer peut alors guider la création manuelle
+   * sans obliger l'utilisateur à se reconnecter ensuite.
+   */
+  async prepareConnection(credentialsInput, packageNameInput) {
+    const credentials = validateGooglePlayCredentials(credentialsInput);
+    const packageName = normalizePackageName(packageNameInput);
+    try {
+      const verified = await this.testConnection(credentials, packageName);
+      return { ...verified, verified: true, initializationRequired: false };
+    } catch (error) {
+      if (error instanceof GooglePlayError && error.code === "app-not-found") {
+        return {
+          ok: true,
+          ...credentialIdentity(credentials),
+          packageName,
+          verified: false,
+          initializationRequired: true,
+        };
+      }
+      throw error;
+    }
+  }
+
   async publishInternal(input, onStep = () => {}) {
     const credentials = validateGooglePlayCredentials(input.credentials);
     const packageName = normalizePackageName(input.packageName);

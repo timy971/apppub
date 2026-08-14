@@ -2786,7 +2786,7 @@ ipcMain.handle("google-play:connectOAuth", async (_event, args) => {
   if (!project) return { ok: false, errorCode: "project-mismatch" };
   try {
     const credentials = await googlePlayOAuth.authorize((url) => shell.openExternal(url));
-    const verified = await googlePlayPublisher.testConnection(credentials, args.packageName);
+    const connection = await googlePlayPublisher.prepareConnection(credentials, args.packageName);
     const connectionId = `gplay_${crypto.randomBytes(16).toString("hex")}`;
     if (!(await setGooglePlayCredentials(connectionId, credentials))) {
       return {
@@ -2799,15 +2799,17 @@ ipcMain.handle("google-play:connectOAuth", async (_event, args) => {
       projectId: project.id,
       packageName: args.packageName,
       connectionId,
-      accountEmail: verified.accountEmail,
+      accountEmail: connection.accountEmail,
       authMode: "oauth",
+      initializationRequired: connection.initializationRequired,
     });
     return {
       ok: true,
       connectionId,
-      accountEmail: verified.accountEmail,
+      accountEmail: connection.accountEmail,
       authMode: "oauth",
-      verified: true,
+      verified: connection.verified,
+      initializationRequired: connection.initializationRequired,
     };
   } catch (error) {
     return publicGooglePlayError(error);

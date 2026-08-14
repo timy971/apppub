@@ -365,7 +365,8 @@ export interface SystemBridge {
         connectionId: string;
         accountEmail: string;
         authMode: "oauth";
-        verified: true;
+        verified: boolean;
+        initializationRequired: boolean;
       }>
     >;
     importServiceAccount(args: { projectPath: string; packageName: string }): Promise<
