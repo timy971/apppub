@@ -211,3 +211,27 @@ test("the project cockpit route is a root-level route", () => {
     "the generated route tree must attach the cockpit directly to the root route",
   );
 });
+
+test("a successful build hands off to a real publish action", () => {
+  const resultCard = fs.readFileSync(
+    path.join(ROOT, "src/components/build-center/result-card.tsx"),
+    "utf8",
+  );
+  assert.match(resultCard, /<Link to="\/publish">/);
+  assert.match(resultCard, /Continuer vers la publication/);
+
+  const copilotStrip = fs.readFileSync(
+    path.join(ROOT, "src/components/publish-center/copilot-strip.tsx"),
+    "utf8",
+  );
+  assert.match(copilotStrip, /plan\.nextAction\.route === "\/publish" && onPrimaryAction/);
+  assert.match(copilotStrip, /onClick=\{onPrimaryAction\}/);
+
+  const publishCenter = fs.readFileSync(
+    path.join(ROOT, "src/components/publish-center/publish-center.tsx"),
+    "utf8",
+  );
+  assert.match(publishCenter, /if \(!notesFormatted\)/);
+  assert.match(publishCenter, /getElementById\("release-notes-input"\)\?\.focus\(\)/);
+  assert.match(publishCenter, /getElementById\("google-play-publication"\)/);
+});
