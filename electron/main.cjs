@@ -2538,6 +2538,8 @@ function publicGooglePlayError(error) {
       errorCode: error.code,
       errorHint: error.message,
       status: error.status,
+      phase: error.phase,
+      causeCode: error.causeCode,
     };
   }
   return {
@@ -3036,14 +3038,22 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
   if (confirmation.response !== 0) return { ok: false, errorCode: "cancelled" };
 
   try {
-    const result = await googlePlayPublisher.publishInternal({
-      credentials,
-      packageName: args.packageName,
-      aabPath,
-      notes: args.notes,
-      language: project.publishing?.android?.primaryLanguage ?? "fr-FR",
-      releaseName: `${project.name} ${project.currentVersion} (${project.currentBuild})`,
-    });
+    const result = await googlePlayPublisher.publishInternal(
+      {
+        credentials,
+        packageName: args.packageName,
+        aabPath,
+        notes: args.notes,
+        language: project.publishing?.android?.primaryLanguage ?? "fr-FR",
+        releaseName: `${project.name} ${project.currentVersion} (${project.currentBuild})`,
+      },
+      (phase) =>
+        diagSigning("info", "google-play:publishInternal step", {
+          projectId: project.id,
+          packageName: args.packageName,
+          phase,
+        }),
+    );
     diagSigning("info", "google-play:publishInternal", {
       projectId: project.id,
       packageName: result.packageName,
@@ -3059,6 +3069,8 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
       packageName: args.packageName,
       errorCode: publicError.errorCode,
       status: publicError.status,
+      phase: publicError.phase,
+      causeCode: publicError.causeCode,
     });
     return publicError;
   }

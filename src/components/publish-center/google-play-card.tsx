@@ -472,7 +472,12 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   );
 }
 
-function showGooglePlayError(result: { errorCode: string; errorHint?: string }) {
+function showGooglePlayError(result: {
+  errorCode: string;
+  errorHint?: string;
+  phase?: string;
+  causeCode?: string;
+}) {
   const title =
     result.errorCode === "app-not-found"
       ? "Application introuvable dans Google Play"
@@ -488,7 +493,17 @@ function showGooglePlayError(result: { errorCode: string; errorHint?: string }) 
                 ? "Connexion Google à activer"
                 : result.errorCode === "credentials-missing"
                   ? "Autorisation Google Play introuvable"
-                  : "Google Play a refusé l'opération";
+                  : result.errorCode === "network-timeout"
+                    ? result.phase === "upload-bundle"
+                      ? "Envoi de l'AAB trop long"
+                      : "Google Play ne répond pas"
+                    : result.errorCode === "network-error"
+                      ? result.phase === "upload-bundle"
+                        ? "Envoi de l'AAB interrompu"
+                        : "Communication Google Play interrompue"
+                      : result.errorCode === "aab-read-failed"
+                        ? "AAB impossible à lire"
+                        : "Google Play a refusé l'opération";
   const description =
     result.errorCode === "app-not-found"
       ? "Créez la fiche, ajoutez et enregistrez le premier AAB dans le test interne, puis recommencez la vérification."

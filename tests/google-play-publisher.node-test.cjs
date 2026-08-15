@@ -31,7 +31,7 @@ function response(status, payload = {}) {
   };
 }
 
-function publisherWith(fetchImpl) {
+function publisherWith(fetchImpl, options = {}) {
   return new GooglePlayPublisher({
     fetchImpl,
     jwtFactory: () => ({
@@ -41,8 +41,9 @@ function publisherWith(fetchImpl) {
     }),
     fsModule: {
       statSync: fs.statSync,
-      createReadStream: () => Buffer.from("aab-stream-fixture"),
     },
+    readFileImpl: (filePath) => fs.promises.readFile(filePath),
+    ...options,
   });
 }
 
@@ -144,15 +145,24 @@ test("publishes one AAB only to internal, validates it, then commits without can
   const aabPath = path.join(root, "release.aab");
   fs.writeFileSync(aabPath, "signed-aab-fixture");
   const calls = [];
-  const api = publisherWith(async (url, options) => {
-    calls.push({ url, options });
-    if (url.endsWith("/edits")) return response(200, { id: "edit-123" });
-    if (url.includes("uploadType=media")) return response(200, { versionCode: 42 });
-    if (url.endsWith("/tracks/internal")) return response(200, { track: "internal" });
-    if (url.endsWith("edit-123:validate")) return response(200, { id: "edit-123" });
-    if (url.includes("edit-123:commit?")) return response(200, { id: "edit-123" });
-    throw new Error(`Unexpected URL: ${url}`);
-  });
+  const timeouts = [];
+  const api = publisherWith(
+    async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith("/edits")) return response(200, { id: "edit-123" });
+      if (url.includes("uploadType=media")) return response(200, { versionCode: 42 });
+      if (url.endsWith("/tracks/internal")) return response(200, { track: "internal" });
+      if (url.endsWith("edit-123:validate")) return response(200, { id: "edit-123" });
+      if (url.includes("edit-123:commit?")) return response(200, { id: "edit-123" });
+      throw new Error(`Unexpected URL: ${url}`);
+    },
+    {
+      timeoutSignalFactory: (timeoutMs) => {
+        timeouts.push(timeoutMs);
+        return AbortSignal.timeout(timeoutMs);
+      },
+    },
+  );
 
   const result = await api.publishInternal({
     credentials,
@@ -168,6 +178,12 @@ test("publishes one AAB only to internal, validates it, then commits without can
   assert.equal(result.versionCode, 42);
   assert.equal(calls.length, 5);
   assert.match(calls[1].url, /\/upload\/androidpublisher\/v3\//);
+  assert.equal(calls[1].options.headers["Content-Length"], String(fs.statSync(aabPath).size));
+  assert.ok(Buffer.isBuffer(calls[1].options.body));
+  assert.equal("duplex" in calls[1].options, false);
+  assert.equal("timeoutMs" in calls[1].options, false);
+  assert.equal("phase" in calls[1].options, false);
+  assert.equal(timeouts[1], 10 * 60_000);
   assert.match(calls[2].url, /\/tracks\/internal$/);
   const trackBody = JSON.parse(calls[2].options.body);
   assert.deepEqual(trackBody.releases[0].versionCodes, ["42"]);
@@ -295,4 +311,37 @@ test("marks a network interruption during commit as an unknown outcome", async (
     (error) => error.code === "commit-outcome-unknown",
   );
   assert.equal(calls.at(-1).options.method, "DELETE");
+});
+
+test("reports an AAB upload interruption without blaming the user's Internet access", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-upload-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const aabPath = path.join(root, "release.aab");
+  fs.writeFileSync(aabPath, "signed-aab-fixture");
+  const api = publisherWith(async (url, options) => {
+    if (url.endsWith("/edits")) return response(200, { id: "edit-upload" });
+    if (url.includes("uploadType=media")) {
+      const failure = new TypeError("fetch failed");
+      failure.cause = { code: "ECONNRESET" };
+      throw failure;
+    }
+    if (url.endsWith("/edits/edit-upload") && options.method === "DELETE") return response(204);
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+
+  await assert.rejects(
+    api.publishInternal({
+      credentials,
+      packageName: "app.cranioscan.android",
+      aabPath,
+      notes: "Envoi interrompu.",
+      language: "fr-FR",
+      releaseName: "CranioScan 1.0.0 (101)",
+    }),
+    (error) =>
+      error.code === "network-error" &&
+      error.phase === "upload-bundle" &&
+      error.causeCode === "ECONNRESET" &&
+      /sans recréer la connexion Google/.test(error.message),
+  );
 });
