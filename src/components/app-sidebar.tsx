@@ -27,17 +27,15 @@ import {
 import { ProjectSwitcher } from "./project-switcher";
 import { AppInfo, formatBuildTimestamp } from "@/core/app-info";
 
-const primary = [
-  { title: "Accueil", url: "/", icon: LayoutDashboard },
-  { title: "Mes applications", url: "/projects", icon: FolderKanban },
-];
+const primary = [{ title: "Accueil", url: "/", icon: LayoutDashboard }];
 
 const publication = [
-  { title: "1. Vérifier l'application", url: "/diagnostic", icon: HeartPulse },
-  { title: "2. Préparer la version", url: "/version", icon: GitBranch },
-  { title: "3. Protéger l'application", url: "/signing", icon: ShieldCheck },
-  { title: "4. Créer le fichier Android", url: "/build", icon: Hammer },
-  { title: "5. Publier sur Google Play", url: "/publish", icon: Rocket },
+  { title: "1. Votre application", url: "/projects", icon: FolderKanban },
+  { title: "2. Vérifier l'application", url: "/diagnostic", icon: HeartPulse },
+  { title: "3. Préparer la version", url: "/version", icon: GitBranch },
+  { title: "4. Protéger l'application", url: "/signing", icon: ShieldCheck },
+  { title: "5. Créer le fichier Android", url: "/build", icon: Hammer },
+  { title: "6. Publier sur Google Play", url: "/publish", icon: Rocket },
 ];
 
 const utils = [

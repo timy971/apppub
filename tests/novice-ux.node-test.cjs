@@ -9,11 +9,12 @@ const read = (relative) => fs.readFileSync(path.join(ROOT, relative), "utf8");
 test("la navigation suit le parcours utilisateur dans le bon ordre", () => {
   const sidebar = read("src/components/app-sidebar.tsx");
   const labels = [
-    "Vérifier l'application",
-    "Préparer la version",
-    "Protéger l'application",
-    "Créer le fichier Android",
-    "Publier sur Google Play",
+    "1. Votre application",
+    "2. Vérifier l'application",
+    "3. Préparer la version",
+    "4. Protéger l'application",
+    "5. Créer le fichier Android",
+    "6. Publier sur Google Play",
   ];
   let previous = -1;
   for (const label of labels) {
