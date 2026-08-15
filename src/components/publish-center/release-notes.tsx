@@ -55,7 +55,7 @@ export function ReleaseNotesCard({ project, draft, onDraftChange }: Props) {
   };
 
   return (
-    <Card className="p-6 shadow-soft">
+    <Card id="release-notes" className="p-6 shadow-soft">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -89,6 +89,7 @@ export function ReleaseNotesCard({ project, draft, onDraftChange }: Props) {
       </div>
 
       <Textarea
+        id="release-notes-input"
         value={draft}
         onChange={(e) => onDraftChange(e.target.value.slice(0, MAX_LEN * 2))}
         rows={5}

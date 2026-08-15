@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import {
+  ArrowRight,
   AlertTriangle,
   CheckCircle2,
   Copy,
@@ -11,6 +12,7 @@ import {
   TrendingUp,
   XCircle,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import type { AabValidationReport, Project } from "@/core/types";
 import type { OperationSnapshot } from "@/core/operations/types";
 import type { DurationStats } from "@/core/operations/estimator";
@@ -229,7 +231,15 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button onClick={reveal}>
+            {verdict !== "blocked" && (
+              <Button asChild>
+                <Link to="/publish">
+                  Continuer vers la publication
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+            <Button variant="outline" onClick={reveal}>
               <FolderOpen className="h-4 w-4" />
               Révéler le fichier
             </Button>
@@ -252,6 +262,12 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
               </Button>
             )}
           </div>
+          {verdict !== "blocked" && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Étape suivante : ajoutez les notes de version, préparez la release, puis envoyez
+              l'AAB sur la piste interne de Google Play.
+            </p>
+          )}
         </div>
       )}
 

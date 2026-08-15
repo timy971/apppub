@@ -1,5 +1,6 @@
-import { Sparkles, AlertTriangle, CircleX, ArrowRight, Check } from "lucide-react";
+import { Sparkles, AlertTriangle, CircleX, ArrowRight, Check, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import type { CopilotPlan } from "@/core/copilot/types";
 import type { Project } from "@/core/types";
 import { CopilotActionLink } from "@/components/copilot-action-link";
@@ -16,9 +17,13 @@ import { CopilotActionLink } from "@/components/copilot-action-link";
 export function PublishCopilotStrip({
   plan,
   project,
+  onPrimaryAction,
+  primaryActionBusy = false,
 }: {
   plan: CopilotPlan;
   project?: Project;
+  onPrimaryAction?: () => void;
+  primaryActionBusy?: boolean;
 }) {
   const tone =
     plan.overallStatus === "blocked"
@@ -53,14 +58,30 @@ export function PublishCopilotStrip({
           <div className="mt-0.5 text-sm font-semibold truncate">{plan.headline}</div>
           <div className="text-xs text-muted-foreground truncate">{plan.summary}</div>
         </div>
-        <CopilotActionLink
-          action={plan.nextAction}
-          projectId={project?.id}
-          className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-3 py-1.5 text-xs font-medium hover:opacity-90 shrink-0"
-        >
-          {plan.nextAction.title}
-          <ArrowRight className="h-3.5 w-3.5" />
-        </CopilotActionLink>
+        {plan.nextAction.route === "/publish" && onPrimaryAction ? (
+          <Button
+            size="sm"
+            onClick={onPrimaryAction}
+            disabled={primaryActionBusy}
+            className="shrink-0 bg-foreground text-background hover:bg-foreground/90"
+          >
+            {primaryActionBusy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ArrowRight className="h-3.5 w-3.5" />
+            )}
+            {plan.nextAction.title}
+          </Button>
+        ) : (
+          <CopilotActionLink
+            action={plan.nextAction}
+            projectId={project?.id}
+            className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-3 py-1.5 text-xs font-medium hover:opacity-90 shrink-0"
+          >
+            {plan.nextAction.title}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </CopilotActionLink>
+        )}
       </div>
     </Card>
   );

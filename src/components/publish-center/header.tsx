@@ -37,7 +37,7 @@ export function PublishHeader({
         : "text-danger";
 
   const blocked = score.level === "blocked";
-  const buttonLabel = blocked ? "Corriger les points bloquants" : "Préparer la release";
+  const buttonLabel = blocked ? "Corriger les points bloquants" : "Préparer et continuer";
 
   const handleClick = () => {
     if (blocked) {

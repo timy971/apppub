@@ -96,6 +96,15 @@ export function PublishCenter({ project }: { project: Project }) {
 
   const prepare = useCallback(async () => {
     if (score.level === "blocked") return;
+    if (!notesFormatted) {
+      const notesCard = document.getElementById("release-notes");
+      notesCard?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => document.getElementById("release-notes-input")?.focus(), 250);
+      toast.warning("Ajoutez les notes de version", {
+        description: "Elles seront envoyées avec l'AAB sur Google Play.",
+      });
+      return;
+    }
     setPreparing(true);
     const started = performance.now();
     try {
@@ -138,8 +147,15 @@ export function PublishCenter({ project }: { project: Project }) {
       AppStore.refreshProjects();
       setRefreshKey((n) => n + 1);
       toast.success("Release préparée", {
-        description: `${project.name} v${project.currentVersion} · build ${project.currentBuild}`,
+        description: "La section Google Play est prête juste en dessous.",
       });
+      window.setTimeout(
+        () =>
+          document
+            .getElementById("google-play-publication")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        150,
+      );
     } catch {
       toast.error("La préparation n'a pas pu être enregistrée.");
     } finally {
@@ -161,7 +177,12 @@ export function PublishCenter({ project }: { project: Project }) {
   return (
     <div className="space-y-4">
       <PublishExplainer />
-      <PublishCopilotStrip plan={copilotPlan} project={project} />
+      <PublishCopilotStrip
+        plan={copilotPlan}
+        project={project}
+        onPrimaryAction={prepare}
+        primaryActionBusy={preparing}
+      />
       <PublishHeader
         project={project}
         status={status}
