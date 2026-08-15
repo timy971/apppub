@@ -484,7 +484,7 @@ function showGooglePlayError(result: {
       : result.errorCode === "permission-denied"
         ? "Droits Google Play insuffisants"
         : result.errorCode === "version-already-used"
-          ? "Ce versionCode a déjà été utilisé"
+          ? "Numéro de build déjà utilisé"
           : result.errorCode === "changes-in-review"
             ? "Une modification est déjà en cours de revue"
             : result.errorCode === "commit-outcome-unknown"
@@ -507,6 +507,8 @@ function showGooglePlayError(result: {
   const description =
     result.errorCode === "app-not-found"
       ? "Créez la fiche, ajoutez et enregistrez le premier AAB dans le test interne, puis recommencez la vérification."
-      : result.errorHint;
+      : result.errorCode === "version-already-used"
+        ? "Google Play n'accepte jamais deux AAB avec le même versionCode. Augmentez le numéro de build dans le Version Center, reconstruisez l'AAB, puis republiez."
+        : result.errorHint;
   toast.error(title, { description, duration: 12_000 });
 }
