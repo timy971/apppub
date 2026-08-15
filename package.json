@@ -20,6 +20,8 @@
     "electron:dev": "APPPUBLISHER_DEV_URL=http://localhost:8080 electron electron/main.cjs",
     "make:icons": "bash scripts/make-icons.sh",
     "pack:mac": "node scripts/pack.cjs mac",
+    "release:mac": "node scripts/release-mac.cjs",
+    "release:mac:publish": "node scripts/release-mac.cjs --publish",
     "pack:win": "node scripts/pack.cjs win"
   },
   "dependencies": {
@@ -60,6 +62,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "electron-updater": "^6.8.9",
     "google-auth-library": "^10.9.1",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.575.0",

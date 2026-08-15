@@ -73,6 +73,8 @@ const {
   validateServiceAccountCredentials,
 } = require("./google-play-publisher.cjs");
 const { GooglePlayOAuth, loadGooglePlayOAuthConfig } = require("./google-play-oauth.cjs");
+const { MacUpdateManager } = require("./update-manager.cjs");
+const { autoUpdater } = require("electron-updater");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
 const activeExecutions = new ExecutionRegistry();
@@ -80,6 +82,7 @@ const signingSessions = new SigningSessionRegistry();
 const trustedWebContentsIds = new Set();
 const knownSecretValues = new Set();
 let mainWindow = null;
+let macUpdateManager = null;
 
 /* ---------- Bootstrap : PATH utilisateur (macOS/Linux) ----------
  *
@@ -596,7 +599,25 @@ function setupDiagnosticMenu() {
   try {
     const template = [];
     if (process.platform === "darwin") {
-      template.push({ role: "appMenu" });
+      template.push({
+        label: app.name,
+        submenu: [
+          { role: "about" },
+          { type: "separator" },
+          {
+            label: "Rechercher des mises à jour…",
+            click: () => void macUpdateManager?.checkNow(),
+          },
+          { type: "separator" },
+          { role: "services" },
+          { type: "separator" },
+          { role: "hide" },
+          { role: "hideOthers" },
+          { role: "unhide" },
+          { type: "separator" },
+          { role: "quit" },
+        ],
+      });
     }
     template.push(
       { role: "editMenu" },
@@ -905,6 +926,15 @@ app
     });
 
     safeStep("about-panel", () => configureAboutPanel());
+    safeStep("auto-update-manager", () => {
+      macUpdateManager = new MacUpdateManager({
+        app,
+        dialog,
+        updater: autoUpdater,
+        log: diagWrite,
+        getWindow: () => mainWindow ?? undefined,
+      });
+    });
     safeStep("diagnostic-menu", () => setupDiagnosticMenu());
 
     // createWindow est la SEULE étape non-optionnelle : si elle échoue,
@@ -914,6 +944,7 @@ app
       diagWrite({ level: "info", message: "boot step start: createWindow" });
       createWindow();
       diagWrite({ level: "info", message: "boot step ok: createWindow" });
+      safeStep("auto-update-start", () => macUpdateManager?.start());
     } catch (e) {
       diagWrite({
         level: "fatal",
@@ -946,6 +977,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  macUpdateManager?.stop();
   activeExecutions.cancelAll();
   signingSessions.clear();
 });

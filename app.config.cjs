@@ -23,4 +23,8 @@ module.exports = {
   description: "Assistant de publication d'applications multiplateformes.",
   copyright: `Copyright © ${new Date().getFullYear()} Tim C.`,
   homepage: "https://apppublisher.lovable.app",
+  repository: {
+    owner: "timy971",
+    name: "apppub",
+  },
 };

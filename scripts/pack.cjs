@@ -17,6 +17,8 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 
 const target = process.argv[2] || "mac";
+const macDistribution = target === "mac" && process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
+const publish = macDistribution && process.env.APPPUBLISHER_PUBLISH === "1";
 if (!["mac", "win"].includes(target)) {
   console.error(`Cible inconnue : ${target}. Utilisez "mac" ou "win".`);
   process.exit(1);
@@ -61,7 +63,10 @@ function dumpDistStructure() {
           walk(fullPath, prefix + "  ");
         } else {
           const st = fs.statSync(fullPath);
-          const size = st.size > 1024 * 100 ? `${(st.size / 1024 / 1024).toFixed(1)}M` : `${(st.size / 1024).toFixed(1)}K`;
+          const size =
+            st.size > 1024 * 100
+              ? `${(st.size / 1024 / 1024).toFixed(1)}M`
+              : `${(st.size / 1024).toFixed(1)}K`;
           console.error(`${prefix}📄 ${e.name} (${size})`);
         }
       }
@@ -82,10 +87,14 @@ if (!fs.existsSync(path.join(buildDir, "icon.png"))) {
 ok("Icône source (icon.png) présente.");
 
 if (target === "mac" && !fs.existsSync(path.join(buildDir, "icon.icns"))) {
-  fail("build/icon.icns manquant. Lancez npm run make:icons ou ajoutez l'icône macOS avant pack:mac.");
+  fail(
+    "build/icon.icns manquant. Lancez npm run make:icons ou ajoutez l'icône macOS avant pack:mac.",
+  );
 }
 if (target === "win" && !fs.existsSync(path.join(buildDir, "icon.ico"))) {
-  warn("build/icon.ico absent — l'icône Windows sera à générer avant une livraison Windows finale.");
+  warn(
+    "build/icon.ico absent — l'icône Windows sera à générer avant une livraison Windows finale.",
+  );
 }
 
 for (const rel of ["electron/main.cjs", "electron/preload.cjs", "app.config.cjs"]) {
@@ -121,10 +130,27 @@ info(`Packaging Electron (${target})…`);
 const ebArgs = ["electron-builder", "--config", "electron-builder.config.cjs"];
 if (target === "mac") ebArgs.push("--mac");
 if (target === "win") ebArgs.push("--win");
+ebArgs.push("--publish", publish ? "always" : "never");
 run("npx", ebArgs);
 
-if (target === "mac" && !fs.existsSync(path.join(distApp, "mac-arm64", "AppPublisher.app"))) {
+if (
+  target === "mac" &&
+  !macDistribution &&
+  !fs.existsSync(path.join(distApp, "mac-arm64", "AppPublisher.app"))
+) {
   fail("AppPublisher.app non produit — le packaging macOS n'est pas valide.");
+}
+if (macDistribution) {
+  const artifacts = fs.existsSync(distApp) ? fs.readdirSync(distApp) : [];
+  for (const required of [".dmg", ".zip"]) {
+    if (!artifacts.some((name) => name.endsWith(required))) {
+      fail(`Artefact ${required} non produit — la distribution macOS n'est pas valide.`);
+    }
+  }
+  if (!artifacts.includes("latest-mac.yml")) {
+    fail("latest-mac.yml non produit — les mises à jour automatiques ne fonctionneraient pas.");
+  }
+  ok("DMG, ZIP et manifeste de mise à jour produits.");
 }
 
 /* ---------- 6. Rapport ---------- */
@@ -142,7 +168,15 @@ console.log("\n─────────────────────�
 console.log(" Packaging terminé");
 console.log("──────────────────────────────────────────────");
 console.log(` Version   : ${version.version} (build ${version.build ?? 1})`);
-console.log(` Cible     : ${target === "mac" ? "macOS (arm64)" : "Windows (x64)"}`);
+console.log(
+  ` Cible     : ${
+    target === "mac"
+      ? macDistribution
+        ? "macOS universel — signé et notarisé"
+        : "macOS (arm64) — développement local"
+      : "Windows (x64)"
+  }`,
+);
 console.log(` Durée     : ${seconds} s`);
 console.log(` Sortie    : dist-app/`);
 for (const name of produced) {
