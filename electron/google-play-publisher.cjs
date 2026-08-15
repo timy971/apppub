@@ -153,10 +153,13 @@ function googleReason(payload) {
 
 function classifyHttpError(status, payload) {
   const reason = googleReason(payload);
+  const message = safeGoogleMessage(payload, `Google Play a répondu ${status}.`);
   let code = "google-play-error";
   if (
     reason === "apkUpgradeVersionConflict" ||
-    reason === "apkNotificationMessageKeyUpgradeVersionConflict"
+    reason === "apkNotificationMessageKeyUpgradeVersionConflict" ||
+    /version\s*code\b.*\balready\s+been\s+used\b/i.test(message) ||
+    /\bversionCode\b.*\balready\b.*\bused\b/i.test(message)
   ) {
     code = "version-already-used";
   } else if (reason === "CHANGES_ALREADY_IN_REVIEW") {
@@ -164,7 +167,7 @@ function classifyHttpError(status, payload) {
   } else if (status === 401) code = "credentials-rejected";
   else if (status === 403) code = "permission-denied";
   else if (status === 404) code = "app-not-found";
-  return new GooglePlayError(code, safeGoogleMessage(payload, `Google Play a répondu ${status}.`), {
+  return new GooglePlayError(code, message, {
     status,
     reason,
   });

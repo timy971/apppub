@@ -250,7 +250,7 @@ test("connection check creates and immediately deletes a disposable edit", async
   );
 });
 
-test("classifies a reused versionCode before the generic 403 permission error", async (t) => {
+test("classifies Google's message-only reused versionCode before the generic 403", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-version-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const aabPath = path.join(root, "release.aab");
@@ -260,8 +260,7 @@ test("classifies a reused versionCode before the generic 403 permission error", 
     if (url.includes("uploadType=media")) {
       return response(403, {
         error: {
-          message: "Version code has already been used.",
-          errors: [{ reason: "apkUpgradeVersionConflict" }],
+          message: "Version code 5 has already been used.",
         },
       });
     }
