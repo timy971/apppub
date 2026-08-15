@@ -54,13 +54,13 @@ Position, taille et état maximisé de la fenêtre sont écrits dans
 `window-state.json` (dossier `userData` d'Electron) à chaque fermeture
 et restaurés au lancement suivant.
 
-## Packaging (Phase 3.6)
+## Packaging et distribution macOS (lots 3 et 7)
 
 L'outil retenu est **electron-builder** (et non electron-packager) :
 
 - une seule commande produit une `.app` macOS exécutable ;
-- prépare le terrain pour la signature Apple Developer ID, la
-  notarisation et l'auto-update sans changer d'outil ;
+- le mode distribution produit un DMG et un ZIP universels, signés et
+  notarisés, avec le manifeste nécessaire aux mises à jour ;
 - gère automatiquement la conversion `icon.png` → `icon.icns` / `icon.ico`
   lorsque le format cible est absent.
 
@@ -82,6 +82,12 @@ npm run electron:dev   # terminal 2 (Electron sur http://localhost:8080)
 
 # Packaging macOS (arm64) — produit dist-app/mac-arm64/AppPublisher.app
 npm run pack:mac
+
+# Distribution officielle — vérifie les secrets, signe et notarise sans publier
+npm run release:mac
+
+# Distribution officielle puis publication dans les Releases GitHub
+npm run release:mac:publish
 
 # Packaging Windows (x64) — produit dist-app/AppPublisher Setup *.exe + .zip
 # (exécutable depuis Windows, ou depuis macOS avec Wine installé)
@@ -108,16 +114,20 @@ constante injectée par Vite (`__APP_VERSION__`).
 electron-builder utilisera `icon.png` seul si les formats natifs sont
 absents, mais la qualité est meilleure avec les fichiers dédiés.
 
-## Ce que le packaging **ne fait pas encore**
+## Distribution officielle macOS
 
-Volontairement hors périmètre de la Phase 3.6 (à traiter ultérieurement) :
+Le pipeline du lot 7 prend désormais en charge :
 
-- signature Apple Developer ID ;
-- notarisation Apple ;
-- génération `.dmg` / `.zip` sur macOS ;
+- signature Apple Developer ID et hardened runtime ;
+- notarisation Apple et génération `.dmg` / `.zip` universelle ;
+- publication GitHub et mises à jour automatiques signées ;
+- refus explicite si le client OAuth Google ou un justificatif manque ;
+- workflow GitHub Actions sans secret versionné.
+
+Le guide pas à pas et la grille de validation sur Mac propre sont dans
+[`docs/macos-distribution.md`](../docs/macos-distribution.md).
+
+Restent hors périmètre de ce pipeline macOS :
+
 - signature Authenticode Windows ;
-- publication automatique / auto-update ;
-- CI/CD (GitHub Actions, etc.).
-
-L'architecture est prête pour ces ajouts : il suffira d'activer les
-blocs correspondants dans `electron-builder.config.cjs`.
+- publication et mise à jour automatique de la cible Windows.

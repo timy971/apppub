@@ -12,6 +12,7 @@
  */
 const app = require("./app.config.cjs");
 const fs = require("fs");
+const distribution = process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
 
 module.exports = {
   appId: app.appId,
@@ -49,13 +50,22 @@ module.exports = {
   mac: {
     category: "public.app-category.developer-tools",
     icon: "build/icon.icns",
-    target: [{ target: "dir", arch: ["arm64"] }],
+    target: distribution
+      ? [
+          { target: "dmg", arch: ["universal"] },
+          { target: "zip", arch: ["universal"] },
+        ]
+      : [{ target: "dir", arch: ["arm64"] }],
     darkModeSupport: true,
-    hardenedRuntime: false, // désactivé tant qu'il n'y a pas de signature Apple
+    hardenedRuntime: distribution,
     gatekeeperAssess: false,
-    identity: null, // pas de signature Developer ID pour l'instant (Phase future)
+    // En local, une .app non signée reste disponible pour les tests rapides.
+    // En distribution, electron-builder choisit le certificat Developer ID
+    // Application du trousseau ou celui fourni par CSC_LINK.
+    identity: distribution ? undefined : null,
+    notarize: distribution,
     entitlements: "build/entitlements.mac.plist",
-    entitlementsInherit: "build/entitlements.mac.plist",
+    entitlementsInherit: "build/entitlements.mac.inherit.plist",
     extendInfo: {
       CFBundleName: app.productName,
       CFBundleDisplayName: app.productName,
@@ -70,6 +80,17 @@ module.exports = {
       { x: 410, y: 220, type: "link", path: "/Applications" },
     ],
   },
+
+  // Le manifeste latest-mac.yml est généré avec les DMG/ZIP. L'application
+  // signée l'utilise ensuite pour rechercher les nouvelles versions GitHub.
+  publish: distribution
+    ? {
+        provider: "github",
+        owner: app.repository.owner,
+        repo: app.repository.name,
+        releaseType: "release",
+      }
+    : null,
 
   // ---------- Windows (préparation) ----------
   // Génération possible dès qu'electron-builder est lancé sur Windows,
