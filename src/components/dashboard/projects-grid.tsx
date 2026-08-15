@@ -71,13 +71,7 @@ export function ProjectsGrid({
   );
 }
 
-function ProjectCard({
-  summary,
-  isActive,
-}: {
-  summary: ProjectSummary;
-  isActive: boolean;
-}) {
+function ProjectCard({ summary, isActive }: { summary: ProjectSummary; isActive: boolean }) {
   const { project, status, lastBuild, lastPublish } = summary;
   return (
     <Link
@@ -100,7 +94,7 @@ function ProjectCard({
             <span className="truncate font-semibold">{project.name}</span>
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-            v{project.currentVersion} · build {project.currentBuild}
+            Version {project.currentVersion} · nº interne {project.currentBuild}
           </div>
         </div>
         <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -119,7 +113,7 @@ function ProjectCard({
       <div className="mt-4 grid grid-cols-2 gap-2 border-t pt-3 text-xs">
         <MiniStat
           icon={Hammer}
-          label="Build"
+          label="Fichier Android"
           value={lastBuild ? formatRelative(lastBuild.createdAt) : "—"}
         />
         <MiniStat

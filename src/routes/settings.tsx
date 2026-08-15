@@ -149,7 +149,7 @@ function SettingsPage() {
         <Card className="p-6 shadow-soft">
           <Row
             label="Sauvegarde automatique"
-            hint="Une sauvegarde légère est créée avant chaque opération sensible (version, build, publication)."
+            hint="Une sauvegarde légère est créée avant chaque opération sensible (version, création du fichier, publication)."
           >
             <Switch
               checked={settings.autoBackupEnabled ?? true}

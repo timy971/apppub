@@ -20,6 +20,7 @@ import { ModeBadge } from "@/components/mode-badge";
 import { Toaster } from "@/components/ui/sonner";
 import { SetupAssistantProvider } from "@/components/setup-assistant/setup-context";
 import { CommandPalette } from "@/components/command-palette";
+import { PublicationJourney } from "@/components/publication-journey";
 import { AppStore } from "@/core/store/app-store";
 import { storage } from "@/core/storage";
 
@@ -103,19 +104,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "AppPublisher — Publiez vos applications simplement" },
       {
-        name: "description",
-        content:
-          "AppRelease Assistant simplifies Android app publishing for non-technical users, automating complex steps.",
-      },
-      {
-        property: "og:description",
-        content:
-          "AppRelease Assistant simplifies Android app publishing for non-technical users, automating complex steps.",
-      },
-      {
         name: "twitter:description",
-        content:
-          "AppRelease Assistant simplifies Android app publishing for non-technical users, automating complex steps.",
+        content: "Publiez vos applications Android pas à pas, sans jargon.",
       },
       {
         property: "og:image",
@@ -190,19 +180,26 @@ function AppShell() {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
+        <a
+          href="#contenu-principal"
+          className="fixed left-4 top-3 z-50 -translate-y-20 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg transition-transform focus:translate-y-0"
+        >
+          Aller au contenu principal
+        </a>
         <AppSidebar />
         <div className="flex flex-1 flex-col">
           <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur">
             <div className="flex items-center gap-3">
-              <SidebarTrigger />
+              <SidebarTrigger aria-label="Afficher ou masquer la navigation" />
               <span className="text-sm text-muted-foreground">
                 Publiez sans retenir une seule commande.
               </span>
             </div>
             <ModeBadge />
           </header>
-          <main className="flex-1">
-            <div className="mx-auto w-full max-w-5xl px-8 py-10">
+          <PublicationJourney />
+          <main id="contenu-principal" tabIndex={-1} className="flex-1">
+            <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
               <Outlet />
             </div>
           </main>

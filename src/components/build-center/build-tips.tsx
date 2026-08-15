@@ -3,12 +3,12 @@ import { Lightbulb } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 const TIPS: string[] = [
-  "Premier build Android ? Gradle télécharge parfois plusieurs centaines de Mo de dépendances. Les builds suivants seront beaucoup plus rapides.",
-  "Vous pouvez continuer à utiliser AppPublisher pendant qu'un build est en cours.",
-  "Un build échoue ? AppPublisher traduit l'erreur en langage clair dans le panneau ci-dessous.",
+  "Première création Android ? Des outils peuvent être téléchargés automatiquement. Les créations suivantes seront beaucoup plus rapides.",
+  "Vous pouvez continuer à utiliser AppPublisher pendant la création du fichier.",
+  "Une création échoue ? AppPublisher traduit l'erreur en langage clair dans le panneau ci-dessous.",
   "Le fichier .aab produit peut être envoyé directement sur Google Play Console.",
   "Les builds suivants réutilisent le cache Gradle : ils prennent souvent moitié moins de temps.",
-  "Chaque build est enregistré dans l'historique, avec sa durée et son résultat.",
+  "Chaque fichier créé est enregistré dans l'historique, avec sa durée et son résultat.",
 ];
 
 interface Props {

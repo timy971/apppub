@@ -18,15 +18,15 @@ export function PublishExplainer() {
             Préparer puis publier, sans perdre le contrôle.
           </div>
           <p className="text-muted-foreground leading-relaxed">
-            AppPublisher vérifie la configuration, les notes et la signature de l'AAB. Une fois la
-            release préparée, vous pouvez l'envoyer directement sur la piste interne de Google Play.
+            AppPublisher vérifie la configuration, les notes et le fichier Android (AAB). Une fois
+            la version préparée, vous pouvez l'envoyer à vos testeurs internes sur Google Play.
           </p>
           <div className="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2 text-[12px] text-muted-foreground">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               <strong className="text-foreground">Sécurité&nbsp;:</strong> aucune publication ne
-              part sans confirmation native. Les pistes fermée, ouverte et production restent
-              désactivées.
+              part sans votre confirmation. La publication publique reste volontairement désactivée
+              : AppPublisher commence toujours par le groupe de test interne.
             </span>
           </div>
         </div>

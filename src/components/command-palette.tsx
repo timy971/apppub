@@ -40,7 +40,7 @@ const primary: NavItem[] = [
 
 const publication: NavItem[] = [
   { title: "Modifier la version", url: "/version", icon: GitBranch },
-  { title: "Construire Android", url: "/build", icon: Hammer },
+  { title: "Créer le fichier Android", url: "/build", icon: Hammer },
   { title: "Préparer la publication", url: "/publish", icon: Rocket },
 ];
 
@@ -51,13 +51,9 @@ const utils: NavItem[] = [
   { title: "Paramètres", url: "/settings", icon: SettingsIcon },
 ];
 
-const supportBase: NavItem[] = [
-  { title: "Support", url: "/journal", icon: LifeBuoy },
-];
+const supportBase: NavItem[] = [{ title: "Support", url: "/journal", icon: LifeBuoy }];
 
-const expertOnly: NavItem[] = [
-  { title: "Console", url: "/logs", icon: Terminal },
-];
+const expertOnly: NavItem[] = [{ title: "Console", url: "/logs", icon: Terminal }];
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -120,11 +116,7 @@ export function CommandPalette() {
             <CommandSeparator />
             <CommandGroup heading="Projets">
               {projects.map((p) => (
-                <CommandItem
-                  key={p.id}
-                  value={`Projet ${p.name}`}
-                  onSelect={() => goProject(p.id)}
-                >
+                <CommandItem key={p.id} value={`Projet ${p.name}`} onSelect={() => goProject(p.id)}>
                   <FolderOpen className="mr-2 h-4 w-4" />
                   <span>Ouvrir {p.name}</span>
                 </CommandItem>

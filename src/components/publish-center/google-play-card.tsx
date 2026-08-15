@@ -341,7 +341,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-semibold">Publication Google Play</h2>
-              <Badge variant="outline">Piste internal uniquement</Badge>
+              <Badge variant="outline">Test interne uniquement</Badge>
               {verified && (
                 <Badge className="bg-success/15 text-success hover:bg-success/15">
                   Connexion vérifiée
@@ -366,7 +366,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
             {alreadyPublished && (
               <div className="mt-3 flex items-center gap-2 text-sm text-success">
                 <CheckCircle2 className="h-4 w-4" />
-                Cette release a été envoyée sur la piste interne.
+                Cette version a été envoyée aux testeurs internes.
               </div>
             )}
           </div>
@@ -403,7 +403,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-                Publier sur internal
+                Envoyer aux testeurs internes
               </Button>
               <Button
                 variant="ghost"
@@ -495,20 +495,20 @@ function showGooglePlayError(result: {
                   ? "Autorisation Google Play introuvable"
                   : result.errorCode === "network-timeout"
                     ? result.phase === "upload-bundle"
-                      ? "Envoi de l'AAB trop long"
+                      ? "Envoi du fichier Android trop long"
                       : "Google Play ne répond pas"
                     : result.errorCode === "network-error"
                       ? result.phase === "upload-bundle"
-                        ? "Envoi de l'AAB interrompu"
+                        ? "Envoi du fichier Android interrompu"
                         : "Communication Google Play interrompue"
                       : result.errorCode === "aab-read-failed"
-                        ? "AAB impossible à lire"
+                        ? "Fichier Android impossible à lire"
                         : "Google Play a refusé l'opération";
   const description =
     result.errorCode === "app-not-found"
-      ? "Créez la fiche, ajoutez et enregistrez le premier AAB dans le test interne, puis recommencez la vérification."
+      ? "Créez la fiche, ajoutez et enregistrez le premier fichier Android dans le test interne, puis recommencez la vérification."
       : result.errorCode === "version-already-used"
-        ? "Google Play n'accepte jamais deux AAB avec le même versionCode. Augmentez le numéro de build dans le Version Center, reconstruisez l'AAB, puis republiez."
+        ? "Google Play n'accepte jamais deux fichiers avec le même numéro interne. Ouvrez « Préparer la version », augmentez ce numéro, recréez le fichier Android, puis republiez."
         : result.errorHint;
   toast.error(title, { description, duration: 12_000 });
 }

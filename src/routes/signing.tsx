@@ -56,12 +56,13 @@ import {
   type SigningProfile,
   type SecretsSupportInfo,
 } from "@/features/android-signing";
+import { StepPurpose } from "@/components/step-purpose";
 
 export const Route = createFileRoute("/signing")({
   component: SigningPage,
   head: () => ({
     meta: [
-      { title: "Signatures Android · AppPublisher" },
+      { title: "Protéger l'application · AppPublisher" },
       {
         name: "description",
         content:
@@ -144,25 +145,35 @@ function SigningPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Signatures Android"
-        subtitle="Vos clés de signature au même endroit. Mots de passe protégés par le trousseau système."
+        title="Protéger l'application"
+        subtitle="Cette identité numérique prouve à Google Play que les prochaines versions viennent bien de vous. AppPublisher la conserve en sécurité."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} disabled={!isElectron()}>
-              <Upload className="mr-2 h-4 w-4" /> Importer un keystore
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+              disabled={!isElectron()}
+            >
+              <Upload className="mr-2 h-4 w-4" /> J'ai déjà une signature
             </Button>
             <Button size="sm" onClick={() => setCreateOpen(true)} disabled={!isElectron()}>
-              <Plus className="mr-2 h-4 w-4" /> Créer une signature
+              <Plus className="mr-2 h-4 w-4" /> Créer ma signature
             </Button>
           </div>
         }
       />
 
+      <StepPurpose
+        automatic="créer ou vérifier l'identité numérique de votre application et protéger ses mots de passe."
+        yourAction="créer une signature si c'est la première publication, sinon choisir celle qui existe déjà."
+        result="Google Play peut vérifier que chaque nouvelle version vient bien de vous."
+      />
 
       {!isElectron() && (
         <Card className="border-dashed p-4 text-sm text-muted-foreground">
-          Cet écran est actif dans l'application de bureau AppPublisher. Dans l'aperçu Lovable,
-          la lecture de fichiers de signature n'est pas possible.
+          Cet écran est actif dans l'application de bureau AppPublisher. Dans l'aperçu Lovable, la
+          lecture de fichiers de signature n'est pas possible.
         </Card>
       )}
 
@@ -171,9 +182,12 @@ function SigningPage() {
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
           <div>
             <div className="font-medium">Trousseau système indisponible</div>
-            <div className="text-muted-foreground">{support.reason ?? "Cette plateforme n'est pas encore prise en charge."}</div>
+            <div className="text-muted-foreground">
+              {support.reason ?? "Cette plateforme n'est pas encore prise en charge."}
+            </div>
             <div className="mt-1 text-muted-foreground">
-              Vous pouvez encore importer un keystore, mais le mot de passe sera demandé à chaque build.
+              Vous pouvez encore importer un keystore, mais le mot de passe sera demandé à chaque
+              build.
             </div>
           </div>
         </Card>
@@ -186,15 +200,21 @@ function SigningPage() {
           </div>
           <div className="text-base font-medium">Aucune signature enregistrée</div>
           <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            Une signature Android est indispensable pour publier votre application. Importez un
-            keystore existant ou créez-en un nouveau — AppPublisher se charge du reste.
+            Une signature Android est indispensable pour publier. Si c'est votre première
+            publication, choisissez « Créer ma signature ». AppPublisher se charge du fichier
+            technique et protège son mot de passe.
           </p>
           <div className="mt-4 flex justify-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} disabled={!isElectron()}>
-              <Upload className="mr-2 h-4 w-4" /> Importer
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+              disabled={!isElectron()}
+            >
+              <Upload className="mr-2 h-4 w-4" /> J'en ai déjà une
             </Button>
             <Button size="sm" onClick={() => setCreateOpen(true)} disabled={!isElectron()}>
-              <Plus className="mr-2 h-4 w-4" /> Créer une signature
+              <Plus className="mr-2 h-4 w-4" /> Créer ma signature
             </Button>
           </div>
         </Card>
@@ -230,8 +250,9 @@ function SigningPage() {
             <AlertDialogTitle>Supprimer cette signature ?</AlertDialogTitle>
             <AlertDialogDescription>
               Le profil « {toDelete?.name} » sera retiré d'AppPublisher et le mot de passe effacé du
-              trousseau. <b>Le fichier keystore restera sur votre disque.</b> Sans ce fichier, aucune
-              future mise à jour de votre application ne sera plus possible sur le Play Store.
+              trousseau. <b>Le fichier keystore restera sur votre disque.</b> Sans ce fichier,
+              aucune future mise à jour de votre application ne sera plus possible sur le Play
+              Store.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -376,7 +397,11 @@ function ImportDialog({
         setAlias("");
         setDetectedAliases([]);
         if (!name) {
-          const base = p.split(/[\\/]/).pop()?.replace(/\.(jks|keystore)$/i, "") ?? "";
+          const base =
+            p
+              .split(/[\\/]/)
+              .pop()
+              ?.replace(/\.(jks|keystore)$/i, "") ?? "";
           setName(base);
         }
       }
@@ -450,13 +475,19 @@ function ImportDialog({
         <div className="grid gap-3">
           <div className="grid gap-1.5">
             <Label>Nom d'affichage</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : CranioScan Release" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex : CranioScan Release"
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>Fichier keystore</Label>
             <div className="flex gap-2">
               <Input value={path} readOnly placeholder="Aucun fichier sélectionné" />
-              <Button type="button" variant="outline" onClick={choose}>Choisir…</Button>
+              <Button type="button" variant="outline" onClick={choose}>
+                Choisir…
+              </Button>
             </div>
           </div>
           <div className="grid gap-1.5">
@@ -497,7 +528,9 @@ function ImportDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Annuler</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
+            Annuler
+          </Button>
           <Button
             onClick={submit}
             disabled={
@@ -545,8 +578,16 @@ function CreateDialog({
 
   useEffect(() => {
     if (!open) {
-      setName(""); setFolder(""); setFileName("release.jks"); setAlias("upload");
-      setStorepass(""); setKeypass(""); setCn(""); setOrg(""); setCity(""); setCountry("FR");
+      setName("");
+      setFolder("");
+      setFileName("release.jks");
+      setAlias("upload");
+      setStorepass("");
+      setKeypass("");
+      setCn("");
+      setOrg("");
+      setCity("");
+      setCountry("FR");
       setBusy(false);
     }
   }, [open]);
@@ -587,9 +628,15 @@ function CreateDialog({
   };
 
   const valid =
-    name && folder && fileName && alias &&
-    storepass.length >= 6 && keypass.length >= 6 &&
-    cn && org && country.length === 2;
+    name &&
+    folder &&
+    fileName &&
+    alias &&
+    storepass.length >= 6 &&
+    keypass.length >= 6 &&
+    cn &&
+    org &&
+    country.length === 2;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -597,25 +644,36 @@ function CreateDialog({
         <DialogHeader>
           <DialogTitle>Créer une nouvelle signature Android</DialogTitle>
           <DialogDescription>
-            AppPublisher génère un keystore avec keytool. <b>Sauvegardez le fichier</b> après création :
-            sans lui, aucune future mise à jour de votre application ne sera plus possible sur le Play Store.
+            AppPublisher génère un keystore avec keytool. <b>Sauvegardez le fichier</b> après
+            création : sans lui, aucune future mise à jour de votre application ne sera plus
+            possible sur le Play Store.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5 sm:col-span-2">
             <Label>Nom d'affichage</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : CranioScan Release" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex : CranioScan Release"
+            />
           </div>
           <div className="grid gap-1.5 sm:col-span-2">
             <Label>Dossier de destination</Label>
             <div className="flex gap-2">
               <Input value={folder} readOnly placeholder="Aucun dossier sélectionné" />
-              <Button type="button" variant="outline" onClick={chooseFolder}>Choisir…</Button>
+              <Button type="button" variant="outline" onClick={chooseFolder}>
+                Choisir…
+              </Button>
             </div>
           </div>
           <div className="grid gap-1.5">
             <Label>Nom du fichier</Label>
-            <Input value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="release.jks" />
+            <Input
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              placeholder="release.jks"
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>Alias</Label>
@@ -623,15 +681,29 @@ function CreateDialog({
           </div>
           <div className="grid gap-1.5">
             <Label>Mot de passe du keystore</Label>
-            <Input type="password" value={storepass} onChange={(e) => setStorepass(e.target.value)} autoComplete="new-password" />
+            <Input
+              type="password"
+              value={storepass}
+              onChange={(e) => setStorepass(e.target.value)}
+              autoComplete="new-password"
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>Mot de passe de la clé</Label>
-            <Input type="password" value={keypass} onChange={(e) => setKeypass(e.target.value)} autoComplete="new-password" />
+            <Input
+              type="password"
+              value={keypass}
+              onChange={(e) => setKeypass(e.target.value)}
+              autoComplete="new-password"
+            />
           </div>
           <div className="grid gap-1.5 sm:col-span-2">
             <Label>Nom / Nom de l'application (CN)</Label>
-            <Input value={cn} onChange={(e) => setCn(e.target.value)} placeholder="Ex : CranioScan" />
+            <Input
+              value={cn}
+              onChange={(e) => setCn(e.target.value)}
+              placeholder="Ex : CranioScan"
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>Organisation (O)</Label>
@@ -639,15 +711,25 @@ function CreateDialog({
           </div>
           <div className="grid gap-1.5">
             <Label>Ville (L)</Label>
-            <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Ex : Paris" />
+            <Input
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Ex : Paris"
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>Pays (2 lettres)</Label>
-            <Input value={country} maxLength={2} onChange={(e) => setCountry(e.target.value.toUpperCase())} />
+            <Input
+              value={country}
+              maxLength={2}
+              onChange={(e) => setCountry(e.target.value.toUpperCase())}
+            />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Annuler</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
+            Annuler
+          </Button>
           <Button onClick={submit} disabled={busy || !valid}>
             {busy ? "Création…" : "Créer la signature"}
           </Button>

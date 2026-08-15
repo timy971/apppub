@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { Check, ChevronsUpDown, FolderPlus } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AppStore, useActiveProject, useProjects } from "@/core/store/app-store";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +30,7 @@ export function ProjectSwitcher({ compact }: { compact?: boolean }) {
               </span>
               {active && (
                 <span className="block text-[11px] text-muted-foreground">
-                  v{active.currentVersion} · build {active.currentBuild}
+                  Version {active.currentVersion} · nº interne {active.currentBuild}
                 </span>
               )}
             </span>
@@ -45,9 +41,7 @@ export function ProjectSwitcher({ compact }: { compact?: boolean }) {
       <PopoverContent align="start" className="w-72 p-1">
         <div className="max-h-72 overflow-auto">
           {projects.length === 0 ? (
-            <div className="p-3 text-sm text-muted-foreground">
-              Aucun projet pour l'instant.
-            </div>
+            <div className="p-3 text-sm text-muted-foreground">Aucun projet pour l'instant.</div>
           ) : (
             projects.map((p) => (
               <button

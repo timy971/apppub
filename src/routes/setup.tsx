@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, FolderOpen, Sparkles } from "lucide-react";
+import { ArrowRight, Check, FolderOpen, Link, SearchCheck, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppStore } from "@/core/store/app-store";
 import { ProjectsService } from "@/core/projects/service";
 import { bridge } from "@/core/bridge";
+import type { GitRemoteInfo } from "@/core/bridge/types";
 import type { ProjectDraft } from "@/core/types";
 import { diag } from "@/core/diag/logger";
 
@@ -22,6 +23,13 @@ function SetupWizard() {
   const [detecting, setDetecting] = useState(false);
   const [detected, setDetected] = useState<ProjectDraft | null>(null);
   const [detectionError, setDetectionError] = useState<string | null>(null);
+  const [projectSource, setProjectSource] = useState<"local" | "online">("online");
+  const [remoteUrl, setRemoteUrl] = useState("");
+  const [remoteInfo, setRemoteInfo] = useState<GitRemoteInfo | null>(null);
+  const [remoteBranch, setRemoteBranch] = useState("");
+  const [inspectingRemote, setInspectingRemote] = useState(false);
+  const [importingRemote, setImportingRemote] = useState(false);
+  const [importedProjectName, setImportedProjectName] = useState<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const projectPathInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -93,6 +101,47 @@ function SetupWizard() {
     }
   }
 
+  async function inspectRemote() {
+    if (!remoteUrl.trim()) return;
+    setDetectionError(null);
+    setRemoteInfo(null);
+    setInspectingRemote(true);
+    try {
+      const info = await ProjectsService.inspectRemote(remoteUrl.trim());
+      setRemoteInfo(info);
+      setRemoteBranch(info.defaultBranch);
+    } catch (error) {
+      setDetectionError(
+        error instanceof Error
+          ? error.message
+          : "Ce lien n'est pas accessible. Vérifiez-le puis réessayez.",
+      );
+    } finally {
+      setInspectingRemote(false);
+    }
+  }
+
+  async function importRemote() {
+    if (!remoteInfo || !remoteBranch) return;
+    setDetectionError(null);
+    setImportingRemote(true);
+    try {
+      const project = await ProjectsService.importFromGit(remoteInfo.remoteUrl, remoteBranch);
+      AppStore.refreshProjects();
+      AppStore.setActiveProject(project.id);
+      setImportedProjectName(project.name);
+      go(3, "import:success");
+    } catch (error) {
+      setDetectionError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d'ajouter cette application pour le moment.",
+      );
+    } finally {
+      setImportingRemote(false);
+    }
+  }
+
   function finish() {
     diag("wizard", "click:finish", { hasDetected: !!detected, name });
     if (detected) {
@@ -135,27 +184,50 @@ function SetupWizard() {
         <div className="mt-10">
           {step === 0 && (
             <Screen
-              title="Bienvenue"
-              subtitle="AppPublisher va vous accompagner pour publier vos applications Android sans jamais retenir une seule commande."
+              title="Publier une application devient un parcours guidé"
+              subtitle="AppPublisher vérifie, prépare et publie votre application Android. Vous gardez toujours le dernier mot."
               icon={<Sparkles className="h-6 w-6" />}
             >
-              <Button
-                size="lg"
-                onClick={() => {
-                  diag("wizard", "click:commencer");
-                  go(1, "click:commencer");
-                }}
+              <div
+                className="mb-8 grid gap-3 sm:grid-cols-3"
+                aria-label="Ce qu'AppPublisher va faire"
               >
-                Commencer
-                <ArrowRight className="h-4 w-4" />
-              </Button>
+                <PromiseCard
+                  icon={FolderOpen}
+                  title="1. Choisir"
+                  text="Vous indiquez simplement votre application."
+                />
+                <PromiseCard
+                  icon={SearchCheck}
+                  title="2. Vérifier"
+                  text="Les problèmes sont détectés et expliqués."
+                />
+                <PromiseCard
+                  icon={Send}
+                  title="3. Publier"
+                  text="Rien n'est envoyé sans votre confirmation."
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    diag("wizard", "click:commencer");
+                    go(1, "click:commencer");
+                  }}
+                >
+                  Configurer AppPublisher
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground">Environ une minute</span>
+              </div>
             </Screen>
           )}
 
           {step === 1 && (
             <Screen
-              title="Comment souhaitez-vous être appelé ?"
-              subtitle="Nous utiliserons ce prénom pour vous accueillir sur le tableau de bord."
+              title="Comment pouvons-nous vous appeler ?"
+              subtitle="Cette étape est facultative. Le prénom sert uniquement à personnaliser l'accueil."
             >
               <div className="space-y-4">
                 <Input
@@ -164,7 +236,7 @@ function SetupWizard() {
                   name="given-name"
                   autoComplete="off"
                   inputMode="text"
-                  placeholder="Votre prénom"
+                  placeholder="Votre prénom (facultatif)"
                   value={name}
                   onChange={(e) => {
                     diag("wizard", "input:name:change", { length: e.target.value.length });
@@ -187,7 +259,7 @@ function SetupWizard() {
                       go(2, "click:continuer:name");
                     }}
                   >
-                    Continuer
+                    {name.trim() ? "Continuer" : "Continuer sans prénom"}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -197,28 +269,141 @@ function SetupWizard() {
 
           {step === 2 && !detected && (
             <Screen
-              title="Où se trouve votre projet ?"
-              subtitle="Indiquez le dossier de votre application. Nous détecterons automatiquement ses caractéristiques."
+              title="Où se trouve votre application ?"
+              subtitle="Choisissez la réponse la plus simple pour vous. AppPublisher s'occupe du reste."
               icon={<FolderOpen className="h-6 w-6" />}
             >
               <div className="space-y-4">
-                <div className="flex gap-2">
-                  <Input
-                    ref={projectPathInputRef}
-                    placeholder="Exemple : /Users/tim/Projets/CranioScan"
-                    value={projectPath}
-                    onChange={(e) => {
-                      setProjectPath(e.target.value);
-                      setDetected(null);
+                <div
+                  className="grid gap-3 sm:grid-cols-2"
+                  aria-label="Emplacement de l'application"
+                >
+                  <SourceChoice
+                    selected={projectSource === "online"}
+                    icon={Link}
+                    title="Sur GitHub ou Lovable"
+                    text="Je peux copier le lien de mon application."
+                    onClick={() => {
+                      setProjectSource("online");
                       setDetectionError(null);
                     }}
-                    className="h-12 text-base font-mono"
-                    onKeyDown={(e) => e.key === "Enter" && runDetection()}
                   />
-                  <Button type="button" variant="secondary" onClick={chooseProjectFolder}>
-                    Parcourir
-                  </Button>
+                  <SourceChoice
+                    selected={projectSource === "local"}
+                    icon={FolderOpen}
+                    title="Dans un dossier sur ce Mac"
+                    text="Mon application est déjà téléchargée."
+                    onClick={() => {
+                      setProjectSource("local");
+                      setDetectionError(null);
+                    }}
+                  />
                 </div>
+
+                {projectSource === "online" ? (
+                  <div className="space-y-4 rounded-xl border bg-card p-4">
+                    <div>
+                      <label htmlFor="setup-remote-url" className="text-sm font-medium">
+                        Lien de votre application
+                      </label>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Dans GitHub ou Lovable, copiez le lien de partage du projet puis collez-le
+                        ici.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        id="setup-remote-url"
+                        type="url"
+                        placeholder="https://github.com/votre-compte/votre-application"
+                        value={remoteUrl}
+                        onChange={(event) => {
+                          setRemoteUrl(event.target.value);
+                          setRemoteInfo(null);
+                          setDetectionError(null);
+                        }}
+                        className="h-12 text-base"
+                        onKeyDown={(event) => event.key === "Enter" && inspectRemote()}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={inspectRemote}
+                        disabled={!remoteUrl.trim() || inspectingRemote}
+                      >
+                        {inspectingRemote ? "Vérification…" : "Vérifier le lien"}
+                      </Button>
+                    </div>
+
+                    {remoteInfo && (
+                      <div className="space-y-3 rounded-lg bg-success/10 p-4">
+                        <p className="flex items-center gap-2 text-sm font-medium text-success">
+                          <Check className="h-4 w-4" aria-hidden="true" />
+                          Application trouvée
+                        </p>
+                        <label htmlFor="setup-remote-version" className="text-sm font-medium">
+                          Version du projet à utiliser
+                        </label>
+                        <select
+                          id="setup-remote-version"
+                          value={remoteBranch}
+                          onChange={(event) => setRemoteBranch(event.target.value)}
+                          className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          {remoteInfo.branches.map((branch) => (
+                            <option key={branch} value={branch}>
+                              {branch === remoteInfo.defaultBranch
+                                ? `${branch} (recommandée)`
+                                : branch}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          Gardez le choix recommandé si vous ne savez pas lequel prendre.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4 rounded-xl border bg-card p-4">
+                    <p className="text-sm text-muted-foreground">
+                      AppPublisher reconnaît automatiquement le dossier. Aucun fichier technique
+                      n'est à sélectionner.
+                    </p>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        ref={projectPathInputRef}
+                        placeholder="Exemple : /Users/tim/Projets/CranioScan"
+                        value={projectPath}
+                        onChange={(e) => {
+                          setProjectPath(e.target.value);
+                          setDetected(null);
+                          setDetectionError(null);
+                        }}
+                        className="h-12 text-base"
+                        onKeyDown={(e) => e.key === "Enter" && runDetection()}
+                      />
+                      <Button type="button" variant="secondary" onClick={chooseProjectFolder}>
+                        Parcourir
+                      </Button>
+                    </div>
+                    <details className="group rounded-lg bg-muted/40 p-4 text-sm">
+                      <summary className="cursor-pointer select-none font-medium text-foreground">
+                        Je ne sais pas où se trouve le dossier
+                      </summary>
+                      <div className="mt-3 space-y-2 text-muted-foreground leading-relaxed">
+                        <p>
+                          Cliquez sur <strong>Parcourir</strong>, puis choisissez le dossier portant
+                          le nom de votre application.
+                        </p>
+                        <p>
+                          Sur macOS, regardez d'abord dans <em>Téléchargements</em>,
+                          <em> Documents</em> ou votre dossier de projets.
+                        </p>
+                      </div>
+                    </details>
+                  </div>
+                )}
                 {detectionError && (
                   <div
                     role="alert"
@@ -227,27 +412,6 @@ function SetupWizard() {
                     {detectionError}
                   </div>
                 )}
-                <details className="group rounded-xl border bg-muted/40 p-4 text-sm">
-                  <summary className="cursor-pointer select-none font-medium text-foreground">
-                    Je ne sais pas où se trouve mon projet
-                  </summary>
-                  <div className="mt-3 space-y-2 text-muted-foreground leading-relaxed">
-                    <p>
-                      Un projet Lovable est un dossier téléchargé sur votre ordinateur, contenant un
-                      fichier <code className="rounded bg-background px-1">package.json</code>.
-                    </p>
-                    <p>
-                      Cliquez sur <strong>Parcourir</strong>, puis sélectionnez directement le
-                      dossier contenant votre projet. Cette confirmation autorise AppPublisher à
-                      lire uniquement ce dossier.
-                    </p>
-                    <p>
-                      Sur macOS, il se trouve généralement dans <em>Documents</em>,
-                      <em> Développement</em> ou <em>GitHub</em>. Sur Windows, recherchez-le dans
-                      <em> Documents</em> ou dans votre dossier de développement.
-                    </p>
-                  </div>
-                </details>
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
@@ -258,10 +422,20 @@ function SetupWizard() {
                   </button>
                   <Button
                     size="lg"
-                    onClick={runDetection}
-                    disabled={!projectPath.trim() || detecting}
+                    onClick={projectSource === "online" ? importRemote : runDetection}
+                    disabled={
+                      projectSource === "online"
+                        ? !remoteInfo || !remoteBranch || importingRemote
+                        : !projectPath.trim() || detecting
+                    }
                   >
-                    {detecting ? "Détection…" : "Détecter le projet"}
+                    {projectSource === "online"
+                      ? importingRemote
+                        ? "Ajout en cours…"
+                        : "Ajouter cette application"
+                      : detecting
+                        ? "Détection…"
+                        : "Reconnaître l'application"}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -291,7 +465,7 @@ function SetupWizard() {
                   <Detected label="Application mobile" ok={detected.detected.hasCapacitorConfig} />
                   <Detected label="Version Android" ok={detected.detected.hasAndroid} />
                   <Detected label="Fichier de version" ok={detected.detected.hasVersionJson} />
-                  <Detected label="Dépendances" ok={detected.detected.hasPackageJson} />
+                  <Detected label="Fichiers nécessaires" ok={detected.detected.hasPackageJson} />
                 </div>
               </div>
 
@@ -321,8 +495,8 @@ function SetupWizard() {
 
           {step === 3 && (
             <Screen
-              title="Tout est prêt"
-              subtitle="Vous pouvez maintenant publier vos applications en quelques clics. À tout moment, l'icône d'aide vous expliquera chaque écran."
+              title="AppPublisher est prêt à vous guider"
+              subtitle={`${importedProjectName ? `${importedProjectName} a bien été ajoutée. ` : ""}L'accueil affichera toujours la prochaine action utile. Chaque écran indique son objectif et explique comment débloquer un problème.`}
               icon={<Check className="h-6 w-6 text-success" />}
             >
               <Button size="lg" onClick={finish}>
@@ -340,7 +514,15 @@ function SetupWizard() {
 function Progress({ step }: { step: number }) {
   const steps = ["Bienvenue", "Prénom", "Projet", "Terminé"];
   return (
-    <div className="flex items-center gap-2">
+    <div
+      className="flex items-center gap-2"
+      role="progressbar"
+      aria-label="Configuration initiale"
+      aria-valuemin={1}
+      aria-valuemax={steps.length}
+      aria-valuenow={step + 1}
+      aria-valuetext={`${steps[step]}, étape ${step + 1} sur ${steps.length}`}
+    >
       {steps.map((label, i) => (
         <div key={label} className="flex flex-1 items-center gap-2">
           <div
@@ -352,6 +534,53 @@ function Progress({ step }: { step: number }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function PromiseCard({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-4 shadow-soft">
+      <Icon className="mb-3 h-5 w-5 text-primary" aria-hidden="true" />
+      <div className="text-sm font-semibold">{title}</div>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
+function SourceChoice({
+  selected,
+  icon: Icon,
+  title,
+  text,
+  onClick,
+}: {
+  selected: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  text: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={`rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        selected ? "border-primary bg-primary/5" : "bg-card hover:bg-muted/50"
+      }`}
+    >
+      <Icon className="mb-3 h-5 w-5 text-primary" aria-hidden="true" />
+      <span className="block text-sm font-semibold">{title}</span>
+      <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{text}</span>
+    </button>
   );
 }
 

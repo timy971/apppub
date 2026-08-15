@@ -211,8 +211,8 @@ function ProjectsPage() {
   return (
     <div>
       <PageHeader
-        title="Vos projets"
-        subtitle="Gérez toutes les applications que vous publiez avec AppPublisher."
+        title="Mes applications"
+        subtitle="Ajoutez une application, puis laissez AppPublisher vous indiquer la prochaine action."
         help={{
           title: "À propos des projets",
           content:
@@ -224,12 +224,12 @@ function ProjectsPage() {
               <DialogTrigger asChild>
                 <Button variant="outline">
                   <Search className="h-4 w-4" />
-                  Détecter dans un dossier
+                  Rechercher plusieurs applications
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Détecter automatiquement</DialogTitle>
+                  <DialogTitle>Rechercher des applications dans un dossier</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3">
                   <div>
@@ -315,7 +315,7 @@ function ProjectsPage() {
                     </TabsTrigger>
                     <TabsTrigger value="git">
                       <GitBranch className="h-4 w-4" />
-                      Depuis Git
+                      Depuis GitHub ou Lovable
                     </TabsTrigger>
                   </TabsList>
 
@@ -349,7 +349,7 @@ function ProjectsPage() {
 
                   <TabsContent value="git" className="mt-4 space-y-4">
                     <div>
-                      <label className="text-sm font-medium">Adresse du dépôt</label>
+                      <label className="text-sm font-medium">Lien de votre application</label>
                       <div className="mt-2 flex gap-2">
                         <Input
                           placeholder="https://github.com/vous/application.git"
@@ -370,15 +370,18 @@ function ProjectsPage() {
                         </Button>
                       </div>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        GitHub, GitLab et les projets Lovable synchronisés vers GitHub sont
-                        compatibles. Pour un dépôt privé, Git doit déjà être authentifié sur ce Mac.
+                        Collez le lien GitHub de votre application. Pour un projet Lovable, utilisez
+                        le lien du dépôt GitHub connecté au projet. AppPublisher s'occupe de créer
+                        la copie sur ce Mac.
                       </p>
                     </div>
 
                     {remoteInfo && (
                       <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
                         <div>
-                          <label className="text-sm font-medium">Branche à importer</label>
+                          <label className="text-sm font-medium">
+                            Version du projet à utiliser
+                          </label>
                           <Select value={remoteBranch} onValueChange={setRemoteBranch}>
                             <SelectTrigger className="mt-2 font-mono">
                               <SelectValue />
@@ -395,8 +398,8 @@ function ProjectsPage() {
                         </div>
                         <div className="flex items-start gap-2 text-xs text-muted-foreground">
                           <CloudDownload className="mt-0.5 h-4 w-4 shrink-0" />
-                          AppPublisher créera une copie locale privée et conservera le commit exact
-                          utilisé lors de chaque build.
+                          La version principale est présélectionnée. AppPublisher conservera aussi
+                          un repère précis pour pouvoir retrouver la source de chaque publication.
                         </div>
                       </div>
                     )}
@@ -416,7 +419,7 @@ function ProjectsPage() {
                       disabled={!remoteInfo || !remoteBranch || importingRemote}
                     >
                       <CloudDownload className="h-4 w-4" />
-                      {importingRemote ? "Import en cours…" : "Importer le dépôt"}
+                      {importingRemote ? "Ajout en cours…" : "Télécharger et ajouter"}
                     </Button>
                   )}
                 </DialogFooter>
@@ -433,8 +436,12 @@ function ProjectsPage() {
           </div>
           <div className="text-lg font-semibold">Aucun projet pour l'instant</div>
           <div className="mt-1 text-sm text-muted-foreground">
-            Commencez par ajouter votre premier projet ou détectez-les automatiquement.
+            Ajoutez votre première application depuis son dossier ou son lien GitHub.
           </div>
+          <Button className="mt-5" onClick={() => setAddOpen(true)}>
+            <FolderPlus className="h-4 w-4" />
+            Ajouter ma première application
+          </Button>
         </Card>
       ) : (
         <ProjectsList

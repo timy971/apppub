@@ -5,12 +5,10 @@ import {
   GitBranch,
   Hammer,
   HeartPulse,
-  History,
   Settings as SettingsIcon,
   Rocket,
   LifeBuoy,
-  Terminal,
-  KeyRound,
+  ShieldCheck,
 } from "lucide-react";
 
 import {
@@ -28,42 +26,30 @@ import {
 } from "@/components/ui/sidebar";
 import { ProjectSwitcher } from "./project-switcher";
 import { AppInfo, formatBuildTimestamp } from "@/core/app-info";
-import { useIsExpert } from "@/core/store/use-mode";
 
 const primary = [
-  { title: "Tableau de bord", url: "/", icon: LayoutDashboard },
-  { title: "Projets", url: "/projects", icon: FolderKanban },
+  { title: "Accueil", url: "/", icon: LayoutDashboard },
+  { title: "Mes applications", url: "/projects", icon: FolderKanban },
 ];
 
 const publication = [
-  { title: "Modifier la version", url: "/version", icon: GitBranch },
-  { title: "Construire Android", url: "/build", icon: Hammer },
-  { title: "Préparer la publication", url: "/publish", icon: Rocket },
+  { title: "1. Vérifier l'application", url: "/diagnostic", icon: HeartPulse },
+  { title: "2. Préparer la version", url: "/version", icon: GitBranch },
+  { title: "3. Protéger l'application", url: "/signing", icon: ShieldCheck },
+  { title: "4. Créer le fichier Android", url: "/build", icon: Hammer },
+  { title: "5. Publier sur Google Play", url: "/publish", icon: Rocket },
 ];
 
 const utils = [
-  { title: "Santé du projet", url: "/diagnostic", icon: HeartPulse },
-  { title: "Signatures Android", url: "/signing", icon: KeyRound },
-  { title: "Journal", url: "/history", icon: History },
+  { title: "Aide et historique", url: "/journal", icon: LifeBuoy },
   { title: "Paramètres", url: "/settings", icon: SettingsIcon },
 ];
-
-const supportBase = [
-  { title: "Support", url: "/journal", icon: LifeBuoy },
-];
-
-const expertOnly = [
-  { title: "Console", url: "/logs", icon: Terminal },
-];
-
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (p: string) => (p === "/" ? currentPath === "/" : currentPath.startsWith(p));
-  const isExpert = useIsExpert();
-  const support = isExpert ? [...supportBase, ...expertOnly] : supportBase;
 
   return (
     <Sidebar collapsible="icon">
@@ -91,10 +77,14 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <Section label="Général" items={primary} isActive={isActive} collapsed={collapsed} />
-        <Section label="Publication" items={publication} isActive={isActive} collapsed={collapsed} />
-        <Section label="Outils" items={utils} isActive={isActive} collapsed={collapsed} />
-        <Section label="Assistance" items={support} isActive={isActive} collapsed={collapsed} />
+        <Section label="Essentiel" items={primary} isActive={isActive} collapsed={collapsed} />
+        <Section
+          label="Publier pas à pas"
+          items={publication}
+          isActive={isActive}
+          collapsed={collapsed}
+        />
+        <Section label="Besoin d'aide ?" items={utils} isActive={isActive} collapsed={collapsed} />
       </SidebarContent>
 
       {!collapsed && (
@@ -132,8 +122,12 @@ function Section({
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                <Link to={item.url} className="flex items-center gap-3">
+              <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                <Link
+                  to={item.url}
+                  className="flex items-center gap-3"
+                  aria-current={isActive(item.url) ? "page" : undefined}
+                >
                   <item.icon className="h-4 w-4" />
                   {!collapsed && <span>{item.title}</span>}
                 </Link>
@@ -145,4 +139,3 @@ function Section({
     </SidebarGroup>
   );
 }
-

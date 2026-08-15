@@ -26,6 +26,7 @@ import { WhyButton } from "@/components/why-button";
 import { ErrorCard } from "@/components/error-card";
 import { translateError } from "@/core/errors/translator";
 import { toast } from "sonner";
+import { StepPurpose } from "@/components/step-purpose";
 
 export const Route = createFileRoute("/version")({
   component: VersionAssistant,
@@ -172,7 +173,10 @@ function VersionAssistant() {
   if (done) {
     return (
       <div>
-        <PageHeader title="Version mise à jour" subtitle="Votre projet est prêt pour la prochaine étape." />
+        <PageHeader
+          title="Version mise à jour"
+          subtitle="Votre projet est prêt pour la prochaine étape."
+        />
         <Card className="p-8 text-center shadow-soft">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-success/15 text-success">
             <Check className="h-7 w-7" />
@@ -180,7 +184,7 @@ function VersionAssistant() {
           <div className="text-lg font-semibold">
             {done.from} → <span className="tabular-nums">{done.to}</span>
           </div>
-          <div className="mt-1 text-sm text-muted-foreground">Build {done.build}</div>
+          <div className="mt-1 text-sm text-muted-foreground">Numéro interne {done.build}</div>
           <div className="mt-6 flex justify-center gap-2">
             <Button asChild>
               <Link to="/build">
@@ -206,17 +210,23 @@ function VersionAssistant() {
           title: "À propos des versions",
           content: (
             <>
-              Une version est composée de trois nombres : majeur.mineur.correctif.
-              AppPublisher se charge de mettre à jour le bon.
+              Une version est composée de trois nombres : majeur.mineur.correctif. AppPublisher se
+              charge de mettre à jour le bon.
             </>
           ),
         }}
       />
 
+      <StepPurpose
+        automatic="calculer les nouveaux numéros et sauvegarder le projet avant toute modification."
+        yourAction="indiquer s'il s'agit d'une correction, d'une nouveauté ou d'une grande évolution."
+        result="Google Play reconnaît cette version comme nouvelle."
+      />
+
       <div className="mb-6 rounded-xl border bg-muted/40 p-4 text-sm flex items-center justify-between">
         <span>
-          Version actuelle · <strong className="tabular-nums">{project.currentVersion}</strong> · Build{" "}
-          <strong className="tabular-nums">{project.currentBuild}</strong>
+          Version actuelle · <strong className="tabular-nums">{project.currentVersion}</strong> ·
+          Numéro interne <strong className="tabular-nums">{project.currentBuild}</strong>
         </span>
         {settings.autoBackupEnabled && (
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -281,9 +291,9 @@ function VersionAssistant() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la mise à jour</AlertDialogTitle>
             <AlertDialogDescription>
-              La version passera de{" "}
-              <strong className="tabular-nums">{preview?.from}</strong> à{" "}
-              <strong className="tabular-nums">{preview?.to}</strong>. Cette opération met à jour votre projet.
+              La version passera de <strong className="tabular-nums">{preview?.from}</strong> à{" "}
+              <strong className="tabular-nums">{preview?.to}</strong>. Cette opération met à jour
+              votre projet.
               {settings.autoBackupEnabled && " Une sauvegarde sera automatiquement créée."}
             </AlertDialogDescription>
           </AlertDialogHeader>

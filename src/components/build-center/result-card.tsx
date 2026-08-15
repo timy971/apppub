@@ -264,8 +264,8 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
           </div>
           {verdict !== "blocked" && (
             <p className="mt-3 text-xs text-muted-foreground">
-              Étape suivante : ajoutez les notes de version, préparez la release, puis envoyez
-              l'AAB sur la piste interne de Google Play.
+              Étape suivante : ajoutez les notes de version, préparez la publication, puis envoyez
+              le fichier Android aux testeurs internes sur Google Play.
             </p>
           )}
         </div>
@@ -274,7 +274,7 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
       {previous && (
         <div className="border-t bg-muted/20 p-5">
           <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Comparaison avec le build précédent
+            Comparaison avec le fichier précédent
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
             <Compare label="Version" a={`v${project.currentVersion}`} b={`v${previous.version}`} />

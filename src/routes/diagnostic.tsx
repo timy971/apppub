@@ -11,6 +11,7 @@ import { HealthScoreCard } from "@/components/health-score-card";
 import { WhyButton } from "@/components/why-button";
 import type { HealthCheck, HealthScore } from "@/core/types";
 import { useActiveProject, useSettings } from "@/core/store/app-store";
+import { StepPurpose } from "@/components/step-purpose";
 
 export const Route = createFileRoute("/diagnostic")({
   component: DiagnosticPage,
@@ -48,18 +49,18 @@ function DiagnosticPage() {
   return (
     <div>
       <PageHeader
-        title="Santé du projet"
+        title="Vérifier l'application"
         subtitle={
           project
-            ? `Vérifications automatiques sur « ${project.name} ». Aucun jargon, uniquement l'essentiel.`
-            : "Ajoutez un projet pour lancer une vérification."
+            ? `AppPublisher contrôle automatiquement « ${project.name} » et explique chaque action nécessaire.`
+            : "Ajoutez une application pour lancer sa vérification."
         }
         help={{
-          title: "À propos du diagnostic",
+          title: "Comprendre la vérification",
           content: (
             <>
-              🟢 Tout va bien · 🟠 Attention, action recommandée · 🔴 Problème
-              bloquant. Chaque alerte est accompagnée d'une explication en français.
+              🟢 Tout va bien · 🟠 Attention, action recommandée · 🔴 Problème bloquant. Chaque
+              alerte est accompagnée d'une explication en français.
             </>
           ),
         }}
@@ -69,6 +70,12 @@ function DiagnosticPage() {
             Relancer
           </Button>
         }
+      />
+
+      <StepPurpose
+        automatic="contrôler votre ordinateur et la configuration de l'application."
+        yourAction="ouvrir la première alerte et suivre la solution proposée."
+        result="vous savez exactement si la création du fichier peut commencer."
       />
 
       {score && (
