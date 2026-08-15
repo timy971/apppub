@@ -3,6 +3,8 @@ import { PageHeader } from "@/components/page-header";
 import { useActiveProject } from "@/core/store/app-store";
 import { PublishCenter, NoProjectPublish } from "@/components/publish-center/publish-center";
 import { StepPurpose } from "@/components/step-purpose";
+import { Card } from "@/components/ui/card";
+import { Apple } from "lucide-react";
 
 /**
  * /publish — Publish Center.
@@ -37,6 +39,36 @@ function PublishPage() {
             result="la nouvelle version apparaît dans Google Play Console, piste Internal."
           />
           <PublishCenter project={project} />
+          <Card
+            id="apple-publication"
+            className="mt-6 border-dashed p-6 shadow-soft"
+            aria-labelledby="apple-publication-title"
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted">
+                <Apple className="h-6 w-6" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 id="apple-publication-title" className="font-semibold">
+                    Publication iPhone et iPad
+                  </h2>
+                  <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+                    En pause
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Cette partie est prévue, mais elle reste volontairement en pause tant que vous
+                  n'avez pas de compte Apple Developer. Lorsque vous souhaiterez la reprendre,
+                  AppPublisher vous guidera pour préparer l'application iOS, la signer puis
+                  l'envoyer vers App Store Connect.
+                </p>
+                <p className="mt-3 text-xs font-medium text-foreground">
+                  Vous n'avez rien à configurer maintenant.
+                </p>
+              </div>
+            </div>
+          </Card>
         </>
       ) : (
         <NoProjectPublish />

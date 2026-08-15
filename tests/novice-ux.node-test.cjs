@@ -53,6 +53,17 @@ test("l'onboarding accepte un lien GitHub ou Lovable sans demander de connaître
   assert.doesNotMatch(setup, /package\.json/);
 });
 
+test("la future publication Apple reste visible sans faux bouton actif", () => {
+  const sidebar = read("src/components/app-sidebar.tsx");
+  const publish = read("src/routes/publish.tsx");
+  assert.match(sidebar, /Publication Android pas à pas/);
+  assert.match(sidebar, /iPhone et iPad/);
+  assert.match(sidebar, /En pause/);
+  assert.match(publish, /Publication iPhone et iPad/);
+  assert.match(publish, /compte Apple Developer/);
+  assert.match(publish, /Vous n'avez rien à configurer maintenant/);
+});
+
 test("chaque étape principale distingue l'automatique de l'action utilisateur", () => {
   const purpose = read("src/components/step-purpose.tsx");
   assert.match(purpose, /AppPublisher s'occupe de/);
