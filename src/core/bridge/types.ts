@@ -238,6 +238,8 @@ export type GooglePlayResult<T extends object = Record<string, never>> =
       errorCode: string;
       errorHint?: string;
       status?: number;
+      phase?: string;
+      causeCode?: string;
     };
 
 export interface GooglePlayPublishResult {

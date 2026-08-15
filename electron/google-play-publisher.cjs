@@ -6,6 +6,8 @@ const API_ROOT = "https://androidpublisher.googleapis.com/androidpublisher/v3";
 const UPLOAD_ROOT = "https://androidpublisher.googleapis.com/upload/androidpublisher/v3";
 const TOKEN_URI = "https://oauth2.googleapis.com/token";
 const INTERNAL_TRACK = "internal";
+const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
+const AAB_UPLOAD_TIMEOUT_MS = 10 * 60_000;
 
 class GooglePlayError extends Error {
   constructor(code, message, options = {}) {
@@ -14,6 +16,8 @@ class GooglePlayError extends Error {
     this.code = code;
     this.status = options.status;
     this.reason = options.reason;
+    this.phase = options.phase;
+    this.causeCode = options.causeCode;
   }
 }
 
@@ -166,6 +170,38 @@ function classifyHttpError(status, payload) {
   });
 }
 
+function networkCauseCode(error) {
+  const value = error?.cause?.code ?? error?.code ?? error?.name;
+  return typeof value === "string" ? value.slice(0, 80) : undefined;
+}
+
+function classifyNetworkError(error, phase) {
+  const causeCode = networkCauseCode(error);
+  const timeout =
+    error?.name === "TimeoutError" ||
+    error?.name === "AbortError" ||
+    causeCode === "UND_ERR_CONNECT_TIMEOUT" ||
+    causeCode === "UND_ERR_HEADERS_TIMEOUT" ||
+    causeCode === "UND_ERR_BODY_TIMEOUT" ||
+    causeCode === "ETIMEDOUT";
+  if (timeout) {
+    return new GooglePlayError(
+      "network-timeout",
+      phase === "upload-bundle"
+        ? "L'envoi de l'AAB a dépassé dix minutes. La release n'a pas été validée ; vous pouvez réessayer sur une connexion stable."
+        : "Google Play n'a pas répondu dans le délai prévu. Vous pouvez réessayer.",
+      { phase, causeCode },
+    );
+  }
+  return new GooglePlayError(
+    "network-error",
+    phase === "upload-bundle"
+      ? "L'envoi de l'AAB a été interrompu avant la validation de la release. Vous pouvez réessayer sans recréer la connexion Google."
+      : "La communication avec Google Play a été interrompue. Vous pouvez réessayer sans vous reconnecter.",
+    { phase, causeCode },
+  );
+}
+
 class GooglePlayPublisher {
   constructor(options = {}) {
     this.fetch = options.fetchImpl ?? globalThis.fetch;
@@ -188,6 +224,9 @@ class GooglePlayPublisher {
         return client;
       });
     this.fs = options.fsModule ?? fs;
+    this.readFile = options.readFileImpl ?? ((filePath) => this.fs.promises.readFile(filePath));
+    this.timeoutSignal =
+      options.timeoutSignalFactory ?? ((timeoutMs) => AbortSignal.timeout(timeoutMs));
     if (typeof this.fetch !== "function") throw new Error("fetch indisponible");
   }
 
@@ -216,23 +255,21 @@ class GooglePlayPublisher {
   }
 
   async request(url, token, options = {}) {
+    const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, phase, signal, ...fetchOptions } = options;
     let response;
     try {
       response = await this.fetch(url, {
-        ...options,
+        ...fetchOptions,
         redirect: "error",
         headers: {
           Authorization: `Bearer ${token}`,
-          ...(options.headers ?? {}),
+          ...(fetchOptions.headers ?? {}),
         },
-        signal: options.signal ?? AbortSignal.timeout(120_000),
+        signal: signal ?? this.timeoutSignal(timeoutMs),
       });
     } catch (error) {
       if (error instanceof GooglePlayError) throw error;
-      throw new GooglePlayError(
-        "network-error",
-        "La connexion à Google Play a échoué. Vérifiez votre accès Internet.",
-      );
+      throw classifyNetworkError(error, phase);
     }
     const text = await response.text();
     let payload = {};
@@ -255,6 +292,7 @@ class GooglePlayPublisher {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
+        phase: "create-edit",
       },
     );
     if (typeof payload.id !== "string" || !payload.id) {
@@ -271,7 +309,7 @@ class GooglePlayPublisher {
       await this.request(
         `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}`,
         token,
-        { method: "DELETE" },
+        { method: "DELETE", phase: "cleanup-edit" },
       );
     } catch {
       // Nettoyage de meilleure intention : l'édition expire également côté Google.
@@ -330,14 +368,35 @@ class GooglePlayPublisher {
     let committed = false;
     try {
       onStep("upload-bundle");
+      let bundleBytes;
+      try {
+        bundleBytes = await this.readFile(input.aabPath);
+      } catch {
+        throw new GooglePlayError(
+          "aab-read-failed",
+          "Le fichier AAB ne peut pas être lu. Vérifiez qu'il existe toujours, puis relancez la publication.",
+          { phase: "upload-bundle" },
+        );
+      }
+      if (!Buffer.isBuffer(bundleBytes) || bundleBytes.length !== stat.size) {
+        throw new GooglePlayError(
+          "aab-read-failed",
+          "La lecture de l'AAB est incomplète. Aucun envoi n'a été validé.",
+          { phase: "upload-bundle" },
+        );
+      }
       const bundle = await this.request(
         `${UPLOAD_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/bundles?uploadType=media`,
         token,
         {
           method: "POST",
-          headers: { "Content-Type": "application/octet-stream" },
-          body: this.fs.createReadStream(input.aabPath),
-          duplex: "half",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "Content-Length": String(bundleBytes.length),
+          },
+          body: bundleBytes,
+          timeoutMs: AAB_UPLOAD_TIMEOUT_MS,
+          phase: "upload-bundle",
         },
       );
       if (!Number.isSafeInteger(bundle.versionCode) || bundle.versionCode <= 0) {
@@ -365,6 +424,7 @@ class GooglePlayPublisher {
               },
             ],
           }),
+          phase: "update-track",
         },
       );
 
@@ -372,7 +432,12 @@ class GooglePlayPublisher {
       await this.request(
         `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}:validate`,
         token,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+          phase: "validate-edit",
+        },
       );
 
       onStep("commit-edit");
@@ -380,10 +445,15 @@ class GooglePlayPublisher {
         await this.request(
           `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW`,
           token,
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+            phase: "commit-edit",
+          },
         );
       } catch (error) {
-        if (error?.code === "network-error") {
+        if (error?.code === "network-error" || error?.code === "network-timeout") {
           throw new GooglePlayError(
             "commit-outcome-unknown",
             "La connexion a été interrompue pendant la validation finale. La release a peut-être été publiée : vérifiez Google Play Console avant toute nouvelle tentative.",
