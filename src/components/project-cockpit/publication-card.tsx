@@ -16,13 +16,7 @@ interface PubItem {
  * volontairement multi-plateformes : chaque section décrit sa propre grille
  * de contrôles à partir des règles + de la configuration du projet.
  */
-export function PublicationCard({
-  project,
-  status,
-}: {
-  project: Project;
-  status: ProjectStatus;
-}) {
+export function PublicationCard({ project, status }: { project: Project; status: ProjectStatus }) {
   const android = buildAndroidItems(project, status);
   const ios = buildIosItems(project, status);
 
@@ -36,11 +30,7 @@ export function PublicationCard({
       <PlatformBlock
         icon={<Smartphone className="h-4 w-4" />}
         title="Android"
-        subtitle={
-          project.detected.hasAndroid
-            ? "Google Play"
-            : "Plateforme non détectée"
-        }
+        subtitle={project.detected.hasAndroid ? "Google Play" : "Plateforme non détectée"}
         items={android}
       />
 
@@ -99,17 +89,14 @@ function PlatformBlock({
               <SeverityIcon severity={it.severity} />
               <div className="min-w-0">
                 <div className={muted ? "text-muted-foreground" : ""}>{it.label}</div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {it.detail}
-                </div>
+                <div className="text-xs text-muted-foreground truncate">{it.detail}</div>
               </div>
             </li>
           ))}
         </ul>
       ) : (
         <div className="mt-3 text-xs text-muted-foreground">
-          Cette plateforme sera activée lorsque vous ajouterez la configuration
-          correspondante.
+          Cette plateforme sera activée lorsque vous ajouterez la configuration correspondante.
         </div>
       )}
     </div>
@@ -117,8 +104,7 @@ function PlatformBlock({
 }
 
 function SeverityIcon({ severity }: { severity: DomainSeverity }) {
-  if (severity === "error")
-    return <CircleX className="mt-0.5 h-4 w-4 text-danger shrink-0" />;
+  if (severity === "error") return <CircleX className="mt-0.5 h-4 w-4 text-danger shrink-0" />;
   if (severity === "warn")
     return <AlertTriangle className="mt-0.5 h-4 w-4 text-warning shrink-0" />;
   if (severity === "info")
@@ -149,20 +135,16 @@ function buildAndroidItems(project: Project, status: ProjectStatus): PubItem[] {
         idFinding ? [idFinding] : [],
         !!cfg.applicationId?.trim() || !!project.packageName?.trim(),
       ),
-      detail:
-        cfg.applicationId?.trim() ?? project.packageName?.trim() ?? "Non renseigné",
+      detail: cfg.applicationId?.trim() ?? project.packageName?.trim() ?? "Non renseigné",
     },
     {
       label: "Version",
       severity: /^\d+\.\d+/.test(project.currentVersion) ? "ok" : "warn",
-      detail: `v${project.currentVersion} · build ${project.currentBuild}`,
+      detail: `v${project.currentVersion} · numéro interne ${project.currentBuild}`,
     },
     {
       label: "Keystore",
-      severity: severityFrom(
-        ksFinding ? [ksFinding] : [],
-        !!cfg.keystorePath?.trim(),
-      ),
+      severity: severityFrom(ksFinding ? [ksFinding] : [], !!cfg.keystorePath?.trim()),
       detail: cfg.keystorePath?.trim() ?? "Non configuré",
     },
     {
@@ -195,10 +177,7 @@ function buildIosItems(project: Project, status: ProjectStatus): PubItem[] {
   return [
     {
       label: "Bundle ID",
-      severity: severityFrom(
-        bundleFinding ? [bundleFinding] : [],
-        !!ios?.bundleId?.trim(),
-      ),
+      severity: severityFrom(bundleFinding ? [bundleFinding] : [], !!ios?.bundleId?.trim()),
       detail: ios?.bundleId?.trim() ?? "Non renseigné",
     },
     {

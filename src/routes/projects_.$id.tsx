@@ -41,6 +41,8 @@ import { PlanCard } from "@/components/project-cockpit/plan-card";
 import { SourceBadge } from "@/components/project-cockpit/source-badge";
 import { DiscoveryHint } from "@/components/discovery-hint";
 import { ExpertDetails, ExpertRow } from "@/components/expert-details";
+import { AssistantOrAbove, ExpertOnly } from "@/components/mode-gate";
+import { useMode } from "@/core/store/use-mode";
 import { CopilotService } from "@/core/copilot/service";
 import { BackupService } from "@/core/backup/service";
 import { HealthCard } from "@/components/project-cockpit/health-card";
@@ -510,6 +512,7 @@ function IdentityTab({ project, update }: { project: Project; update: UpdateFn }
 /* ---------------- Configuration ---------------- */
 
 function ConfigurationTab({ project, update }: { project: Project; update: UpdateFn }) {
+  const mode = useMode();
   const [gitStatus, setGitStatus] = useState<GitProjectStatus | null>(null);
   const [gitLoading, setGitLoading] = useState(false);
 
@@ -594,30 +597,34 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
 
   return (
     <Card className="p-6 shadow-soft space-y-5 max-w-3xl">
-      <DiscoveryHint title="Configuration du dépôt et du build">
-        Ces informations permettent à AppPublisher de retrouver votre code et d'exécuter les bonnes
-        commandes. Elles peuvent être détectées automatiquement ou saisies manuellement.
+      <DiscoveryHint title="Où se trouve votre application ?">
+        AppPublisher connaît déjà son dossier. Ouvrez-le seulement si vous devez consulter les
+        fichiers ; les réglages techniques restent masqués dans ce mode.
       </DiscoveryHint>
 
-      {project.source?.type === "git" && (
-        <GitSourcePanel
-          project={project}
-          status={gitStatus}
-          loading={gitLoading}
-          onRefresh={refreshGit}
-          onSync={syncGit}
-        />
-      )}
+      <AssistantOrAbove>
+        {project.source?.type === "git" && (
+          <GitSourcePanel
+            project={project}
+            status={gitStatus}
+            loading={gitLoading}
+            onRefresh={refreshGit}
+            onSync={syncGit}
+          />
+        )}
+      </AssistantOrAbove>
 
       <div>
         <Label>Dossier local</Label>
         <div className="mt-1.5 flex gap-2">
-          <Input
-            value={project.localPath}
-            readOnly
-            aria-label="Dossier local"
-            className="font-mono"
-          />
+          {mode === "expert" && (
+            <Input
+              value={project.localPath}
+              readOnly
+              aria-label="Dossier local"
+              className="font-mono"
+            />
+          )}
           <Button variant="secondary" onClick={openProjectFolder}>
             <FolderOpen className="h-4 w-4" />
             Ouvrir
@@ -628,13 +635,15 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
             </Button>
           )}
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Chemin racine du projet. Après une mise à niveau de sécurité, « Réautoriser » permet de
-          confirmer ce dossier sans recréer le projet.
-        </p>
+        {mode !== "discovery" && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Après une mise à niveau de sécurité, « Réautoriser » permet de confirmer ce dossier sans
+            recréer l'application.
+          </p>
+        )}
       </div>
 
-      {project.source?.type !== "git" && (
+      {mode !== "discovery" && project.source?.type !== "git" && (
         <>
           <InlineText
             fieldKey="githubRepo"
@@ -658,15 +667,17 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
         </>
       )}
 
-      <InlineText
-        fieldKey="packageName"
-        source={sourceOf(project, "packageName")}
-        label="Nom de package"
-        value={project.packageName ?? ""}
-        placeholder="com.exemple.monapp"
-        validate={validatePackageName}
-        onSave={(v) => update({ packageName: v.trim() || undefined }, ["packageName"])}
-      />
+      <AssistantOrAbove>
+        <InlineText
+          fieldKey="packageName"
+          source={sourceOf(project, "packageName")}
+          label="Identifiant Android"
+          value={project.packageName ?? ""}
+          placeholder="com.exemple.monapp"
+          validate={validatePackageName}
+          onSave={(v) => update({ packageName: v.trim() || undefined }, ["packageName"])}
+        />
+      </AssistantOrAbove>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div data-cockpit-field="currentVersion">
@@ -680,24 +691,26 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
           <p className="mt-1.5 text-xs text-muted-foreground">Modifiée depuis l'onglet Version.</p>
         </div>
         <div>
-          <Label>Build actuel</Label>
+          <Label>Numéro interne</Label>
           <Input
             value={String(project.currentBuild)}
             readOnly
-            aria-label="Build actuel"
+            aria-label="Numéro interne"
             className="mt-1.5 font-mono"
           />
         </div>
       </div>
 
-      <InlineText
-        fieldKey="buildCommand"
-        source={sourceOf(project, "buildCommand")}
-        label="Commande de build personnalisée"
-        value={project.buildCommand ?? ""}
-        placeholder="npm run build"
-        onSave={(v) => update({ buildCommand: v.trim() || undefined }, ["buildCommand"])}
-      />
+      <ExpertOnly>
+        <InlineText
+          fieldKey="buildCommand"
+          source={sourceOf(project, "buildCommand")}
+          label="Commande de build personnalisée"
+          value={project.buildCommand ?? ""}
+          placeholder="npm run build"
+          onSave={(v) => update({ buildCommand: v.trim() || undefined }, ["buildCommand"])}
+        />
+      </ExpertOnly>
 
       <ExpertDetails title="Chemins & valeurs brutes">
         <ExpertRow label="Chemin absolu" value={project.localPath} />
@@ -1011,7 +1024,8 @@ function HistoryTab({ project }: { project: Project }) {
         <HistoryIcon className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
         <div className="font-medium">Aucun événement pour ce projet</div>
         <div className="text-sm text-muted-foreground mt-1">
-          L'historique s'enrichira dès votre première mise à jour de version, build ou publication.
+          L'historique s'enrichira dès votre première mise à jour de version, création de fichier
+          Android ou publication.
         </div>
       </Card>
     );

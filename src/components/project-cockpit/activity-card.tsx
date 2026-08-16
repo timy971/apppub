@@ -26,7 +26,7 @@ export function ActivityCard({ project }: { project: Project }) {
     return [
       { label: "Dernière modification", at: project.updatedAt },
       { label: "Dernière mise à jour de version", at: lastVersion?.createdAt },
-      { label: "Dernier build réussi", at: lastBuild?.createdAt },
+      { label: "Dernier fichier Android", at: lastBuild?.createdAt },
       { label: "Dernière préparation", at: lastPreparation?.createdAt },
       { label: "Dernier envoi Google Play", at: lastPublish?.createdAt },
       { label: "Dernière sauvegarde", at: lastBackup?.createdAt },

@@ -93,11 +93,11 @@ export function ProgressPanel({ snap, elapsedMs, stats }: Props) {
               {current.detail ? ` · ${current.detail}` : ""}
             </>
           ) : snap.status === "success" ? (
-            "Build terminé avec succès."
+            "Fichier Android créé avec succès."
           ) : snap.status === "error" ? (
-            "Le build a été interrompu par une erreur."
+            "La création du fichier a été interrompue par une erreur."
           ) : snap.status === "cancelled" ? (
-            "Build annulé."
+            "Création annulée."
           ) : (
             "En attente du démarrage."
           )}

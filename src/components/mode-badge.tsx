@@ -1,18 +1,18 @@
 import { useSettings, AppStore } from "@/core/store/app-store";
 import { cn } from "@/lib/utils";
 import type { ExperienceMode } from "@/core/types";
+import { EXPERIENCE_MODES } from "@/core/i18n/fr";
 
 /**
  * Bascule Mode Découverte / Assistant / Expert.
- * - Découverte : explications systématiques, actions pédagogiques.
- * - Assistant : guidé, jargon masqué (défaut Phase 1).
- * - Expert : détails techniques additionnels affichés.
+ * - Découverte : uniquement l'essentiel et la prochaine action.
+ * - Assistant : vérifications, explications et actions guidées.
+ * - Expert : chemins, commandes, journaux et détails Android.
  */
-const MODES: { value: ExperienceMode; label: string }[] = [
-  { value: "discovery", label: "Découverte" },
-  { value: "assistant", label: "Assistant" },
-  { value: "expert", label: "Expert" },
-];
+const MODES = (Object.keys(EXPERIENCE_MODES) as ExperienceMode[]).map((value) => ({
+  value,
+  ...EXPERIENCE_MODES[value],
+}));
 
 export function ModeBadge({ className }: { className?: string }) {
   const settings = useSettings();
@@ -29,6 +29,8 @@ export function ModeBadge({ className }: { className?: string }) {
         <button
           key={m.value}
           type="button"
+          title={`${m.summary} ${m.shows}`}
+          aria-pressed={settings.mode === m.value}
           onClick={() => AppStore.updateSettings({ mode: m.value })}
           className={cn(
             "rounded-full px-3 py-1 transition-colors",

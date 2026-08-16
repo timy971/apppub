@@ -9,6 +9,7 @@ import { createAndroidBuildOperation } from "@/core/operations/android-build";
 import { HistoryService } from "@/core/history/service";
 import { BackupService } from "@/core/backup/service";
 import { bridge } from "@/core/bridge";
+import { AssistantOrAbove, ExpertOnly } from "@/components/mode-gate";
 import { translateError } from "@/core/errors/translator";
 import { toast } from "sonner";
 
@@ -92,7 +93,7 @@ export function BuildCenter({ project }: Props) {
         outcome: "success",
         message:
           artifact?.aabValidation?.verdict === "blocked"
-            ? "Construction Android — AAB bloqué"
+            ? "Fichier Android refusé par les contrôles"
             : artifact?.aabValidation?.verdict === "warnings"
               ? "Construction Android — avertissements"
               : "Construction Android — prêt pour Google Play",
@@ -105,22 +106,22 @@ export function BuildCenter({ project }: Props) {
         aabReportPath: artifact?.aabReportPath,
       });
       notify(
-        "Build terminé",
-        `${project.name} · ${artifact?.aabPath ? artifact.aabPath.split(/[\\/]/).pop() : "artefact prêt"}`,
+        "Fichier Android créé",
+        `${project.name} · ${artifact?.aabPath ? artifact.aabPath.split(/[\\/]/).pop() : "fichier prêt"}`,
       );
       if (artifact?.aabValidation?.verdict === "blocked") {
-        toast.error("AAB construit, mais bloqué pour Google Play", {
+        toast.error("Fichier Android créé, mais refusé pour Google Play", {
           description: artifact.aabValidation.issues.find((issue) => issue.severity === "error")
             ?.detail,
           duration: 10_000,
         });
       } else if (artifact?.aabValidation?.verdict === "warnings") {
-        toast.warning("AAB construit avec des avertissements", {
+        toast.warning("Fichier Android créé avec des avertissements", {
           description: artifact.aabValidation.issues[0]?.detail,
           duration: 8_000,
         });
       } else {
-        toast.success("AAB prêt pour Google Play", {
+        toast.success("Fichier Android prêt pour Google Play", {
           description: artifact?.aabPath?.split(/[\\/]/).pop(),
         });
       }
@@ -138,9 +139,9 @@ export function BuildCenter({ project }: Props) {
         message: err.title,
         kind: "build",
       });
-      notify("Build échoué", err.title);
+      notify("Création du fichier Android échouée", err.title);
     } else if (snap.status === "cancelled") {
-      notify("Build annulé", `${project.name}`);
+      notify("Création du fichier Android annulée", `${project.name}`);
     }
   }, [
     snap.status,
@@ -155,7 +156,7 @@ export function BuildCenter({ project }: Props) {
 
   const start = useCallback(async () => {
     if (bridge().runtime !== "electron") {
-      toast.error("Build disponible dans l’application installée", {
+      toast.error("Création disponible dans l’application installée", {
         description: "L’aperçu Web ne modifie pas votre projet et ne simule plus de réussite.",
       });
       return;
@@ -164,7 +165,7 @@ export function BuildCenter({ project }: Props) {
       try {
         await BackupService.create(project, "build");
       } catch (error) {
-        toast.error("Build interrompu : sauvegarde impossible", {
+        toast.error("Création interrompue : sauvegarde impossible", {
           description:
             error instanceof Error ? error.message : "Vérifiez l'accès au dossier du projet.",
           duration: 10_000,
@@ -203,16 +204,28 @@ export function BuildCenter({ project }: Props) {
         onInitializeAndroid={() => setAndroidCreateOpen(true)}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div
+        className={
+          settings.mode === "discovery"
+            ? "grid gap-4"
+            : "grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]"
+        }
+      >
         <div className="space-y-4">
           {runner ? (
             <>
               <ProgressPanel snap={snap} elapsedMs={elapsedMs} stats={stats} />
               {snap.status === "running" && (
-                <LiveStatus step={snap.steps.find((s) => s.status === "running")} />
+                <AssistantOrAbove>
+                  <LiveStatus step={snap.steps.find((s) => s.status === "running")} />
+                </AssistantOrAbove>
               )}
               <StepsTimeline steps={snap.steps} nowMs={now} />
-              {snap.status === "running" && <BuildTips />}
+              {snap.status === "running" && (
+                <AssistantOrAbove>
+                  <BuildTips />
+                </AssistantOrAbove>
+              )}
             </>
           ) : (
             <>
@@ -240,15 +253,21 @@ export function BuildCenter({ project }: Props) {
           {translated && <BuildErrorPanel error={translated} onRetry={reset} />}
         </div>
 
-        <SidePanel
-          project={project}
-          settings={settings}
-          snap={runner ? snap : null}
-          stats={stats}
-        />
+        <AssistantOrAbove>
+          <SidePanel
+            project={project}
+            settings={settings}
+            snap={runner ? snap : null}
+            stats={stats}
+          />
+        </AssistantOrAbove>
       </div>
 
-      {runner && <LogConsole logs={snap.logs} mode={settings.mode} />}
+      {runner && (
+        <ExpertOnly>
+          <LogConsole logs={snap.logs} mode={settings.mode} />
+        </ExpertOnly>
+      )}
 
       <AndroidCreateDialog
         project={project}
