@@ -9,6 +9,7 @@ import {
   Loader2,
   Package,
   Save,
+  Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,6 +41,15 @@ export function ResourcesCard({ project }: { project: Project }) {
   const [backingUp, setBackingUp] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const latestBackup = BackupService.list(project.id)[0];
+  const latestModification = BackupService.list(project.id).find(
+    (backup) => backup.changedFiles?.length || backup.createdPaths?.length,
+  );
+  const modificationFiles = Array.from(
+    new Set([
+      ...(latestModification?.changedFiles ?? []),
+      ...(latestModification?.createdPaths ?? []),
+    ]),
+  );
   const androidPath = `${project.localPath}/android`;
   const backupsPath = `${project.localPath}/.apppublisher-backups`;
   const distPath = `${project.localPath}/android/app/build/outputs`;
@@ -119,6 +129,27 @@ export function ResourcesCard({ project }: { project: Project }) {
     }
   }
 
+  async function undoLatestModification() {
+    if (!latestModification || restoring) return;
+    setRestoring(true);
+    try {
+      const restored = await BackupService.restore(project, latestModification.id);
+      if (!restored) throw new Error("L’annulation n’a pas pu être vérifiée.");
+      await ProjectsService.refreshDetection(project.id);
+      AppStore.refreshProjects();
+      nav.bumpRefresh();
+      toast.success("Modifications AppPublisher annulées", {
+        description: `${modificationFiles.length} élément(s) restauré(s) ou supprimé(s).`,
+      });
+    } catch (error) {
+      toast.error("L’annulation a échoué", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setRestoring(false);
+    }
+  }
+
   return (
     <Card className="p-6 shadow-soft">
       <div className="mb-4 flex items-center justify-between gap-2">
@@ -165,6 +196,61 @@ export function ResourcesCard({ project }: { project: Project }) {
           </Button>
         </div>
       </div>
+      {latestModification && (
+        <div className="mb-4 rounded-lg border border-primary/25 bg-primary/5 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium">Dernières modifications AppPublisher</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Réalisées le {formatBackupDate(latestModification.createdAt)}. La sauvegarde
+                conserve l’état précédent et les éléments créés sont identifiés séparément.
+              </p>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={restoring || bridge().runtime !== "electron"}
+                >
+                  <Undo2 className="h-4 w-4" />
+                  Annuler les modifications AppPublisher
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Annuler les modifications AppPublisher ?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Les fichiers modifiés seront restaurés et les éléments créés par AppPublisher
+                    seront supprimés. Vos autres fichiers ne seront pas touchés.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <ul className="max-h-48 overflow-y-auto rounded-md bg-muted/50 p-3 font-mono text-xs">
+                  {modificationFiles.map((file) => (
+                    <li key={file}>{file}</li>
+                  ))}
+                </ul>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Conserver les modifications</AlertDialogCancel>
+                  <AlertDialogAction onClick={undoLatestModification}>
+                    Annuler ces modifications
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+          <details className="mt-3 text-xs">
+            <summary className="cursor-pointer font-medium">
+              Voir les fichiers concernés ({modificationFiles.length})
+            </summary>
+            <ul className="mt-2 space-y-1 font-mono text-muted-foreground">
+              {modificationFiles.map((file) => (
+                <li key={file}>{file}</li>
+              ))}
+            </ul>
+          </details>
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-2">
         <ResourceButton
           icon={<FolderOpen className="h-4 w-4" />}

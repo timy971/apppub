@@ -116,8 +116,8 @@ export const electronBridge: SystemBridge = {
 
   backups: {
     create: (projectPath, reason) => ensure().backups.create(projectPath, reason),
-    restore: (projectPath, location, files) =>
-      ensure().backups.restore(projectPath, location, files),
+    restore: (projectPath, location, files, createdPaths) =>
+      ensure().backups.restore(projectPath, location, files, createdPaths),
   },
 
   exec: {

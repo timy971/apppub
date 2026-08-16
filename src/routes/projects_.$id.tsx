@@ -740,6 +740,13 @@ function GitSourcePanel({
     "no-upstream": "Branche distante non suivie",
   };
   const dirty = status?.workingTree === "dirty";
+  const appPublisherFiles = new Set(
+    BackupService.list(project.id).find((backup) => backup.changedFiles?.length)?.changedFiles ??
+      [],
+  );
+  const generatedByAppPublisher = status?.changedFiles.filter((file) =>
+    Array.from(appPublisherFiles).some((known) => file === known || file.startsWith(`${known}/`)),
+  );
   return (
     <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -796,15 +803,27 @@ function GitSourcePanel({
               traités. Vous pouvez toujours construire cette version locale.
             </div>
           </div>
+          {!!generatedByAppPublisher?.length && (
+            <p className="mt-2 text-muted-foreground">
+              {generatedByAppPublisher.length} changement(s) correspondent à la dernière opération
+              AppPublisher. Vous pouvez les examiner ou les annuler dans « Ressources » avant de
+              synchroniser.
+            </p>
+          )}
           {status.changedFiles.length > 0 && (
-            <div className="mt-2 space-y-1 font-mono text-muted-foreground">
-              {status.changedFiles.slice(0, 4).map((file) => (
-                <div key={file}>{file}</div>
-              ))}
-              {status.changedFiles.length > 4 && (
-                <div>… et {status.changedFiles.length - 4} autre(s)</div>
-              )}
-            </div>
+            <details className="mt-2 text-muted-foreground">
+              <summary className="cursor-pointer font-sans font-medium">
+                Voir tous les fichiers ({status.changedFiles.length})
+              </summary>
+              <div className="mt-2 max-h-48 space-y-1 overflow-y-auto font-mono">
+                {status.changedFiles.map((file) => (
+                  <div key={file}>
+                    {file}
+                    {appPublisherFiles.has(file) ? " · AppPublisher" : ""}
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
         </div>
       )}

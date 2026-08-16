@@ -8,6 +8,7 @@ import { OperationEstimator } from "@/core/operations/estimator";
 import { createAndroidBuildOperation } from "@/core/operations/android-build";
 import { HistoryService } from "@/core/history/service";
 import { BackupService } from "@/core/backup/service";
+import { bridge } from "@/core/bridge";
 import { translateError } from "@/core/errors/translator";
 import { toast } from "sonner";
 
@@ -153,6 +154,12 @@ export function BuildCenter({ project }: Props) {
   ]);
 
   const start = useCallback(async () => {
+    if (bridge().runtime !== "electron") {
+      toast.error("Build disponible dans l’application installée", {
+        description: "L’aperçu Web ne modifie pas votre projet et ne simule plus de réussite.",
+      });
+      return;
+    }
     if (settings.autoBackupEnabled) {
       try {
         await BackupService.create(project, "build");

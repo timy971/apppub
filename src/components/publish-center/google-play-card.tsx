@@ -31,6 +31,7 @@ import { JourneyProgress } from "@/core/navigation/journey-progress";
 import type { Project, PublishRecord } from "@/core/types";
 import { GooglePlaySetupGuide } from "./google-play-setup-guide";
 import { GooglePlayJourney } from "./google-play-journey";
+import { HelpRequestButton } from "@/components/help-request-button";
 
 interface Props {
   project: Project;
@@ -672,6 +673,14 @@ function GooglePlayRecovery({
                 Réessayer
               </Button>
             )}
+            <HelpRequestButton
+              error={{
+                title: recovery.title,
+                explanation: recovery.explanation,
+                solution: recovery.solution,
+                retryable: recovery.action === "retry",
+              }}
+            />
           </div>
         </div>
       </div>

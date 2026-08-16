@@ -19,6 +19,7 @@ import { ProjectsService } from "@/core/projects/service";
 import { VersionService } from "@/core/version/service";
 import { HistoryService } from "@/core/history/service";
 import { BackupService } from "@/core/backup/service";
+import { bridge } from "@/core/bridge";
 import type { TranslatedError, VersionChangeType, Workflow } from "@/core/types";
 import { runWorkflow, wait } from "@/core/workflow/engine";
 import { WorkflowView } from "@/components/workflow-view";
@@ -92,10 +93,12 @@ function VersionAssistant() {
     setConfirmOpen(false);
     setFailure(null);
     const start = performance.now();
+    let backupId: string | undefined;
 
     try {
-      if (settings.autoBackupEnabled && choice !== "readonly") {
-        await BackupService.create(project, "version");
+      if (choice !== "readonly") {
+        const backup = await BackupService.create(project, "version");
+        backupId = backup.id;
       }
 
       const appliedRef: { current: { version: string; build: number } | null } = {
@@ -147,6 +150,18 @@ function VersionAssistant() {
       const finalBuild = appliedRef.current?.build ?? preview.newBuild;
 
       if (choice !== "readonly") {
+        if (backupId) {
+          let changedFiles = ["version.json", "package.json", "CHANGELOG.md"];
+          if (project.source?.type === "git") {
+            const git = await bridge().git.status({
+              projectPath: project.localPath,
+              remoteUrl: project.source.remoteUrl,
+              branch: project.source.branch,
+            });
+            changedFiles = git.changedFiles;
+          }
+          BackupService.describeChanges(backupId, changedFiles);
+        }
         ProjectsService.update(project.id, {
           currentVersion: finalVersion,
           currentBuild: finalBuild,

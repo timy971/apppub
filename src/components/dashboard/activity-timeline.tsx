@@ -78,6 +78,8 @@ export function buildActivityEvents(
 
 function reasonLabel(r: ProjectBackup["reason"]): string {
   switch (r) {
+    case "android-preparation":
+      return "Sauvegarde avant préparation Android";
     case "manual":
       return "Sauvegarde manuelle";
     case "version":

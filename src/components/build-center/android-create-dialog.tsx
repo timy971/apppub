@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StepsTimeline } from "./steps-timeline";
 import { LogConsole } from "./log-console";
+import { HelpRequestButton } from "@/components/help-request-button";
 
 interface Props {
   project: Project;
@@ -43,6 +44,21 @@ interface Props {
 
 const SAFE_WEB_DIR =
   /^(?!\.?\.?\/)(?!\/?(?:android|ios|node_modules)(?:\/|$))[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/;
+const REVERSIBLE_GENERATED_PATHS = new Set([
+  "android",
+  "node_modules",
+  "dist",
+  "build",
+  "out",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb",
+  "capacitor.config.json",
+  "capacitor.config.ts",
+  "capacitor.config.js",
+]);
 
 export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: Props) {
   const settings = useSettings();
@@ -113,10 +129,33 @@ export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: 
       const transaction = transactionRef.current;
       if (transaction) {
         try {
-          await bridge().androidPreparation.completeRollbackGuard(
+          const completed = await bridge().androidPreparation.completeRollbackGuard(
             project.localPath,
             transaction.guardToken,
           );
+          const reversibleCreated = completed.created.filter((path) =>
+            REVERSIBLE_GENERATED_PATHS.has(path),
+          );
+          let changedFiles = reversibleCreated;
+          if (project.source?.type === "git") {
+            const git = await bridge().git.status({
+              projectPath: project.localPath,
+              remoteUrl: project.source.remoteUrl,
+              branch: project.source.branch,
+            });
+            changedFiles = Array.from(
+              new Set([
+                ...reversibleCreated,
+                ...git.changedFiles.filter(
+                  (file) =>
+                    !reversibleCreated.some(
+                      (created) => file === created || file.startsWith(`${created}/`),
+                    ),
+                ),
+              ]),
+            );
+          }
+          BackupService.describeChanges(transaction.backupId, changedFiles, reversibleCreated);
         } catch {
           setRecoveryMessage(
             "Android a été créé, mais la finalisation de la garde de restauration n’a pas pu être vérifiée.",
@@ -129,7 +168,7 @@ export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: 
       AppStore.refreshProjects();
       onSuccess();
     })();
-  }, [onSuccess, project.id, project.localPath, snap.id, snap.result, snap.status]);
+  }, [onSuccess, project, snap.id, snap.result, snap.status]);
 
   useEffect(() => {
     if (snap.status !== "error" && snap.status !== "cancelled") return;
@@ -186,6 +225,12 @@ export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: 
 
   async function start() {
     if (!analysis || !canStart) return;
+    if (bridge().runtime !== "electron") {
+      setAnalysisError(
+        "La préparation réelle d’Android nécessite l’application AppPublisher installée.",
+      );
+      return;
+    }
     const request: AndroidPreparationRequest = {
       appName: appName.trim(),
       applicationId: applicationId.trim(),
@@ -193,7 +238,7 @@ export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: 
       packageManager: analysis.packageManager,
     };
     try {
-      const backup = await BackupService.create(project, "manual");
+      const backup = await BackupService.create(project, "android-preparation");
       const guard = await bridge().androidPreparation.beginRollbackGuard(
         project.localPath,
         request,
@@ -258,6 +303,16 @@ export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: 
           <div className="rounded-lg border border-danger/40 bg-danger/5 p-4 text-sm">
             <div className="font-medium text-danger">Analyse impossible</div>
             <div className="mt-1 text-muted-foreground">{analysisError}</div>
+            <div className="mt-3">
+              <HelpRequestButton
+                error={{
+                  title: "Analyse impossible",
+                  explanation: analysisError,
+                  solution: "Joignez le diagnostic à votre demande d’aide.",
+                  retryable: true,
+                }}
+              />
+            </div>
           </div>
         )}
 
@@ -399,6 +454,9 @@ export function AndroidCreateDialog({ project, open, onOpenChange, onSuccess }: 
                 <div className="font-medium">{translated.title}</div>
                 <div className="mt-1 whitespace-pre-wrap text-muted-foreground">
                   {translated.explanation}
+                </div>
+                <div className="mt-3">
+                  <HelpRequestButton error={translated} />
                 </div>
               </div>
             )}
