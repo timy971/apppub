@@ -58,6 +58,9 @@ function SetupWizard() {
   // traité par React en pleine phase de commit — cause du freeze renderer.
   useEffect(() => {
     // DIAGNOSTIC TEMPORAIRE — focus désactivé pour isoler la cause du freeze
+    const headingFrame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-page-heading]")?.focus();
+    });
     if (step === 1) {
       // const raf = requestAnimationFrame(() => nameInputRef.current?.focus());
       // return () => cancelAnimationFrame(raf);
@@ -66,6 +69,7 @@ function SetupWizard() {
       // const raf = requestAnimationFrame(() => projectPathInputRef.current?.focus());
       // return () => cancelAnimationFrame(raf);
     }
+    return () => window.cancelAnimationFrame(headingFrame);
   }, [step, detected]);
 
   function go(next: Step, reason: string) {
@@ -250,7 +254,11 @@ function SetupWizard() {
               subtitle="Cette étape est facultative. Le prénom sert uniquement à personnaliser l'accueil."
             >
               <div className="space-y-4">
+                <label htmlFor="setup-first-name" className="sr-only">
+                  Votre prénom, facultatif
+                </label>
                 <Input
+                  id="setup-first-name"
                   ref={nameInputRef}
                   type="text"
                   name="given-name"
@@ -391,7 +399,11 @@ function SetupWizard() {
                       n'est à sélectionner.
                     </p>
                     <div className="flex flex-col gap-2 sm:flex-row">
+                      <label htmlFor="setup-local-path" className="sr-only">
+                        Dossier local de l'application
+                      </label>
                       <Input
+                        id="setup-local-path"
                         ref={projectPathInputRef}
                         placeholder="Exemple : /Users/tim/Projets/CranioScan"
                         value={projectPath}
@@ -630,7 +642,9 @@ function Screen({
           {icon}
         </div>
       )}
-      <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+      <h1 data-page-heading tabIndex={-1} className="text-3xl font-semibold tracking-tight">
+        {title}
+      </h1>
       {subtitle && (
         <p className="mt-3 text-base text-muted-foreground leading-relaxed">{subtitle}</p>
       )}

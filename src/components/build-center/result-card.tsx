@@ -137,14 +137,18 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
 
   return (
     <Card className="overflow-hidden shadow-soft">
-      <div className={cn("border-b p-5 flex items-center gap-4", banner.className)}>
+      <div
+        role="status"
+        aria-live="polite"
+        className={cn("border-b p-5 flex items-center gap-4", banner.className)}
+      >
         <div
           className={cn(
             "flex h-12 w-12 items-center justify-center rounded-full",
             banner.iconClassName,
           )}
         >
-          <VerdictIcon className="h-6 w-6" />
+          <VerdictIcon className="h-6 w-6" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-lg font-semibold">{banner.title}</div>

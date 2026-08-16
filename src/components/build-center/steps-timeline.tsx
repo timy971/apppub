@@ -63,37 +63,37 @@ function StepIcon({ status }: { status: StepStatus }) {
   switch (status) {
     case "success":
       return (
-        <span className={cn(base, "bg-success/15 text-success")}>
+        <span aria-hidden="true" className={cn(base, "bg-success/15 text-success")}>
           <Check className="h-3.5 w-3.5" />
         </span>
       );
     case "running":
       return (
-        <span className={cn(base, "bg-primary/15 text-primary")}>
+        <span aria-hidden="true" className={cn(base, "bg-primary/15 text-primary")}>
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
         </span>
       );
     case "error":
       return (
-        <span className={cn(base, "bg-danger/15 text-danger")}>
+        <span aria-hidden="true" className={cn(base, "bg-danger/15 text-danger")}>
           <X className="h-3.5 w-3.5" />
         </span>
       );
     case "warning":
       return (
-        <span className={cn(base, "bg-warning/15 text-warning")}>
+        <span aria-hidden="true" className={cn(base, "bg-warning/15 text-warning")}>
           <AlertTriangle className="h-3.5 w-3.5" />
         </span>
       );
     case "skipped":
       return (
-        <span className={cn(base, "bg-muted text-muted-foreground")}>
+        <span aria-hidden="true" className={cn(base, "bg-muted text-muted-foreground")}>
           <Minus className="h-3.5 w-3.5" />
         </span>
       );
     default:
       return (
-        <span className={cn(base, "text-muted-foreground/50")}>
+        <span aria-hidden="true" className={cn(base, "text-muted-foreground/50")}>
           <Circle className="h-3.5 w-3.5" />
         </span>
       );

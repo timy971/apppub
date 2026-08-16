@@ -159,6 +159,7 @@ function RootComponent() {
   }, []);
   return (
     <QueryClientProvider client={queryClient}>
+      <RouteFocusManager />
       <ThemeProvider>
         <SetupAssistantProvider>
           <AppShell />
@@ -168,6 +169,19 @@ function RootComponent() {
       </ThemeProvider>
     </QueryClientProvider>
   );
+}
+
+function RouteFocusManager() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-page-heading]")?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [pathname]);
+
+  return null;
 }
 
 function AppShell() {

@@ -237,9 +237,12 @@ function ProjectsPage() {
                 </DialogHeader>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-sm font-medium">Dossier racine</label>
+                    <label htmlFor="projects-scan-root" className="text-sm font-medium">
+                      Dossier racine
+                    </label>
                     <div className="mt-2 flex gap-2">
                       <Input
+                        id="projects-scan-root"
                         placeholder="/Users/moi/Projets"
                         value={rootPath}
                         onChange={(e) => setRootPath(e.target.value)}
@@ -334,9 +337,12 @@ function ProjectsPage() {
 
                   <TabsContent value="local" className="mt-4 space-y-4">
                     <div>
-                      <label className="text-sm font-medium">Dossier du projet</label>
+                      <label htmlFor="project-local-path" className="text-sm font-medium">
+                        Dossier du projet
+                      </label>
                       <div className="mt-2 flex gap-2">
                         <Input
+                          id="project-local-path"
                           placeholder="/chemin/vers/le/projet"
                           value={path}
                           onChange={(e) => setPath(e.target.value)}
@@ -362,9 +368,12 @@ function ProjectsPage() {
 
                   <TabsContent value="git" className="mt-4 space-y-4">
                     <div>
-                      <label className="text-sm font-medium">Lien de votre application</label>
+                      <label htmlFor="project-remote-url" className="text-sm font-medium">
+                        Lien de votre application
+                      </label>
                       <div className="mt-2 flex gap-2">
                         <Input
+                          id="project-remote-url"
                           placeholder="https://github.com/vous/application.git"
                           value={remoteUrl}
                           onChange={(event) => {
@@ -396,7 +405,10 @@ function ProjectsPage() {
                             Version du projet à utiliser
                           </label>
                           <Select value={remoteBranch} onValueChange={setRemoteBranch}>
-                            <SelectTrigger className="mt-2 font-mono">
+                            <SelectTrigger
+                              className="mt-2 font-mono"
+                              aria-label="Version du projet à utiliser"
+                            >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -539,6 +551,7 @@ function ProjectsList({
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            aria-label="Rechercher une application"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Rechercher une application…"
@@ -546,7 +559,7 @@ function ProjectsList({
           />
         </div>
         <Select value={lifecycleFilter} onValueChange={setLifecycleFilter}>
-          <SelectTrigger className="w-[190px]">
+          <SelectTrigger className="w-[190px]" aria-label="Filtrer par cycle de vie">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

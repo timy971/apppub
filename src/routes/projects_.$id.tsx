@@ -417,7 +417,12 @@ function IdentityTab({ project, update }: { project: Project; update: UpdateFn }
       {project.technicalName && (
         <div>
           <Label>Nom technique</Label>
-          <Input value={project.technicalName} readOnly className="mt-1.5 font-mono" />
+          <Input
+            value={project.technicalName}
+            readOnly
+            aria-label="Nom technique"
+            className="mt-1.5 font-mono"
+          />
           <p className="mt-1.5 text-xs text-muted-foreground">
             Nom interne (issu du package.json). Utilisé uniquement par les opérations techniques —
             non modifiable ici.
@@ -464,7 +469,7 @@ function IdentityTab({ project, update }: { project: Project; update: UpdateFn }
             value={project.lifecycle ?? "development"}
             onValueChange={(v) => update({ lifecycle: v as ProjectLifecycle }, [])}
           >
-            <SelectTrigger className="mt-1.5">
+            <SelectTrigger className="mt-1.5" aria-label="Cycle de vie">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -607,7 +612,12 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
       <div>
         <Label>Dossier local</Label>
         <div className="mt-1.5 flex gap-2">
-          <Input value={project.localPath} readOnly className="font-mono" />
+          <Input
+            value={project.localPath}
+            readOnly
+            aria-label="Dossier local"
+            className="font-mono"
+          />
           <Button variant="secondary" onClick={openProjectFolder}>
             <FolderOpen className="h-4 w-4" />
             Ouvrir
@@ -661,12 +671,22 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
       <div className="grid gap-4 sm:grid-cols-2">
         <div data-cockpit-field="currentVersion">
           <Label>Version actuelle</Label>
-          <Input value={project.currentVersion} readOnly className="mt-1.5 font-mono" />
+          <Input
+            value={project.currentVersion}
+            readOnly
+            aria-label="Version actuelle"
+            className="mt-1.5 font-mono"
+          />
           <p className="mt-1.5 text-xs text-muted-foreground">Modifiée depuis l'onglet Version.</p>
         </div>
         <div>
           <Label>Build actuel</Label>
-          <Input value={String(project.currentBuild)} readOnly className="mt-1.5 font-mono" />
+          <Input
+            value={String(project.currentBuild)}
+            readOnly
+            aria-label="Build actuel"
+            className="mt-1.5 font-mono"
+          />
         </div>
       </div>
 
@@ -862,6 +882,7 @@ function AndroidSection({ project, update }: { project: Project; update: UpdateF
           </p>
           <div className="mt-1.5 flex gap-2">
             <Input
+              aria-label="Clé de signature, chemin manuel"
               value={cfg.keystorePath ?? ""}
               onChange={(e) =>
                 save({ keystorePath: e.target.value || undefined }, ["android.keystorePath"])
@@ -897,7 +918,7 @@ function AndroidSection({ project, update }: { project: Project; update: UpdateF
                 ])
               }
             >
-              <SelectTrigger className="mt-1.5">
+              <SelectTrigger className="mt-1.5" aria-label="Piste Google Play par défaut">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1057,6 +1078,8 @@ function InlineText({
   source?: FieldSource;
   validate?: FieldValidator;
 }) {
+  const inputId = `cockpit-${fieldKey ?? label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const errorId = `${inputId}-error`;
   const [local, setLocal] = useState(value);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -1087,11 +1110,14 @@ function InlineText({
   return (
     <div data-cockpit-field={fieldKey}>
       <div className="flex items-center gap-2">
-        <Label>{label}</Label>
+        <Label htmlFor={inputId}>{label}</Label>
         <SourceBadge source={dirty ? "user" : source} />
       </div>
       <div className="mt-1.5 flex gap-2">
         <Input
+          id={inputId}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
           value={local}
           placeholder={placeholder}
           maxLength={maxLength}
@@ -1118,7 +1144,11 @@ function InlineText({
           </Button>
         )}
       </div>
-      {error && <p className="mt-1 text-xs text-warning">{error}</p>}
+      {error && (
+        <p id={errorId} role="alert" className="mt-1 text-xs text-warning">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -1138,6 +1168,7 @@ function InlineTextarea({
   fieldKey?: string;
   source?: FieldSource;
 }) {
+  const inputId = `cockpit-${fieldKey ?? label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   const [local, setLocal] = useState(value);
   useEffect(() => setLocal(value), [value]);
   const dirty = local !== value;
@@ -1156,10 +1187,11 @@ function InlineTextarea({
   return (
     <div data-cockpit-field={fieldKey}>
       <div className="flex items-center gap-2">
-        <Label>{label}</Label>
+        <Label htmlFor={inputId}>{label}</Label>
         <SourceBadge source={dirty ? "user" : source} />
       </div>
       <Textarea
+        id={inputId}
         value={local}
         placeholder={placeholder}
         onChange={(e) => setLocal(e.target.value)}
@@ -1243,7 +1275,7 @@ function SigningProfileField({
             value={missingLink ? "__missing__" : (value ?? "__none__")}
             onValueChange={(v) => onChange(v === "__none__" ? undefined : v)}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label="Signature associée à cette application">
               <SelectValue placeholder="Aucune signature associée" />
             </SelectTrigger>
             <SelectContent>

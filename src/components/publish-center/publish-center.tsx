@@ -254,7 +254,8 @@ export function PublishCenter({ project }: { project: Project }) {
 
 function PublishCenterSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">Vérification de l'application et du fichier Android en cours.</span>
       <Card className="p-6 shadow-soft">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">

@@ -37,12 +37,21 @@ export function ProgressPanel({ snap, elapsedMs, stats }: Props) {
   const stepNumber = current ? currentIdx + 1 : snap.status === "success" ? total : done;
 
   return (
-    <Card className="p-6 shadow-soft">
+    <Card className="p-6 shadow-soft" aria-busy={snap.status === "running"}>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {current
+          ? `Création du fichier : étape ${stepNumber} sur ${total}, ${current.title}.`
+          : snap.status === "success"
+            ? "Création du fichier terminée avec succès."
+            : snap.status === "error"
+              ? "Création du fichier interrompue par une erreur."
+              : snap.status === "cancelled"
+                ? "Création du fichier annulée."
+                : "Création du fichier en attente."}
+      </p>
       <div className="flex items-baseline justify-between gap-4">
         <div>
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">
-            Progression
-          </div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Progression</div>
           <div className="mt-1 flex items-baseline gap-2">
             <div className="text-5xl font-semibold tabular-nums">{percent}%</div>
             <div className="text-sm text-muted-foreground tabular-nums">
@@ -66,20 +75,32 @@ export function ProgressPanel({ snap, elapsedMs, stats }: Props) {
       </div>
 
       <div className="mt-5">
-        <Progress value={percent} className="h-2" />
+        <Progress
+          value={percent}
+          className="h-2"
+          aria-label="Progression de la création du fichier Android"
+          aria-valuetext={`${percent} %, étape ${stepNumber} sur ${total}`}
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-        <div className={cn("min-w-0 truncate", current ? "text-foreground" : "text-muted-foreground")}>
-          {current
-            ? <><span className="font-medium">{current.title}</span>{current.detail ? ` · ${current.detail}` : ""}</>
-            : snap.status === "success"
-              ? "Build terminé avec succès."
-              : snap.status === "error"
-                ? "Le build a été interrompu par une erreur."
-                : snap.status === "cancelled"
-                  ? "Build annulé."
-                  : "En attente du démarrage."}
+        <div
+          className={cn("min-w-0 truncate", current ? "text-foreground" : "text-muted-foreground")}
+        >
+          {current ? (
+            <>
+              <span className="font-medium">{current.title}</span>
+              {current.detail ? ` · ${current.detail}` : ""}
+            </>
+          ) : snap.status === "success" ? (
+            "Build terminé avec succès."
+          ) : snap.status === "error" ? (
+            "Le build a été interrompu par une erreur."
+          ) : snap.status === "cancelled" ? (
+            "Build annulé."
+          ) : (
+            "En attente du démarrage."
+          )}
         </div>
         {stats.averageMs ? (
           <div className="text-xs text-muted-foreground tabular-nums">

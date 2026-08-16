@@ -173,7 +173,12 @@ export function SetupSheet({ open, onOpenChange, initialStepId }: Props) {
             </button>
           </div>
           <div className="mt-4">
-            <Progress value={percent} className="h-1.5" />
+            <Progress
+              value={percent}
+              className="h-1.5"
+              aria-label="Progression de la configuration"
+              aria-valuetext={`${completedCount} étape${completedCount > 1 ? "s" : ""} terminée${completedCount > 1 ? "s" : ""} sur ${totalCount}`}
+            />
             <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
               <span>
                 Étape {Math.min(current + 1, totalCount || 1)} / {totalCount || 1}
@@ -274,15 +279,27 @@ function StepBody({
 
       {/* Champ */}
       <div className="space-y-2">
+        <label htmlFor={`assistant-step-${step.id}`} className="text-sm font-medium">
+          {step.title}
+        </label>
         <Input
+          id={`assistant-step-${step.id}`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={step.example}
           className="h-12 text-base"
-          autoFocus
+          aria-describedby={step.hint ? `assistant-step-${step.id}-hint` : undefined}
         />
-        {step.hint && <p className="text-xs text-muted-foreground">{step.hint}</p>}
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {step.hint && (
+          <p id={`assistant-step-${step.id}-hint`} className="text-xs text-muted-foreground">
+            {step.hint}
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="text-xs text-danger">
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );

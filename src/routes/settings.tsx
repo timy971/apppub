@@ -85,6 +85,7 @@ function SettingsPage() {
         <Card className="p-6 shadow-soft">
           <Row label="Votre prénom" hint="Utilisé pour vous accueillir sur le tableau de bord.">
             <Input
+              aria-label="Votre prénom"
               value={settings.userName}
               onChange={(e) => AppStore.updateSettings({ userName: e.target.value })}
               className="max-w-xs"
@@ -134,7 +135,7 @@ function SettingsPage() {
               value={settings.theme}
               onValueChange={(v) => AppStore.updateSettings({ theme: v as ThemePreference })}
             >
-              <SelectTrigger className="max-w-xs">
+              <SelectTrigger className="max-w-xs" aria-label="Apparence">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -152,6 +153,7 @@ function SettingsPage() {
             hint="Une sauvegarde légère est créée avant chaque opération sensible (version, création du fichier, publication)."
           >
             <Switch
+              aria-label="Sauvegarde automatique"
               checked={settings.autoBackupEnabled ?? true}
               onCheckedChange={(v) => AppStore.updateSettings({ autoBackupEnabled: v })}
             />
@@ -161,6 +163,7 @@ function SettingsPage() {
         <Card className="p-6 shadow-soft">
           <Row label="Aide contextuelle" hint="Affiche une icône d'aide sur chaque écran.">
             <Switch
+              aria-label="Aide contextuelle"
               checked={settings.contextualHelpEnabled}
               onCheckedChange={(v) => AppStore.updateSettings({ contextualHelpEnabled: v })}
             />
@@ -173,7 +176,7 @@ function SettingsPage() {
               value={settings.language}
               onValueChange={(v) => AppStore.updateSettings({ language: v as "fr" | "en" })}
             >
-              <SelectTrigger className="max-w-xs">
+              <SelectTrigger className="max-w-xs" aria-label="Langue">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

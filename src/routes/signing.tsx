@@ -527,33 +527,47 @@ function ImportDialog({
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <Label>Nom d'affichage</Label>
+            <Label htmlFor="signature-import-name">Nom d'affichage</Label>
             <Input
+              id="signature-import-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex : CranioScan Release"
             />
           </div>
           <div className="grid gap-1.5">
-            <Label>Fichier de signature</Label>
+            <Label htmlFor="signature-import-path">Fichier de signature</Label>
             <div className="flex gap-2">
-              <Input value={path} readOnly placeholder="Aucun fichier sélectionné" />
+              <Input
+                id="signature-import-path"
+                value={path}
+                readOnly
+                placeholder="Aucun fichier sélectionné"
+              />
               <Button type="button" variant="outline" onClick={choose}>
                 Choisir…
               </Button>
             </div>
           </div>
           <div className="grid gap-1.5">
-            <Label>Clé de signature</Label>
+            <Label htmlFor="signature-import-alias">Clé de signature</Label>
             {detectedAliases.length === 0 ? (
-              <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+              <p
+                id="signature-import-alias"
+                className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+              >
                 L'alias sera détecté après la saisie du mot de passe.
               </p>
             ) : detectedAliases.length === 1 ? (
-              <Input value={detectedAliases[0]} readOnly aria-label="Alias détecté" />
+              <Input
+                id="signature-import-alias"
+                value={detectedAliases[0]}
+                readOnly
+                aria-label="Alias détecté"
+              />
             ) : (
               <Select value={alias} onValueChange={setAlias}>
-                <SelectTrigger>
+                <SelectTrigger id="signature-import-alias">
                   <SelectValue placeholder="Choisir la clé de cette application" />
                 </SelectTrigger>
                 <SelectContent>
@@ -567,8 +581,9 @@ function ImportDialog({
             )}
           </div>
           <div className="grid gap-1.5">
-            <Label>Mot de passe de la signature</Label>
+            <Label htmlFor="signature-import-password">Mot de passe de la signature</Label>
             <Input
+              id="signature-import-password"
               type="password"
               value={storepass}
               onChange={(e) => {
@@ -712,9 +727,14 @@ function CreateDialog({
             />
           </div>
           <div className="grid gap-1.5">
-            <Label>Dossier de sauvegarde</Label>
+            <Label htmlFor="signature-output-folder">Dossier de sauvegarde</Label>
             <div className="flex gap-2">
-              <Input value={folder} readOnly placeholder="Aucun dossier sélectionné" />
+              <Input
+                id="signature-output-folder"
+                value={folder}
+                readOnly
+                placeholder="Aucun dossier sélectionné"
+              />
               <Button type="button" variant="outline" onClick={chooseFolder}>
                 Choisir…
               </Button>

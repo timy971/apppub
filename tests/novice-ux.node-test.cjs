@@ -189,3 +189,49 @@ test("la signature se choisit et la suite reste visible dans le même flux", () 
   assert.match(signing, /fallbackTo="\/build"/);
   assert.match(signing, /Signature prête/);
 });
+
+test("le changement d'écran place le focus sur un titre explicite", () => {
+  const root = read("src/routes/__root.tsx");
+  const header = read("src/components/page-header.tsx");
+  const setup = read("src/routes/setup.tsx");
+  assert.match(root, /RouteFocusManager/);
+  assert.match(root, /querySelector<HTMLElement>\("\[data-page-heading\]"\)/);
+  assert.match(header, /data-page-heading/);
+  assert.match(setup, /data-page-heading/);
+});
+
+test("les opérations longues annoncent leur progression et leur résultat", () => {
+  const progress = read("src/components/build-center/progress-panel.tsx");
+  const workflow = read("src/components/workflow-view.tsx");
+  const result = read("src/components/build-center/result-card.tsx");
+  const error = read("src/components/build-center/error-panel.tsx");
+  assert.match(progress, /aria-live="polite"/);
+  assert.match(progress, /aria-valuetext/);
+  assert.match(workflow, /role="status"/);
+  assert.match(result, /role="status"/);
+  assert.match(error, /role="alert"/);
+});
+
+test("les champs critiques ont un nom accessible et les filtres sont utilisables au clavier", () => {
+  const projects = read("src/routes/projects.tsx");
+  const signing = read("src/routes/signing.tsx");
+  const releaseNotes = read("src/components/publish-center/release-notes.tsx");
+  const logs = read("src/routes/logs.tsx");
+  assert.match(projects, /htmlFor="projects-scan-root"/);
+  assert.match(projects, /aria-label="Filtrer par cycle de vie"/);
+  assert.match(signing, /htmlFor="signature-import-password"/);
+  assert.match(releaseNotes, /aria-describedby="release-notes-help release-notes-count"/);
+  assert.match(logs, /aria-pressed=\{selectedLevels\.has\(l\)\}/);
+  assert.doesNotMatch(logs, /<Badge[^>]*onClick/);
+});
+
+test("les chargements et états vides restent compréhensibles", () => {
+  const diagnostic = read("src/routes/diagnostic.tsx");
+  const publish = read("src/components/publish-center/publish-center.tsx");
+  const dashboard = read("src/components/dashboard/focus-card.tsx");
+  assert.match(diagnostic, /Vérification en cours/);
+  assert.match(diagnostic, /Aucun résultat disponible/);
+  assert.match(diagnostic, />\s*Réessayer\s*</);
+  assert.match(publish, /Vérification de l'application et du fichier Android en cours/);
+  assert.match(dashboard, /Chargement de la prochaine action/);
+});
