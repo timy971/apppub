@@ -81,6 +81,8 @@ export function LogConsole({ logs, mode }: Props) {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls="build-log-content"
           className="flex items-center gap-2 text-sm font-medium hover:text-foreground"
         >
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
@@ -97,6 +99,7 @@ export function LogConsole({ logs, mode }: Props) {
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  aria-label="Rechercher dans les messages du build"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Rechercher…"
@@ -145,6 +148,10 @@ export function LogConsole({ logs, mode }: Props) {
       </div>
       {open && (
         <div
+          id="build-log-content"
+          role="log"
+          aria-live="off"
+          aria-label="Messages techniques du build"
           ref={scrollRef}
           className="overflow-auto bg-[hsl(220_15%_10%)] font-mono text-xs text-slate-100"
           style={{ height }}

@@ -1,14 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import {
-  AlertTriangle,
-  RotateCw,
-  LifeBuoy,
-  Settings as SettingsIcon,
-  Stethoscope,
-} from "lucide-react";
+import { AlertTriangle, RotateCw, Settings as SettingsIcon, Stethoscope } from "lucide-react";
 import type { TranslatedError } from "@/core/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { HelpRequestButton } from "@/components/help-request-button";
 
 interface QuickAction {
   label: string;
@@ -42,10 +37,10 @@ interface Props {
 export function BuildErrorPanel({ error, onRetry }: Props) {
   const quick = pickQuickAction(error);
   return (
-    <Card className="border-danger/40 p-6 shadow-soft">
+    <Card role="alert" aria-live="assertive" className="border-danger/40 p-6 shadow-soft">
       <div className="flex items-start gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-danger/10 text-danger">
-          <AlertTriangle className="h-6 w-6" />
+          <AlertTriangle className="h-6 w-6" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-lg font-semibold">{error.title}</div>
@@ -67,12 +62,7 @@ export function BuildErrorPanel({ error, onRetry }: Props) {
                 </Link>
               </Button>
             )}
-            <Button asChild variant="ghost">
-              <Link to="/journal" search={{ view: "summary" }}>
-                <LifeBuoy className="h-4 w-4" />
-                Support
-              </Link>
-            </Button>
+            <HelpRequestButton error={error} />
           </div>
         </div>
       </div>

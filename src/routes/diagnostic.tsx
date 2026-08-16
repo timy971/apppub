@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { ArrowRight, Loader2, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,8 @@ import { WhyButton } from "@/components/why-button";
 import type { HealthCheck, HealthScore } from "@/core/types";
 import { useActiveProject, useSettings } from "@/core/store/app-store";
 import { StepPurpose } from "@/components/step-purpose";
+import { JourneyContinuation } from "@/components/journey-continuation";
+import { HelpRequestButton } from "@/components/help-request-button";
 
 export const Route = createFileRoute("/diagnostic")({
   component: DiagnosticPage,
@@ -105,22 +107,70 @@ function DiagnosticPage() {
         <Card role="alert" className="mb-6 border-danger/40 p-5 shadow-soft">
           <div className="font-semibold">Vérification interrompue</div>
           <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-          <Button className="mt-4" variant="outline" onClick={refresh} disabled={running}>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" onClick={refresh} disabled={running}>
+              Réessayer
+            </Button>
+            <HelpRequestButton />
+          </div>
+        </Card>
+      )}
+
+      {project && running && checks.length === 0 && (
+        <Card
+          className="mb-6 flex items-center gap-3 p-5 shadow-soft"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden="true" />
+          <div>
+            <div className="font-medium">Vérification en cours</div>
+            <p className="text-sm text-muted-foreground">
+              AppPublisher contrôle votre ordinateur et votre application.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {project && !running && !error && checks.length === 0 && (
+        <Card className="mb-6 p-5 shadow-soft">
+          <div className="font-medium">Aucun résultat disponible</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Relancez la vérification pour obtenir un résultat exploitable.
+          </p>
+          <Button className="mt-3" variant="outline" onClick={refresh}>
             Réessayer
           </Button>
         </Card>
       )}
 
       {project && score && (
-        <div className="mb-6">
+        <div className="mb-6 space-y-4">
           <HealthScoreCard score={score} />
+          {score.grade !== "blocked" && (
+            <JourneyContinuation
+              fallbackTo="/version"
+              fallbackLabel="Préparer la version"
+              title="Vérification terminée"
+              description={
+                score.grade === "warning"
+                  ? "Aucun blocage n'empêche de continuer. Vous pourrez revenir sur les points d'attention plus tard."
+                  : "Les contrôles essentiels sont passés. La prochaine étape consiste à préparer le numéro de version."
+              }
+            />
+          )}
         </div>
       )}
 
       {project && !error && (
         <div className="space-y-6">
           {GROUPS.map((g) => {
-            const items = checks.filter((c) => (c.category ?? "environment") === g.id);
+            const items = checks.filter(
+              (c) =>
+                (c.category ?? "environment") === g.id &&
+                (settings.mode !== "discovery" || c.status !== "ok"),
+            );
             if (items.length === 0) return null;
             return (
               <section key={g.id}>
@@ -135,12 +185,19 @@ function DiagnosticPage() {
                           {c.detail && (
                             <div className="mt-1 text-sm text-muted-foreground">{c.detail}</div>
                           )}
-                          {(settings.mode === "discovery" || settings.mode === "expert") &&
-                            c.why && (
-                              <div className="mt-2">
-                                <WhyButton title={c.label}>{c.why}</WhyButton>
-                              </div>
-                            )}
+                          {settings.mode !== "discovery" && c.why && (
+                            <div className="mt-2">
+                              <WhyButton title={c.label}>{c.why}</WhyButton>
+                            </div>
+                          )}
+                          {c.status !== "ok" && recoveryFor(c) && (
+                            <Button asChild size="sm" variant="outline" className="mt-3">
+                              <Link to={recoveryFor(c)!.to}>
+                                {recoveryFor(c)!.label}
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </Link>
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </Card>
@@ -153,4 +210,14 @@ function DiagnosticPage() {
       )}
     </div>
   );
+}
+
+function recoveryFor(check: HealthCheck): { to: "/build" | "/version"; label: string } | undefined {
+  if (check.id === "project-android") {
+    return { to: "/build", label: "Préparer Android" };
+  }
+  if (check.id === "version-json" || check.id === "version-script") {
+    return { to: "/version", label: "Préparer la version" };
+  }
+  return undefined;
 }

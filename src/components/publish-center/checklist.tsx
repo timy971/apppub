@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { Project } from "@/core/types";
 import type { ChecklistCategory, ChecklistEntry, PubSeverity } from "./shared";
+import { JourneyProgress } from "@/core/navigation/journey-progress";
 
 interface Props {
   project: Project;
@@ -96,7 +97,7 @@ function EntryRow({ project, entry }: { project: Project; entry: ChecklistEntry 
       {entry.action && entry.severity !== "ok" && (
         <Button asChild size="sm" variant="outline">
           {entry.action.kind === "route" ? (
-            <Link to={entry.action.to}>
+            <Link to={entry.action.to} onClick={() => JourneyProgress.rememberReturnTo("/publish")}>
               {entry.action.label}
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -104,6 +105,7 @@ function EntryRow({ project, entry }: { project: Project; entry: ChecklistEntry 
             <Link
               to="/projects/$id"
               params={{ id: project.id }}
+              onClick={() => JourneyProgress.rememberReturnTo("/publish")}
               search={
                 entry.action.field
                   ? { tab: entry.action.tab, field: entry.action.field }

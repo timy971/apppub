@@ -37,6 +37,8 @@ export interface AndroidPublishingConfig {
   googlePlayLastCheckedAt?: string;
   /** État du parcours manuel imposé par Google avant la première publication API. */
   googlePlaySetupStatus?: "required" | "ready";
+  /** Dernier numéro interne confirmé sur la piste de test, y compris lors du premier envoi manuel. */
+  googlePlayLastKnownBuild?: number;
 }
 
 /** Phase 3 : configuration iOS — structure posée, publication future. */
@@ -350,6 +352,8 @@ export type ThemePreference = "light" | "dark" | "system";
 /** Phase 2 : ajout de « discovery » — un mode pédagogique premières utilisations. */
 export type ExperienceMode = "discovery" | "assistant" | "expert";
 export type Language = "fr" | "en";
+export type PublicationJourneyPath =
+  "/projects" | "/diagnostic" | "/version" | "/signing" | "/build" | "/publish";
 
 export interface Settings {
   userName: string;
@@ -362,6 +366,10 @@ export interface Settings {
   contextualHelpEnabled: boolean;
   /** Phase 2 — proposer une sauvegarde avant chaque opération sensible. */
   autoBackupEnabled?: boolean;
+  /** Dernière étape consultée, pour reprendre simplement après un redémarrage. */
+  lastJourneyPath?: PublicationJourneyPath;
+  /** Étape à retrouver après une correction effectuée dans un autre écran. */
+  returnToJourneyPath?: PublicationJourneyPath;
 }
 
 /* ---------- Phase 2 : Bridge système ---------- */
@@ -506,9 +514,13 @@ export interface ProjectBackup {
   id: UUID;
   projectId: UUID;
   createdAt: string;
-  reason: "version" | "build" | "publish" | "correction" | "manual";
+  reason: "version" | "build" | "publish" | "correction" | "manual" | "android-preparation";
   /** Fichiers dont l'état a été mémorisé (chemin relatif au projet). */
   files: { path: string; size: number }[];
+  /** Fichiers effectivement modifiés par l'opération AppPublisher. */
+  changedFiles?: string[];
+  /** Éléments absents avant l'opération et à supprimer lors de son annulation. */
+  createdPaths?: string[];
   /** Emplacement du snapshot sur disque (bridge Electron uniquement). */
   location?: string;
 }

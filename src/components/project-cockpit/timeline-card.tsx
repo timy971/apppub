@@ -125,10 +125,10 @@ function titleFor(
           : "Envoi Google Play en échec"
         : kind === "build"
           ? outcome === "success"
-            ? "Build terminé"
-            : "Build en échec"
+            ? "Fichier Android créé"
+            : "Création du fichier Android en échec"
           : "Version mise à jour";
-  return `${prefix} — v${version} · build ${build}`;
+  return `${prefix} — v${version} · numéro interne ${build}`;
 }
 
 function labelForReason(reason: string): string {

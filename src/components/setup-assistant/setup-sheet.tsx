@@ -1,20 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  Check,
-  Info,
-  Sparkles,
-  ExternalLink,
-  SkipForward,
-  X,
-} from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { ArrowRight, Check, Info, Sparkles, ExternalLink, SkipForward, X } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -103,9 +90,7 @@ export function SetupSheet({ open, onOpenChange, initialStepId }: Props) {
   }
 
   // Étapes déjà validées (pour la barre de progression).
-  const completedCount = steps.filter(
-    (s) => s.isDone(project) || skipped.has(s.id),
-  ).length;
+  const completedCount = steps.filter((s) => s.isDone(project) || skipped.has(s.id)).length;
   const totalCount = steps.length;
   const percent = totalCount === 0 ? 100 : Math.round((completedCount / totalCount) * 100);
 
@@ -165,10 +150,7 @@ export function SetupSheet({ open, onOpenChange, initialStepId }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full max-w-xl overflow-y-auto p-0"
-      >
+      <SheetContent side="right" className="w-full max-w-xl overflow-y-auto p-0">
         {/* Header */}
         <div className="border-b bg-gradient-to-br from-primary/10 via-background to-background px-6 py-5">
           <div className="flex items-start justify-between gap-4">
@@ -178,9 +160,7 @@ export function SetupSheet({ open, onOpenChange, initialStepId }: Props) {
               </div>
               <div>
                 <SheetTitle className="text-lg">Assistant AppPublisher</SheetTitle>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {project.name}
-                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{project.name}</p>
               </div>
             </div>
             <button
@@ -193,7 +173,12 @@ export function SetupSheet({ open, onOpenChange, initialStepId }: Props) {
             </button>
           </div>
           <div className="mt-4">
-            <Progress value={percent} className="h-1.5" />
+            <Progress
+              value={percent}
+              className="h-1.5"
+              aria-label="Progression de la configuration"
+              aria-valuetext={`${completedCount} étape${completedCount > 1 ? "s" : ""} terminée${completedCount > 1 ? "s" : ""} sur ${totalCount}`}
+            />
             <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
               <span>
                 Étape {Math.min(current + 1, totalCount || 1)} / {totalCount || 1}
@@ -206,7 +191,16 @@ export function SetupSheet({ open, onOpenChange, initialStepId }: Props) {
         {/* Body */}
         <div className="px-6 py-6">
           {isFinished ? (
-            <ReadyScreen onClose={() => onOpenChange(false)} />
+            <ReadyScreen
+              onBuild={() => {
+                onOpenChange(false);
+                void navigate({ to: "/build" });
+              }}
+              onDashboard={() => {
+                onOpenChange(false);
+                void navigate({ to: "/" });
+              }}
+            />
           ) : step ? (
             <StepBody
               step={step}
@@ -285,42 +279,52 @@ function StepBody({
 
       {/* Champ */}
       <div className="space-y-2">
+        <label htmlFor={`assistant-step-${step.id}`} className="text-sm font-medium">
+          {step.title}
+        </label>
         <Input
+          id={`assistant-step-${step.id}`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={step.example}
           className="h-12 text-base"
-          autoFocus
+          aria-describedby={step.hint ? `assistant-step-${step.id}-hint` : undefined}
         />
         {step.hint && (
-          <p className="text-xs text-muted-foreground">{step.hint}</p>
+          <p id={`assistant-step-${step.id}-hint`} className="text-xs text-muted-foreground">
+            {step.hint}
+          </p>
         )}
         {error && (
-          <p className="text-xs text-danger">{error}</p>
+          <p role="alert" className="text-xs text-danger">
+            {error}
+          </p>
         )}
       </div>
     </div>
   );
 }
 
-function ReadyScreen({ onClose }: { onClose: () => void }) {
+function ReadyScreen({ onBuild, onDashboard }: { onBuild: () => void; onDashboard: () => void }) {
   return (
     <div className="space-y-6 py-6 text-center">
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success/15 text-success">
         <Check className="h-8 w-8" />
       </div>
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">
-          Projet prêt à construire
-        </h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Projet prêt à construire</h2>
         <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
-          Toutes les informations nécessaires sont réunies. Vous pouvez
-          désormais lancer un build ou préparer une release.
+          Toutes les informations nécessaires sont réunies. Vous pouvez désormais créer le fichier
+          Android puis préparer sa publication.
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-2 pt-2">
-        <Button size="lg" onClick={onClose}>
-          Terminer
+        <Button size="lg" onClick={onBuild}>
+          Créer le fichier Android
+          <ArrowRight className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="lg" onClick={onDashboard}>
+          Retour au tableau de bord
         </Button>
       </div>
     </div>

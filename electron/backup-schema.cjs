@@ -22,7 +22,29 @@ const SNAPSHOT_FILES = Object.freeze([
   "android/variables.gradle",
 ]);
 
-const BACKUP_REASONS = Object.freeze(["build", "correction", "manual", "publish", "version"]);
+const BACKUP_REASONS = Object.freeze([
+  "android-preparation",
+  "build",
+  "correction",
+  "manual",
+  "publish",
+  "version",
+]);
+const REMOVABLE_GENERATED_PATHS = Object.freeze([
+  "android",
+  "node_modules",
+  "dist",
+  "build",
+  "out",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb",
+  "capacitor.config.json",
+  "capacitor.config.ts",
+  "capacitor.config.js",
+]);
 const MAX_STORED_BACKUPS = 20;
 
 function safeRelativeFile(value) {
@@ -32,6 +54,7 @@ function safeRelativeFile(value) {
 module.exports = {
   BACKUP_REASONS,
   MAX_STORED_BACKUPS,
+  REMOVABLE_GENERATED_PATHS,
   SNAPSHOT_FILES,
   safeRelativeFile,
 };

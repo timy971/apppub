@@ -1,6 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { JourneyProgress, isJourneyPath } from "@/core/navigation/journey-progress";
 
 export const PUBLICATION_STEPS = [
   { number: 1, label: "Votre application", shortLabel: "Application", to: "/projects" },
@@ -16,6 +18,9 @@ const JOURNEY_PATHS = new Set(PUBLICATION_STEPS.map((step) => step.to));
 export function PublicationJourney() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const normalized = pathname.startsWith("/projects/") ? "/projects" : pathname;
+  useEffect(() => {
+    if (isJourneyPath(normalized)) JourneyProgress.visit(normalized);
+  }, [normalized]);
   if (!JOURNEY_PATHS.has(normalized as (typeof PUBLICATION_STEPS)[number]["to"])) return null;
 
   const currentIndex = PUBLICATION_STEPS.findIndex((step) => step.to === normalized);

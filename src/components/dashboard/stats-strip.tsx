@@ -10,17 +10,11 @@ export interface DashboardStats {
   totalBackups: number;
 }
 
-export function StatsStrip({
-  stats,
-  loading,
-}: {
-  stats: DashboardStats | null;
-  loading: boolean;
-}) {
+export function StatsStrip({ stats, loading }: { stats: DashboardStats | null; loading: boolean }) {
   const items = [
     {
       icon: Hammer,
-      label: "Builds",
+      label: "Fichiers Android",
       hint: "7 derniers jours",
       value: stats?.buildsThisWeek,
     },
@@ -38,8 +32,8 @@ export function StatsStrip({
     },
     {
       icon: Timer,
-      label: "Build moyen",
-      hint: "sur vos builds",
+      label: "Création moyenne",
+      hint: "sur vos fichiers Android",
       value: stats?.avgBuildMinutes == null ? "—" : `${stats.avgBuildMinutes} min`,
     },
     {

@@ -121,6 +121,7 @@ function Dashboard() {
         project={activeProject}
         userName={settings.userName}
         loading={copilotLoading}
+        lastJourneyPath={settings.lastJourneyPath}
       />
 
       {summaries.length > 0 && (

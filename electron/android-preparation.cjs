@@ -330,8 +330,14 @@ class AndroidPreparationManager {
     if (!guard || guard.project !== project) {
       throw new Error("Garde de restauration Android invalide ou expirée.");
     }
+    const created = Object.entries(guard.existed)
+      .filter(
+        ([relative, existedBefore]) =>
+          !existedBefore && this.fs.existsSync(path.join(project, relative)),
+      )
+      .map(([relative]) => relative);
     this.rollbackGuards.delete(token);
-    return { completed: true };
+    return { completed: true, created };
   }
 
   createConfig(projectPath, input) {

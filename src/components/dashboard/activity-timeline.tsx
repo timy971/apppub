@@ -55,7 +55,7 @@ export function buildActivityEvents(
         kind === "version"
           ? `Version ${h.version}`
           : kind === "build"
-            ? `Build v${h.version} (${h.build})`
+            ? `Fichier Android v${h.version} (${h.build})`
             : kind === "release-prepared"
               ? `Publication préparée v${h.version}`
               : `Publication Google Play v${h.version}`,
@@ -78,12 +78,14 @@ export function buildActivityEvents(
 
 function reasonLabel(r: ProjectBackup["reason"]): string {
   switch (r) {
+    case "android-preparation":
+      return "Sauvegarde avant préparation Android";
     case "manual":
       return "Sauvegarde manuelle";
     case "version":
       return "Sauvegarde avant version";
     case "build":
-      return "Sauvegarde avant build";
+      return "Sauvegarde avant création du fichier";
     case "correction":
       return "Sauvegarde avant correction Android";
     case "publish":
@@ -150,7 +152,8 @@ export function ActivityTimeline({
 
       {items.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          Aucune activité pour l'instant. Vos versions, builds et publications apparaîtront ici.
+          Aucune activité pour l'instant. Vos versions, fichiers Android et publications
+          apparaîtront ici.
         </p>
       ) : (
         <ol className="space-y-4">

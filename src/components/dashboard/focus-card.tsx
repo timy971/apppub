@@ -1,4 +1,5 @@
-import { ArrowRight, Check, ChevronDown, CircleAlert, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, CircleAlert, RotateCcw, Sparkles } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 import { CopilotActionLink } from "@/components/copilot-action-link";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CopilotPlan } from "@/core/copilot/types";
 import type { Project } from "@/core/types";
+import type { PublicationJourneyPath } from "@/core/types";
+import { JOURNEY_LABELS } from "@/core/navigation/journey-progress";
 import { cn } from "@/lib/utils";
 
 function greeting(name: string): string {
@@ -29,11 +32,13 @@ export function DashboardFocusCard({
   project,
   userName,
   loading,
+  lastJourneyPath,
 }: {
   plan: CopilotPlan | null;
   project?: Project;
   userName: string;
   loading: boolean;
+  lastJourneyPath?: PublicationJourneyPath;
 }) {
   const date = new Date().toLocaleDateString("fr-FR", {
     weekday: "long",
@@ -43,7 +48,13 @@ export function DashboardFocusCard({
 
   if (loading || !plan) {
     return (
-      <Card className="p-7 shadow-elevated sm:p-9">
+      <Card
+        className="p-7 shadow-elevated sm:p-9"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <span className="sr-only">Chargement de la prochaine action.</span>
         <Skeleton className="h-4 w-36" />
         <Skeleton className="mt-3 h-9 w-72 max-w-full" />
         <Skeleton className="mt-7 h-6 w-52" />
@@ -79,7 +90,9 @@ export function DashboardFocusCard({
 
       <div className="relative">
         <p className="text-xs capitalize text-muted-foreground">{date}</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">{greeting(userName)}</h1>
+        <h1 data-page-heading tabIndex={-1} className="mt-1 text-3xl font-semibold tracking-tight">
+          {greeting(userName)}
+        </h1>
 
         <div className="mt-7 flex flex-wrap items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-background/80 text-2xl ring-1 ring-border">
@@ -157,6 +170,14 @@ export function DashboardFocusCard({
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </CopilotActionLink>
           </Button>
+          {project && lastJourneyPath && lastJourneyPath !== plan.nextAction.route && (
+            <Button asChild variant="ghost" className="ml-2 mt-5">
+              <Link to={lastJourneyPath}>
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Reprendre : {JOURNEY_LABELS[lastJourneyPath]}
+              </Link>
+            </Button>
+          )}
         </div>
 
         {project && (plan.warnings.length > 0 || plan.completed.length > 0) && (

@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CheckItem } from "./check-item";
 import { cn } from "@/lib/utils";
+import { JourneyProgress } from "@/core/navigation/journey-progress";
+import { useMode } from "@/core/store/use-mode";
 
 interface Props {
   project: Project;
@@ -41,6 +43,7 @@ export function PreflightCard({
   const [busyCheckId, setBusyCheckId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const mode = useMode();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -73,13 +76,17 @@ export function PreflightCard({
   const grouped = useMemo(() => {
     if (!state) return [];
     const map = new Map<string, BuildCheck[]>();
-    for (const c of state.checks) {
+    const visibleChecks =
+      mode === "discovery"
+        ? state.checks.filter((check) => check.status !== "success")
+        : state.checks;
+    for (const c of visibleChecks) {
       const arr = map.get(c.category) ?? [];
       arr.push(c);
       map.set(c.category, arr);
     }
     return Array.from(map.entries());
-  }, [state]);
+  }, [mode, state]);
 
   const applyFix = useCallback(
     async (check: BuildCheck) => {
@@ -109,6 +116,7 @@ export function PreflightCard({
           }
           case "open-cockpit": {
             const payload = check.fix.payload ?? {};
+            JourneyProgress.rememberReturnTo("/build");
             void navigate({
               to: "/projects/$id",
               params: { id: project.id },
@@ -120,6 +128,7 @@ export function PreflightCard({
             return; // pas de refresh, on quitte l'écran
           }
           case "open-diagnostic": {
+            JourneyProgress.rememberReturnTo("/build");
             void navigate({ to: "/diagnostic" });
             return;
           }
@@ -191,6 +200,11 @@ export function PreflightCard({
 
       {state && (
         <div className="mt-4 space-y-4">
+          {mode === "discovery" && grouped.length === 0 && (
+            <div className="rounded-lg bg-success/5 p-3 text-sm text-success">
+              Les contrôles essentiels sont réussis. Vous pouvez continuer.
+            </div>
+          )}
           {grouped.map(([cat, items]) => (
             <section key={cat}>
               <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
