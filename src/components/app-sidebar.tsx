@@ -44,6 +44,8 @@ const utils = [
   { title: "Paramètres", url: "/settings", icon: SettingsIcon },
 ];
 
+const otherPlatforms = [{ title: "iPhone et iPad — En pause", url: "/apple", icon: Apple }];
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -83,28 +85,12 @@ export function AppSidebar() {
           isActive={isActive}
           collapsed={collapsed}
         />
-        <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel>Autre plateforme</SidebarGroupLabel>}
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  disabled
-                  tooltip="iPhone et iPad — en pause"
-                  aria-label="Publication iPhone et iPad, en pause"
-                >
-                  <Apple className="h-4 w-4" />
-                  {!collapsed && (
-                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                      <span>iPhone et iPad</span>
-                      <span className="text-[10px] text-muted-foreground">En pause</span>
-                    </span>
-                  )}
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <Section
+          label="Autre plateforme"
+          items={otherPlatforms}
+          isActive={isActive}
+          collapsed={collapsed}
+        />
         <Section label="Besoin d'aide ?" items={utils} isActive={isActive} collapsed={collapsed} />
       </SidebarContent>
 

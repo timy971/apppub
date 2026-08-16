@@ -58,12 +58,15 @@ test("l'onboarding accepte un lien GitHub ou Lovable sans demander de connaître
 test("la future publication Apple reste visible sans faux bouton actif", () => {
   const sidebar = read("src/components/app-sidebar.tsx");
   const publish = read("src/routes/publish.tsx");
+  const apple = read("src/routes/apple.tsx");
   assert.match(sidebar, /Publication Android pas à pas/);
   assert.match(sidebar, /iPhone et iPad/);
   assert.match(sidebar, /En pause/);
-  assert.match(publish, /Publication iPhone et iPad/);
-  assert.match(publish, /compte Apple Developer/);
-  assert.match(publish, /Vous n'avez rien à configurer maintenant/);
+  assert.match(sidebar, /url: "\/apple"/);
+  assert.doesNotMatch(publish, /iPhone et iPad|Apple Developer|App Store Connect/);
+  assert.match(apple, /Publication iPhone et iPad/);
+  assert.match(apple, /compte Apple Developer/);
+  assert.match(apple, /Vous n'avez rien à configurer maintenant/);
   assert.doesNotMatch(read("src/components/publish-center/store-targets.tsx"), /title="iOS"/);
   assert.doesNotMatch(read("src/routes/projects_.$id.tsx"), /Team ID|Scheme Xcode|Fastlane/);
 });
