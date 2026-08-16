@@ -130,12 +130,18 @@ test("chaque étape principale distingue l'automatique de l'action utilisateur",
 
 test("l'assistance regroupe vérification, historique et console experte", () => {
   const support = read("src/routes/journal.tsx");
-  assert.match(support, /Aide et historique/);
-  assert.match(support, /Vérifier mon application/);
-  assert.match(support, /Voir les opérations passées/);
+  const sidebar = read("src/components/app-sidebar.tsx");
+  const history = read("src/routes/history.tsx");
+  const logs = read("src/routes/logs.tsx");
+  assert.match(sidebar, /Activité et aide/);
+  assert.match(support, /title="Activité et aide"/);
+  assert.match(support, /Résumé/);
+  assert.match(support, /Opérations passées/);
   assert.match(support, /isExpert &&/);
-  assert.match(support, /Console technique/);
-  assert.match(support, /ne contiennent aucun mot de passe/);
+  assert.match(support, /Détails techniques/);
+  assert.match(support, /Aucun mot de passe n'est inclus/);
+  assert.match(history, /redirect\(\{ to: "\/journal", search: \{ view: "history" \} \}\)/);
+  assert.match(logs, /redirect\(\{ to: "\/journal", search: \{ view: "technical" \} \}\)/);
 });
 
 test("la structure globale est accessible au clavier et en français", () => {

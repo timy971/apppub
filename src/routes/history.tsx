@@ -1,6 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HistoryService } from "@/core/history/service";
@@ -11,10 +10,12 @@ import { toast } from "sonner";
 import type { PublishRecord } from "@/core/types";
 
 export const Route = createFileRoute("/history")({
-  component: HistoryPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/journal", search: { view: "history" } });
+  },
 });
 
-function HistoryPage() {
+export function HistoryPanel() {
   const project = useActiveProject();
   const records = useMemo(
     () => (project ? HistoryService.forProject(project.id) : HistoryService.list()),
@@ -22,21 +23,15 @@ function HistoryPage() {
   );
 
   return (
-    <div>
-      <PageHeader
-        title="Opérations passées"
-        subtitle={
-          project
+    <div aria-label="Opérations passées">
+      <div className="mb-5">
+        <h2 className="text-lg font-semibold">Opérations passées</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {project
             ? `Fichiers créés et publications de « ${project.name} ».`
-            : "Tous les fichiers créés et toutes les publications."
-        }
-        help={{
-          title: "À propos des opérations passées",
-          content:
-            "Chaque opération importante est mémorisée pour retrouver un fichier ou comprendre ce qui a été publié.",
-        }}
-      />
-
+            : "Tous les fichiers créés et toutes les publications."}
+        </p>
+      </div>
       {records.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground shadow-soft">
           Aucune opération pour l'instant. Les fichiers créés et les publications apparaîtront ici.

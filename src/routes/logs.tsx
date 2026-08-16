@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
@@ -10,7 +10,6 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,7 +27,9 @@ import {
 import { analyze, type AnalysisFinding } from "@/core/diag/analyzer";
 
 export const Route = createFileRoute("/logs")({
-  component: LogsPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/journal", search: { view: "technical" } });
+  },
 });
 
 const LEVEL_CLASS: Record<string, string> = {
@@ -59,13 +60,11 @@ const LEVELS: Array<LogLevel | "watchdog" | "op:start" | "op:end" | "op:fail"> =
   "op:fail",
 ];
 
-function LogsPage() {
+export function TechnicalPanel() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [paused, setPaused] = useState(false);
   const [q, setQ] = useState("");
-  const [selectedLevels, setSelectedLevels] = useState<Set<string>>(
-    () => new Set(LEVELS),
-  );
+  const [selectedLevels, setSelectedLevels] = useState<Set<string>>(() => new Set(LEVELS));
   const [logDir, setLogDir] = useState<string | undefined>();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickBottom = useRef(true);
@@ -92,8 +91,7 @@ function LogsPage() {
     return entries.filter((e) => {
       if (!selectedLevels.has(String(e.level))) return false;
       if (!needle) return true;
-      const hay =
-        `${e.message} ${e.module ?? ""} ${JSON.stringify(e.ctx ?? "")}`.toLowerCase();
+      const hay = `${e.message} ${e.module ?? ""} ${JSON.stringify(e.ctx ?? "")}`.toLowerCase();
       return hay.includes(needle);
     });
   }, [entries, q, selectedLevels]);
@@ -142,11 +140,15 @@ function LogsPage() {
   const findings: AnalysisFinding[] = useMemo(() => analyze(entries), [entries]);
 
   return (
-    <div>
-      <PageHeader
-        title="Console de diagnostic"
-        subtitle="Journal en direct de toutes les opérations d'AppPublisher. Réservé au support technique."
-        actions={
+    <div aria-label="Détails techniques">
+      <Card className="mb-4 p-5 shadow-soft">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Détails techniques</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Journal en direct des opérations. Cette partie est destinée au support technique.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setPaused((p) => !p)}>
               {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
@@ -187,8 +189,8 @@ function LogsPage() {
               Exporter pour le support
             </Button>
           </div>
-        }
-      />
+        </div>
+      </Card>
 
       {findings.length > 0 && (
         <Card className="mb-4 p-4 shadow-soft">
@@ -263,9 +265,7 @@ function LogsPage() {
                   <span className="text-muted-foreground">
                     {new Date(e.ts).toLocaleTimeString("fr-FR")}
                   </span>{" "}
-                  <span className={LEVEL_CLASS[String(e.level)] ?? ""}>
-                    [{String(e.level)}]
-                  </span>{" "}
+                  <span className={LEVEL_CLASS[String(e.level)] ?? ""}>[{String(e.level)}]</span>{" "}
                   <span className="text-muted-foreground">
                     [{e.source}
                     {e.module ? `/${e.module}` : ""}]
@@ -276,10 +276,7 @@ function LogsPage() {
                   )}
                   {e.error && <span className="text-danger"> · {e.error}</span>}
                   {e.ctx !== undefined && (
-                    <span className="text-muted-foreground">
-                      {" "}
-                      · {JSON.stringify(e.ctx)}
-                    </span>
+                    <span className="text-muted-foreground"> · {JSON.stringify(e.ctx)}</span>
                   )}
                 </li>
               ))}

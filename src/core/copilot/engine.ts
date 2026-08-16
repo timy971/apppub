@@ -83,7 +83,7 @@ export function buildCopilotPlan(
           title: "Tout est prêt",
           description:
             "Aucune action urgente. Vous pouvez rédiger de nouvelles notes ou surveiller votre historique.",
-          route: "/history",
+          route: "/journal",
           priority: "low",
         }
       : {
