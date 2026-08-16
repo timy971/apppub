@@ -13,6 +13,7 @@ import type { HealthCheck, HealthScore } from "@/core/types";
 import { useActiveProject, useSettings } from "@/core/store/app-store";
 import { StepPurpose } from "@/components/step-purpose";
 import { JourneyContinuation } from "@/components/journey-continuation";
+import { HelpRequestButton } from "@/components/help-request-button";
 
 export const Route = createFileRoute("/diagnostic")({
   component: DiagnosticPage,
@@ -106,9 +107,12 @@ function DiagnosticPage() {
         <Card role="alert" className="mb-6 border-danger/40 p-5 shadow-soft">
           <div className="font-semibold">Vérification interrompue</div>
           <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-          <Button className="mt-4" variant="outline" onClick={refresh} disabled={running}>
-            Réessayer
-          </Button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" onClick={refresh} disabled={running}>
+              Réessayer
+            </Button>
+            <HelpRequestButton />
+          </div>
         </Card>
       )}
 
@@ -162,7 +166,11 @@ function DiagnosticPage() {
       {project && !error && (
         <div className="space-y-6">
           {GROUPS.map((g) => {
-            const items = checks.filter((c) => (c.category ?? "environment") === g.id);
+            const items = checks.filter(
+              (c) =>
+                (c.category ?? "environment") === g.id &&
+                (settings.mode !== "discovery" || c.status !== "ok"),
+            );
             if (items.length === 0) return null;
             return (
               <section key={g.id}>
@@ -177,12 +185,11 @@ function DiagnosticPage() {
                           {c.detail && (
                             <div className="mt-1 text-sm text-muted-foreground">{c.detail}</div>
                           )}
-                          {(settings.mode === "discovery" || settings.mode === "expert") &&
-                            c.why && (
-                              <div className="mt-2">
-                                <WhyButton title={c.label}>{c.why}</WhyButton>
-                              </div>
-                            )}
+                          {settings.mode !== "discovery" && c.why && (
+                            <div className="mt-2">
+                              <WhyButton title={c.label}>{c.why}</WhyButton>
+                            </div>
+                          )}
                           {c.status !== "ok" && recoveryFor(c) && (
                             <Button asChild size="sm" variant="outline" className="mt-3">
                               <Link to={recoveryFor(c)!.to}>

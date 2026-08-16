@@ -161,7 +161,8 @@ contextBridge.exposeInMainWorld("appPublisher", {
 
   backups: {
     create: (projectPath, reason) => inv("backups:create", projectPath, reason),
-    restore: (projectPath, location, files) => inv("backups:restore", projectPath, location, files),
+    restore: (projectPath, location, files, createdPaths) =>
+      inv("backups:restore", projectPath, location, files, createdPaths),
   },
 
   exec: {

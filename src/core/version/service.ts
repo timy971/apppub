@@ -67,12 +67,16 @@ export const VersionService = {
     onLine?: (line: string) => void,
   ): Promise<{ version: string; build: number }> {
     const b = bridge();
-    if (b.runtime === "web" || type === "readonly") {
+    if (type === "readonly") {
       const preview = this.preview(project, type);
       return { version: preview.to, build: preview.newBuild };
     }
-    const scriptArg =
-      type === "bugfix" ? "patch" : type === "feature" ? "minor" : "major";
+    if (b.runtime !== "electron") {
+      throw new Error(
+        "La modification réelle de la version nécessite l’application AppPublisher installée.",
+      );
+    }
+    const scriptArg = type === "bugfix" ? "patch" : type === "feature" ? "minor" : "major";
     const result = await b.exec.run(
       {
         cmd: "node",

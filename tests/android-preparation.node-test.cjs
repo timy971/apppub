@@ -198,7 +198,10 @@ test("completed rollback guards cannot later delete a successful Android project
   };
   const { token } = manager.beginRollbackGuard(project, request);
   fs.mkdirSync(path.join(project, "android"));
-  assert.deepEqual(manager.completeRollbackGuard(project, token), { completed: true });
+  assert.deepEqual(manager.completeRollbackGuard(project, token), {
+    completed: true,
+    created: ["android"],
+  });
   assert.throws(() => manager.rollbackCreatedArtifacts(project, token), /invalide ou expirée/);
   assert.equal(fs.existsSync(path.join(project, "android")), true);
 });

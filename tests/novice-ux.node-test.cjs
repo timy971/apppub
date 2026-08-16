@@ -235,3 +235,41 @@ test("les chargements et états vides restent compréhensibles", () => {
   assert.match(publish, /Vérification de l'application et du fichier Android en cours/);
   assert.match(dashboard, /Chargement de la prochaine action/);
 });
+
+test("Google Play présente un parcours novice en quatre états", () => {
+  const journey = read("src/components/publish-center/google-play-journey.tsx");
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  for (const label of ["À configurer", "Connecté", "Prêt à envoyer", "Envoyé"]) {
+    assert.match(journey, new RegExp(label));
+  }
+  for (const step of [
+    "Compte Google",
+    "Application Play Console",
+    "Fichier Android",
+    "Test interne",
+  ]) {
+    assert.match(journey, new RegExp(step));
+  }
+  assert.match(card, /<GooglePlayJourney/);
+});
+
+test("la première publication manuelle n'est jamais renvoyée avec le même numéro", () => {
+  const types = read("src/core/types.ts");
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  const guide = read("src/components/publish-center/google-play-setup-guide.tsx");
+  assert.match(types, /googlePlayLastKnownBuild\?: number/);
+  assert.match(card, /googlePlayLastKnownBuild === project\.currentBuild/);
+  assert.match(card, /confirmsFirstManualRelease/);
+  assert.match(guide, /mémorisera que ce numéro a déjà été utilisé/);
+});
+
+test("les refus Google Play restent visibles avec une action compréhensible", () => {
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  assert.match(card, /<GooglePlayRecovery/);
+  assert.match(card, /Ce qu’il faut faire/);
+  assert.match(card, /Augmenter le numéro interne/);
+  assert.match(card, /Recréer le fichier Android/);
+  assert.match(card, /Ouvrir Play Console/);
+  assert.match(card, /Les quatre blocages les plus fréquents/);
+  assert.match(card, /Mauvaise clé/);
+});

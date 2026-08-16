@@ -23,6 +23,9 @@ import { toast } from "sonner";
 import { formatDuration, formatSize, formatRelativeDelta, shortChecksum } from "./shared";
 import { cn } from "@/lib/utils";
 import { AndroidCorrectionAssistant } from "./correction-assistant";
+import { AssistantOrAbove, ExpertOnly } from "@/components/mode-gate";
+import { useMode } from "@/core/store/use-mode";
+import { termLabel } from "@/core/i18n/fr";
 
 interface Artifact {
   aabPath?: string;
@@ -42,6 +45,7 @@ interface Props {
 }
 
 export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Props) {
+  const mode = useMode();
   const result = snap.result as Artifact | undefined;
   const artifact: Artifact = result ?? {};
   const filename = artifact.aabPath ? artifact.aabPath.split(/[\\/]/).pop() : undefined;
@@ -64,13 +68,16 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
         }
       : verdict === "blocked"
         ? {
-            title: "AAB bloqué pour Google Play",
+            title: mode === "expert" ? "AAB bloqué pour Google Play" : "Fichier Android refusé",
             className: "bg-danger/5",
             iconClassName: "bg-danger/15 text-danger",
             Icon: XCircle,
           }
         : {
-            title: "AAB construit avec des avertissements",
+            title:
+              mode === "expert"
+                ? "AAB construit avec des avertissements"
+                : "Fichier Android créé avec des avertissements",
             className: "bg-warning/5",
             iconClassName: "bg-warning/15 text-warning",
             Icon: AlertTriangle,
@@ -152,38 +159,49 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-lg font-semibold">{banner.title}</div>
-          <div className="mt-0.5 truncate text-sm text-muted-foreground font-mono">
-            {filename ?? "Artefact indisponible"}
+          <div
+            className={cn(
+              "mt-0.5 truncate text-sm text-muted-foreground",
+              mode === "expert" && "font-mono",
+            )}
+          >
+            {filename ?? "Fichier indisponible"}
           </div>
         </div>
       </div>
 
       {validation && (
         <div className="border-b p-5">
-          <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Contrôle de l'AAB
-          </div>
-          <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <ValidationMetric label="Package" value={validation.packageName ?? "Illisible"} mono />
-            <ValidationMetric
-              label="Version réelle"
-              value={`${validation.versionName ?? "?"} · code ${validation.versionCode ?? "?"}`}
-            />
-            <ValidationMetric
-              label="SDK"
-              value={`min ${validation.minSdk ?? "?"} · cible ${validation.targetSdk ?? "?"}`}
-            />
-            <ValidationMetric
-              label="Bundletool"
-              value={
-                validation.bundletool.status === "passed"
-                  ? `Validé${validation.bundletool.version ? ` · ${validation.bundletool.version}` : ""}`
-                  : validation.bundletool.status === "failed"
-                    ? "Échec"
-                    : "Non disponible"
-              }
-            />
-          </div>
+          <ExpertOnly>
+            <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Contrôle de l'AAB
+            </div>
+            <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <ValidationMetric
+                label="Package"
+                value={validation.packageName ?? "Illisible"}
+                mono
+              />
+              <ValidationMetric
+                label="Version réelle"
+                value={`${validation.versionName ?? "?"} · code ${validation.versionCode ?? "?"}`}
+              />
+              <ValidationMetric
+                label="SDK"
+                value={`min ${validation.minSdk ?? "?"} · cible ${validation.targetSdk ?? "?"}`}
+              />
+              <ValidationMetric
+                label="Bundletool"
+                value={
+                  validation.bundletool.status === "passed"
+                    ? `Validé${validation.bundletool.version ? ` · ${validation.bundletool.version}` : ""}`
+                    : validation.bundletool.status === "failed"
+                      ? "Échec"
+                      : "Non disponible"
+                }
+              />
+            </div>
+          </ExpertOnly>
           {validation.issues.length > 0 && (
             <div className="mt-4 space-y-2">
               {validation.issues.map((issue) => (
@@ -218,24 +236,30 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
         <Metric label="Durée" value={formatDuration(elapsedMs)} delta={delta} />
         <Metric label="Taille" value={formatSize(artifact.aabSize)} delta={sizeDelta} />
         <Metric label="Version" value={`v${project.currentVersion}`} />
-        <Metric label="Build" value={`#${project.currentBuild}`} />
+        <Metric label={termLabel("internalNumber", mode)} value={`#${project.currentBuild}`} />
       </div>
 
       {artifact.aabPath && (
         <div className="border-t p-5">
           <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Artefact
+            {termLabel("artifact", mode)}
           </div>
           <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
             <FileArchive className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
-              <div className="truncate font-mono text-sm">{artifact.aabPath}</div>
-              {checksum && (
+              <div
+                className={
+                  mode === "expert" ? "truncate font-mono text-sm" : "truncate text-sm font-medium"
+                }
+              >
+                {mode === "expert" ? artifact.aabPath : filename}
+              </div>
+              {checksum && mode === "expert" && (
                 <div className="mt-0.5 text-xs text-muted-foreground">
                   SHA-256 du fichier : <span className="font-mono">{checksum}</span>
                 </div>
               )}
-              {artifact.signatureSha256 && (
+              {artifact.signatureSha256 && mode === "expert" && (
                 <div className="mt-0.5 text-xs text-muted-foreground">
                   Certificat : <span className="font-mono">{artifact.signatureSha256}</span>
                 </div>
@@ -258,21 +282,23 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
             <Button variant="outline" onClick={openFolder}>
               Ouvrir le dossier
             </Button>
-            <Button variant="outline" onClick={() => void copyPath()}>
-              <Copy className="h-4 w-4" />
-              Copier le chemin
-            </Button>
-            {checksum && (
-              <Button variant="ghost" onClick={() => void copyChecksum()}>
-                Copier l'empreinte
+            <ExpertOnly>
+              <Button variant="outline" onClick={() => void copyPath()}>
+                <Copy className="h-4 w-4" />
+                Copier le chemin
               </Button>
-            )}
-            {artifact.aabReportPath && (
-              <Button variant="outline" onClick={revealReport}>
-                <FileText className="h-4 w-4" />
-                Ouvrir le rapport
-              </Button>
-            )}
+              {checksum && (
+                <Button variant="ghost" onClick={() => void copyChecksum()}>
+                  Copier l'empreinte
+                </Button>
+              )}
+              {artifact.aabReportPath && (
+                <Button variant="outline" onClick={revealReport}>
+                  <FileText className="h-4 w-4" />
+                  Ouvrir le rapport
+                </Button>
+              )}
+            </ExpertOnly>
           </div>
           {verdict !== "blocked" && (
             <p className="mt-3 text-xs text-muted-foreground">
@@ -284,35 +310,45 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
       )}
 
       {previous && (
-        <div className="border-t bg-muted/20 p-5">
-          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Comparaison avec le fichier précédent
+        <AssistantOrAbove>
+          <div className="border-t bg-muted/20 p-5">
+            <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Comparaison avec le fichier précédent
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+              <Compare
+                label="Version"
+                a={`v${project.currentVersion}`}
+                b={`v${previous.version}`}
+              />
+              <Compare
+                label={termLabel("internalNumber", mode)}
+                a={`#${project.currentBuild}`}
+                b={`#${previous.build}`}
+              />
+              <Compare
+                label="Durée"
+                a={formatDuration(elapsedMs)}
+                b={formatDuration(previous.durationMs)}
+              />
+              <Compare
+                label="Taille"
+                a={formatSize(artifact.aabSize)}
+                b={formatSize(previous.artifactSizeBytes)}
+              />
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">
+              Référence :{" "}
+              {new Date(previous.createdAt).toLocaleString("fr-FR", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-            <Compare label="Version" a={`v${project.currentVersion}`} b={`v${previous.version}`} />
-            <Compare label="Build" a={`#${project.currentBuild}`} b={`#${previous.build}`} />
-            <Compare
-              label="Durée"
-              a={formatDuration(elapsedMs)}
-              b={formatDuration(previous.durationMs)}
-            />
-            <Compare
-              label="Taille"
-              a={formatSize(artifact.aabSize)}
-              b={formatSize(previous.artifactSizeBytes)}
-            />
-          </div>
-          <div className="mt-2 text-xs text-muted-foreground">
-            Référence :{" "}
-            {new Date(previous.createdAt).toLocaleString("fr-FR", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </div>
-        </div>
+        </AssistantOrAbove>
       )}
     </Card>
   );
