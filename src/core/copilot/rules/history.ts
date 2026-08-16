@@ -6,7 +6,7 @@ export const historyRule: CopilotRule = {
     const { project, history } = ctx;
     if (!project) return null;
     const projectHistory = history.filter((h) => h.projectId === project.id);
-    const publishes = projectHistory.filter((h) => h.kind === "publish");
+    const publishes = projectHistory.filter((h) => h.kind === "publish" && h.storeRelease);
     const recs: CopilotRecommendation[] = [];
 
     if (publishes.length === 0) {
@@ -23,7 +23,7 @@ export const historyRule: CopilotRule = {
         id: "history.last-publish",
         kind: "success",
         priority: 960,
-        headline: `Dernière préparation : version ${last.version}`,
+        headline: `Dernier envoi Google Play : version ${last.version}`,
       });
     }
     return recs;

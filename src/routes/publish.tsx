@@ -38,10 +38,9 @@ function PublishPage() {
             yourAction="relire le résumé puis confirmer l'envoi aux testeurs internes."
             result="la nouvelle version apparaît dans Google Play Console, piste Internal."
           />
-          <PublishCenter project={project} />
           <Card
             id="apple-publication"
-            className="mt-6 border-dashed p-6 shadow-soft"
+            className="mb-6 border-dashed p-5 shadow-soft"
             aria-labelledby="apple-publication-title"
           >
             <div className="flex items-start gap-4">
@@ -69,6 +68,7 @@ function PublishPage() {
               </div>
             </div>
           </Card>
+          <PublishCenter project={project} />
         </>
       ) : (
         <NoProjectPublish />

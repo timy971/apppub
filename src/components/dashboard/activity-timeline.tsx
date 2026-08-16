@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatRelative } from "@/components/project-cockpit/shared";
 import { cn } from "@/lib/utils";
 
-export type ActivityEventKind = "version" | "build" | "publish" | "backup";
+export type ActivityEventKind = "version" | "build" | "release-prepared" | "publish" | "backup";
 
 export interface ActivityEvent {
   id: string;
@@ -23,6 +23,7 @@ const ICONS: Record<ActivityEventKind, React.ComponentType<{ className?: string 
   version: GitBranch,
   build: Hammer,
   publish: Rocket,
+  "release-prepared": Rocket,
   backup: Archive,
 };
 
@@ -30,6 +31,7 @@ const KIND_CLASS: Record<ActivityEventKind, string> = {
   version: "bg-primary/10 text-primary",
   build: "bg-warning/10 text-warning",
   publish: "bg-success/10 text-success",
+  "release-prepared": "bg-primary/10 text-primary",
   backup: "bg-muted text-muted-foreground",
 };
 
@@ -38,7 +40,11 @@ export function buildActivityEvents(
   backups: { backup: ProjectBackup; project: Project }[],
 ): ActivityEvent[] {
   const fromHistory: ActivityEvent[] = history.map((h) => {
-    const kind: ActivityEventKind = (h.kind ?? "publish") as ActivityEventKind;
+    const kind: ActivityEventKind = (
+      h.kind === "publish" && !h.storeRelease && h.outcome === "success"
+        ? "release-prepared"
+        : (h.kind ?? "publish")
+    ) as ActivityEventKind;
     return {
       id: `h_${h.id}`,
       kind,
@@ -50,7 +56,9 @@ export function buildActivityEvents(
           ? `Version ${h.version}`
           : kind === "build"
             ? `Build v${h.version} (${h.build})`
-            : `Publication v${h.version}`,
+            : kind === "release-prepared"
+              ? `Publication préparée v${h.version}`
+              : `Publication Google Play v${h.version}`,
       detail: h.message,
       success: h.outcome === "success",
     };

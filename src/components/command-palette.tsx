@@ -35,18 +35,18 @@ type NavItem = {
 
 const primary: NavItem[] = [
   { title: "Tableau de bord", url: "/", icon: LayoutDashboard },
-  { title: "Projets", url: "/projects", icon: FolderKanban },
+  { title: "1. Votre application", url: "/projects", icon: FolderKanban },
 ];
 
 const publication: NavItem[] = [
-  { title: "Modifier la version", url: "/version", icon: GitBranch },
-  { title: "Créer le fichier Android", url: "/build", icon: Hammer },
-  { title: "Préparer la publication", url: "/publish", icon: Rocket },
+  { title: "2. Vérifier", url: "/diagnostic", icon: HeartPulse },
+  { title: "3. Préparer la version", url: "/version", icon: GitBranch },
+  { title: "4. Protéger", url: "/signing", icon: KeyRound },
+  { title: "5. Créer le fichier", url: "/build", icon: Hammer },
+  { title: "6. Publier", url: "/publish", icon: Rocket },
 ];
 
 const utils: NavItem[] = [
-  { title: "Santé du projet", url: "/diagnostic", icon: HeartPulse },
-  { title: "Signatures Android", url: "/signing", icon: KeyRound },
   { title: "Journal", url: "/history", icon: History },
   { title: "Paramètres", url: "/settings", icon: SettingsIcon },
 ];

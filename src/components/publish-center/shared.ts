@@ -150,7 +150,23 @@ export function findLastPublish(
   project: Project,
 ): PublishRecord | undefined {
   return history.find(
-    (h) => h.projectId === project.id && h.kind === "publish" && h.outcome === "success",
+    (h) =>
+      h.projectId === project.id &&
+      h.kind === "publish" &&
+      h.outcome === "success" &&
+      Boolean(h.storeRelease),
+  );
+}
+
+export function findLastPreparation(
+  history: PublishRecord[],
+  project: Project,
+): PublishRecord | undefined {
+  return history.find(
+    (h) =>
+      h.projectId === project.id &&
+      (h.kind === "release-prepared" || (h.kind === "publish" && !h.storeRelease)) &&
+      h.outcome === "success",
   );
 }
 

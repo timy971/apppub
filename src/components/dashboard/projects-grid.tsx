@@ -51,12 +51,12 @@ export function ProjectsGrid({
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <FolderPlus className="h-6 w-6" />
         </div>
-        <div className="text-base font-semibold">Aucun projet pour l'instant</div>
+        <div className="text-base font-semibold">Aucune application pour l'instant</div>
         <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-          Ajoutez votre premier projet pour qu'AppPublisher commence à vous accompagner.
+          Ajoutez votre première application pour qu'AppPublisher commence à vous accompagner.
         </p>
         <Button asChild className="mt-4">
-          <Link to="/projects">Ajouter un projet</Link>
+          <Link to="/projects">Ajouter une application</Link>
         </Button>
       </Card>
     );

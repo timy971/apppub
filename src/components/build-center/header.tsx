@@ -56,7 +56,7 @@ export function BuildCenterHeader({
             </span>
           </div>
           <div className="mt-0.5 flex items-center gap-3">
-            <h1 className="truncate text-xl font-semibold">{project.name}</h1>
+            <h2 className="truncate text-xl font-semibold">{project.name}</h2>
             <StatusBadge status={status} />
           </div>
         </div>

@@ -8,6 +8,7 @@ import { useActiveProject } from "@/core/store/app-store";
 import { bridge } from "@/core/bridge";
 import { FileText, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
+import type { PublishRecord } from "@/core/types";
 
 export const Route = createFileRoute("/history")({
   component: HistoryPage,
@@ -59,7 +60,7 @@ function HistoryPage() {
                   <div className="flex items-center gap-2">
                     <div className="font-medium truncate">{r.projectName}</div>
                     <span className="text-[11px] rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
-                      {r.storeRelease ? "Google Play · test interne" : readableKind(r.kind)}
+                      {r.storeRelease ? "Google Play · test interne" : readableKind(r)}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -147,9 +148,15 @@ function formatDuration(ms: number): string {
   return `${m}m ${r}s`;
 }
 
-function readableKind(kind: string | undefined): string {
+function readableKind(record: PublishRecord): string {
+  const kind = record.kind;
   if (kind === "build") return "Fichier Android";
-  if (kind === "publish") return "Publication";
+  if (kind === "release-prepared") return "Publication préparée";
+  if (kind === "publish") {
+    return !record.storeRelease && record.outcome === "success"
+      ? "Publication préparée"
+      : "Envoi Google Play";
+  }
   if (kind === "version") return "Version";
   if (kind === "backup") return "Sauvegarde";
   return "Action";

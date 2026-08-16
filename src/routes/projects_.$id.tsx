@@ -24,12 +24,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -39,10 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
-import {
-  ProjectLifecycleBadge,
-  LIFECYCLE_OPTIONS,
-} from "@/components/project-lifecycle-badge";
+import { ProjectLifecycleBadge, LIFECYCLE_OPTIONS } from "@/components/project-lifecycle-badge";
 import { NextActionCard } from "@/components/project-cockpit/next-action-card";
 import { PlanCard } from "@/components/project-cockpit/plan-card";
 import { SourceBadge } from "@/components/project-cockpit/source-badge";
@@ -55,37 +47,24 @@ import { PublicationCard } from "@/components/project-cockpit/publication-card";
 import { TimelineCard } from "@/components/project-cockpit/timeline-card";
 import { ActivityCard } from "@/components/project-cockpit/activity-card";
 import { ResourcesCard } from "@/components/project-cockpit/resources-card";
-import {
-  CockpitNavProvider,
-  useCockpitNav,
-} from "@/components/project-cockpit/cockpit-nav";
+import { CockpitNavProvider, useCockpitNav } from "@/components/project-cockpit/cockpit-nav";
 import { AppStore, useProjects, useSettings } from "@/core/store/app-store";
 import { ProjectsService } from "@/core/projects/service";
 import { HistoryService } from "@/core/history/service";
 import { DiagnosticService } from "@/core/diagnostic/service";
 import { ProjectStatusService } from "@/core/projects/status";
 import type { CockpitTab, ProjectStatus } from "@/core/projects/status";
-import {
-  getAndroidConfig,
-  patchAndroidConfig,
-} from "@/core/projects/android-config";
+import { getAndroidConfig, patchAndroidConfig } from "@/core/projects/android-config";
 import { sourceOf, type FieldSource, type TrackedFieldKey } from "@/core/projects/sources";
 import {
   validateApplicationId,
-  validateAppleTeamId,
   validateBranchName,
-  validateBundleId,
   validateGitUrl,
   validatePackageName,
   type FieldValidator,
 } from "@/core/projects/validators";
 import { bridge } from "@/core/bridge";
-import type {
-  HealthCheck,
-  Project,
-  ProjectLifecycle,
-  PublishRecord,
-} from "@/core/types";
+import type { HealthCheck, Project, ProjectLifecycle, PublishRecord } from "@/core/types";
 import type { GitProjectStatus } from "@/core/bridge/types";
 import { toast } from "sonner";
 
@@ -104,12 +83,9 @@ interface CockpitSearch {
 
 export const Route = createFileRoute("/projects_/$id")({
   validateSearch: (search: Record<string, unknown>): CockpitSearch => {
-    const rawTab =
-      typeof search.tab === "string" ? (search.tab as string) : undefined;
+    const rawTab = typeof search.tab === "string" ? (search.tab as string) : undefined;
     const tab =
-      rawTab && (COCKPIT_TABS as string[]).includes(rawTab)
-        ? (rawTab as CockpitTab)
-        : undefined;
+      rawTab && (COCKPIT_TABS as string[]).includes(rawTab) ? (rawTab as CockpitTab) : undefined;
     const field =
       typeof search.field === "string" && search.field.length > 0
         ? (search.field as string)
@@ -145,10 +121,7 @@ function ProjectCockpitRoute() {
   }, [clearField, field]);
 
   return (
-    <CockpitNavProvider
-      initialTab={tab}
-      initialField={field}
-    >
+    <CockpitNavProvider initialTab={tab} initialField={field}>
       <ProjectCockpit />
     </CockpitNavProvider>
   );
@@ -183,10 +156,7 @@ function ProjectCockpit() {
 
   const isActive = settings.activeProjectId === project.id;
 
-  function updateProject(
-    patch: Partial<Project>,
-    touched: TrackedFieldKey[],
-  ) {
+  function updateProject(patch: Partial<Project>, touched: TrackedFieldKey[]) {
     ProjectsService.update(project!.id, patch, { touched });
     AppStore.refreshProjects();
   }
@@ -224,9 +194,7 @@ function ProjectCockpit() {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-semibold tracking-tight truncate">
-                {project.name}
-              </h1>
+              <h1 className="text-2xl font-semibold tracking-tight truncate">{project.name}</h1>
               {isActive && (
                 <span className="text-[11px] rounded-full bg-primary/10 px-2 py-0.5 text-primary">
                   Actif
@@ -308,15 +276,11 @@ function ProjectCockpit() {
 
 /* ---------------- Vue d'ensemble (cockpit) ---------------- */
 
-function OverviewTab({
-  project,
-  status,
-}: {
-  project: Project;
-  status: ProjectStatus;
-}) {
+function OverviewTab({ project, status }: { project: Project; status: ProjectStatus }) {
   const [checks, setChecks] = useState<HealthCheck[]>([]);
   const [checksLoading, setChecksLoading] = useState(true);
+  const [checksError, setChecksError] = useState<string | null>(null);
+  const [checksRevision, setChecksRevision] = useState(0);
   const { refreshKey } = useCockpitNav();
   const history: PublishRecord[] = useMemo(
     () => HistoryService.forProject(project.id),
@@ -327,16 +291,26 @@ function OverviewTab({
   useEffect(() => {
     let cancelled = false;
     setChecksLoading(true);
+    setChecksError(null);
     (async () => {
-      const c = await DiagnosticService.run(project);
-      if (cancelled) return;
-      setChecks(c);
-      setChecksLoading(false);
+      try {
+        const c = await DiagnosticService.run(project);
+        if (cancelled) return;
+        setChecks(c);
+      } catch (reason) {
+        if (cancelled) return;
+        setChecks([]);
+        setChecksError(
+          reason instanceof Error ? reason.message : "La vérification n'a pas pu aboutir.",
+        );
+      } finally {
+        if (!cancelled) setChecksLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [project]);
+  }, [checksRevision, project]);
 
   const plan = useMemo(
     () =>
@@ -352,6 +326,20 @@ function OverviewTab({
 
   return (
     <div className="space-y-4">
+      {checksError && (
+        <Card role="alert" className="border-danger/40 p-4 shadow-soft">
+          <div className="font-medium">Vérification interrompue</div>
+          <p className="mt-1 text-sm text-muted-foreground">{checksError}</p>
+          <Button
+            className="mt-3"
+            size="sm"
+            variant="outline"
+            onClick={() => setChecksRevision((n) => n + 1)}
+          >
+            Réessayer
+          </Button>
+        </Card>
+      )}
       <PlanCard plan={plan} projectId={project.id} />
       <NextActionCard
         project={project}
@@ -389,19 +377,13 @@ type UpdateFn = (patch: Partial<Project>, touched: TrackedFieldKey[]) => void;
 
 /* ---------------- Identité ---------------- */
 
-function IdentityTab({
-  project,
-  update,
-}: {
-  project: Project;
-  update: UpdateFn;
-}) {
+function IdentityTab({ project, update }: { project: Project; update: UpdateFn }) {
   return (
     <Card className="p-6 shadow-soft space-y-5 max-w-3xl">
       <DiscoveryHint title="Deux noms, deux usages">
-        Le <strong>nom d'affichage</strong> est celui qui apparaît partout
-        dans AppPublisher. Le <strong>nom technique</strong> vient de votre
-        fichier <code>package.json</code> et ne peut pas être modifié ici.
+        Le <strong>nom d'affichage</strong> est celui qui apparaît partout dans AppPublisher. Le{" "}
+        <strong>nom technique</strong> vient de votre fichier <code>package.json</code> et ne peut
+        pas être modifié ici.
       </DiscoveryHint>
 
       <InlineText
@@ -424,14 +406,10 @@ function IdentityTab({
       {project.technicalName && (
         <div>
           <Label>Nom technique</Label>
-          <Input
-            value={project.technicalName}
-            readOnly
-            className="mt-1.5 font-mono"
-          />
+          <Input value={project.technicalName} readOnly className="mt-1.5 font-mono" />
           <p className="mt-1.5 text-xs text-muted-foreground">
-            Nom interne (issu du package.json). Utilisé uniquement par les
-            opérations techniques — non modifiable ici.
+            Nom interne (issu du package.json). Utilisé uniquement par les opérations techniques —
+            non modifiable ici.
           </p>
         </div>
       )}
@@ -452,9 +430,7 @@ function IdentityTab({
         label="Description"
         value={project.description ?? ""}
         placeholder="Une phrase qui décrit ce projet…"
-        onSave={(v) =>
-          update({ description: v.trim() || undefined }, ["description"])
-        }
+        onSave={(v) => update({ description: v.trim() || undefined }, ["description"])}
       />
 
       <InlineTextarea
@@ -475,9 +451,7 @@ function IdentityTab({
           <Label>Cycle de vie</Label>
           <Select
             value={project.lifecycle ?? "development"}
-            onValueChange={(v) =>
-              update({ lifecycle: v as ProjectLifecycle }, [])
-            }
+            onValueChange={(v) => update({ lifecycle: v as ProjectLifecycle }, [])}
           >
             <SelectTrigger className="mt-1.5">
               <SelectValue />
@@ -497,10 +471,7 @@ function IdentityTab({
         <div>
           <Label>Favori</Label>
           <div className="mt-1.5">
-            <Button
-              variant="outline"
-              onClick={() => update({ favorite: !project.favorite }, [])}
-            >
+            <Button variant="outline" onClick={() => update({ favorite: !project.favorite }, [])}>
               {project.favorite ? (
                 <>
                   <Star className="h-4 w-4 fill-current" />
@@ -522,13 +493,7 @@ function IdentityTab({
 
 /* ---------------- Configuration ---------------- */
 
-function ConfigurationTab({
-  project,
-  update,
-}: {
-  project: Project;
-  update: UpdateFn;
-}) {
+function ConfigurationTab({ project, update }: { project: Project; update: UpdateFn }) {
   const [gitStatus, setGitStatus] = useState<GitProjectStatus | null>(null);
   const [gitLoading, setGitLoading] = useState(false);
 
@@ -614,9 +579,8 @@ function ConfigurationTab({
   return (
     <Card className="p-6 shadow-soft space-y-5 max-w-3xl">
       <DiscoveryHint title="Configuration du dépôt et du build">
-        Ces informations permettent à AppPublisher de retrouver votre code
-        et d'exécuter les bonnes commandes. Elles peuvent être détectées
-        automatiquement ou saisies manuellement.
+        Ces informations permettent à AppPublisher de retrouver votre code et d'exécuter les bonnes
+        commandes. Elles peuvent être détectées automatiquement ou saisies manuellement.
       </DiscoveryHint>
 
       {project.source?.type === "git" && (
@@ -633,10 +597,7 @@ function ConfigurationTab({
         <Label>Dossier local</Label>
         <div className="mt-1.5 flex gap-2">
           <Input value={project.localPath} readOnly className="font-mono" />
-          <Button
-            variant="secondary"
-            onClick={openProjectFolder}
-          >
+          <Button variant="secondary" onClick={openProjectFolder}>
             <FolderOpen className="h-4 w-4" />
             Ouvrir
           </Button>
@@ -661,9 +622,7 @@ function ConfigurationTab({
             value={project.githubRepo ?? ""}
             placeholder="git@github.com:vous/depot.git"
             validate={validateGitUrl}
-            onSave={(v) =>
-              update({ githubRepo: v.trim() || undefined }, ["githubRepo"])
-            }
+            onSave={(v) => update({ githubRepo: v.trim() || undefined }, ["githubRepo"])}
           />
 
           <InlineText
@@ -673,9 +632,7 @@ function ConfigurationTab({
             value={project.defaultBranch ?? ""}
             placeholder="main"
             validate={validateBranchName}
-            onSave={(v) =>
-              update({ defaultBranch: v.trim() || undefined }, ["defaultBranch"])
-            }
+            onSave={(v) => update({ defaultBranch: v.trim() || undefined }, ["defaultBranch"])}
           />
         </>
       )}
@@ -687,26 +644,18 @@ function ConfigurationTab({
         value={project.packageName ?? ""}
         placeholder="com.exemple.monapp"
         validate={validatePackageName}
-        onSave={(v) =>
-          update({ packageName: v.trim() || undefined }, ["packageName"])
-        }
+        onSave={(v) => update({ packageName: v.trim() || undefined }, ["packageName"])}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div data-cockpit-field="currentVersion">
           <Label>Version actuelle</Label>
           <Input value={project.currentVersion} readOnly className="mt-1.5 font-mono" />
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            Modifiée depuis l'onglet Version.
-          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">Modifiée depuis l'onglet Version.</p>
         </div>
         <div>
           <Label>Build actuel</Label>
-          <Input
-            value={String(project.currentBuild)}
-            readOnly
-            className="mt-1.5 font-mono"
-          />
+          <Input value={String(project.currentBuild)} readOnly className="mt-1.5 font-mono" />
         </div>
       </div>
 
@@ -716,9 +665,7 @@ function ConfigurationTab({
         label="Commande de build personnalisée"
         value={project.buildCommand ?? ""}
         placeholder="npm run build"
-        onSave={(v) =>
-          update({ buildCommand: v.trim() || undefined }, ["buildCommand"])
-        }
+        onSave={(v) => update({ buildCommand: v.trim() || undefined }, ["buildCommand"])}
       />
 
       <ExpertDetails title="Chemins & valeurs brutes">
@@ -732,8 +679,8 @@ function ConfigurationTab({
 
       <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground flex items-start gap-2">
         <Info className="h-4 w-4 mt-0.5 shrink-0" />
-        Ces valeurs restent de la configuration. L'historique des exécutions
-        est conservé dans l'onglet Historique.
+        Ces valeurs restent de la configuration. L'historique des exécutions est conservé dans
+        l'onglet Historique.
       </div>
     </Card>
   );
@@ -836,33 +783,18 @@ function GitSourcePanel({
 
 /* ---------------- Publication ---------------- */
 
-function PublishingTab({
-  project,
-  update,
-}: {
-  project: Project;
-  update: UpdateFn;
-}) {
+function PublishingTab({ project, update }: { project: Project; update: UpdateFn }) {
   return (
     <div className="space-y-4">
       <AndroidSection project={project} update={update} />
-      <IosSection project={project} update={update} />
+      <IosSection project={project} />
     </div>
   );
 }
 
-function AndroidSection({
-  project,
-  update,
-}: {
-  project: Project;
-  update: UpdateFn;
-}) {
+function AndroidSection({ project, update }: { project: Project; update: UpdateFn }) {
   const cfg = getAndroidConfig(project);
-  function save(
-    patch: Partial<ReturnType<typeof getAndroidConfig>>,
-    touched: TrackedFieldKey[],
-  ) {
+  function save(patch: Partial<ReturnType<typeof getAndroidConfig>>, touched: TrackedFieldKey[]) {
     const merged = patchAndroidConfig(project, patch);
     update(merged, touched);
   }
@@ -889,9 +821,8 @@ function AndroidSection({
       </div>
 
       <DiscoveryHint title="À quoi servent ces valeurs ?">
-        L'<strong>identifiant d'application</strong> identifie votre app sur
-        Google Play. Le <strong>keystore</strong> est la clé cryptographique
-        qui signe votre .aab avant publication.
+        L'<strong>identifiant d'application</strong> identifie votre app sur Google Play. Le{" "}
+        <strong>keystore</strong> est la clé cryptographique qui signe votre .aab avant publication.
       </DiscoveryHint>
 
       <div className="mt-4 space-y-4">
@@ -902,19 +833,12 @@ function AndroidSection({
           value={cfg.applicationId ?? ""}
           placeholder="com.exemple.monapp"
           validate={validateApplicationId}
-          onSave={(v) =>
-            save(
-              { applicationId: v.trim() || undefined },
-              ["android.applicationId"],
-            )
-          }
+          onSave={(v) => save({ applicationId: v.trim() || undefined }, ["android.applicationId"])}
         />
         <SigningProfileField
           project={project}
           value={cfg.signingProfileId}
-          onChange={(id) =>
-            save({ signingProfileId: id }, ["android.signingProfileId"])
-          }
+          onChange={(id) => save({ signingProfileId: id }, ["android.signingProfileId"])}
         />
         <div data-cockpit-field="android.keystorePath">
           <div className="flex items-center gap-2">
@@ -929,10 +853,7 @@ function AndroidSection({
             <Input
               value={cfg.keystorePath ?? ""}
               onChange={(e) =>
-                save(
-                  { keystorePath: e.target.value || undefined },
-                  ["android.keystorePath"],
-                )
+                save({ keystorePath: e.target.value || undefined }, ["android.keystorePath"])
               }
               placeholder="/chemin/vers/keystore.jks"
               className="font-mono"
@@ -949,12 +870,7 @@ function AndroidSection({
           label="Alias de la clé"
           value={cfg.keystoreAlias ?? ""}
           placeholder="upload"
-          onSave={(v) =>
-            save(
-              { keystoreAlias: v.trim() || undefined },
-              ["android.keystoreAlias"],
-            )
-          }
+          onSave={(v) => save({ keystoreAlias: v.trim() || undefined }, ["android.keystoreAlias"])}
         />
         <div className="grid gap-4 sm:grid-cols-2">
           <div data-cockpit-field="android.defaultTrack">
@@ -965,10 +881,9 @@ function AndroidSection({
             <Select
               value={cfg.defaultTrack ?? "internal"}
               onValueChange={(v) =>
-                save(
-                  { defaultTrack: v as NonNullable<typeof cfg.defaultTrack> },
-                  ["android.defaultTrack"],
-                )
+                save({ defaultTrack: v as NonNullable<typeof cfg.defaultTrack> }, [
+                  "android.defaultTrack",
+                ])
               }
             >
               <SelectTrigger className="mt-1.5">
@@ -989,10 +904,7 @@ function AndroidSection({
             value={cfg.primaryLanguage ?? ""}
             placeholder="fr-FR"
             onSave={(v) =>
-              save(
-                { primaryLanguage: v.trim() || undefined },
-                ["android.primaryLanguage"],
-              )
+              save({ primaryLanguage: v.trim() || undefined }, ["android.primaryLanguage"])
             }
           />
         </div>
@@ -1014,107 +926,21 @@ function AndroidSection({
   );
 }
 
-function IosSection({
-  project,
-  update,
-}: {
-  project: Project;
-  update: UpdateFn;
-}) {
-  const cfg = project.publishing?.ios ?? {};
-  function save(patch: Partial<typeof cfg>, touched: TrackedFieldKey[]) {
-    const nextIos = { ...cfg, ...patch };
-    update(
-      { publishing: { ...(project.publishing ?? {}), ios: nextIos } },
-      touched,
-    );
-  }
+function IosSection({ project }: { project: Project }) {
   return (
-    <Card className="p-6 shadow-soft max-w-3xl" data-cockpit-field="ios">
+    <Card className="border-dashed p-6 shadow-soft max-w-3xl" data-cockpit-field="ios">
       <div className="mb-4 flex items-center gap-2">
         <Apple className="h-5 w-5 text-muted-foreground" />
-        <h2 className="text-base font-semibold">iOS</h2>
+        <h2 className="text-base font-semibold">iPhone et iPad</h2>
         <span className="text-[11px] rounded-full bg-muted px-2 py-0.5 text-muted-foreground ring-1 ring-border">
-          Configuration disponible — publication à venir
+          En pause
         </span>
       </div>
-
-      <DiscoveryHint title="Pré-configuration iOS">
-        Renseigner ces informations dès maintenant permettra à AppPublisher
-        de se connecter à App Store Connect et Fastlane sans nouvelle
-        saisie lorsque la publication iOS sera activée.
-      </DiscoveryHint>
-
-      <div className="mt-4 space-y-4">
-        <InlineText
-          fieldKey="ios.bundleId"
-          source={sourceOf(project, "ios.bundleId")}
-          label="Bundle identifier"
-          value={cfg.bundleId ?? ""}
-          placeholder="com.exemple.monapp"
-          validate={validateBundleId}
-          onSave={(v) =>
-            save({ bundleId: v.trim() || undefined }, ["ios.bundleId"])
-          }
-        />
-        <InlineText
-          fieldKey="ios.teamId"
-          source={sourceOf(project, "ios.teamId")}
-          label="Team ID"
-          value={cfg.teamId ?? ""}
-          placeholder="ABCDE12345"
-          validate={validateAppleTeamId}
-          onSave={(v) =>
-            save({ teamId: v.trim() || undefined }, ["ios.teamId"])
-          }
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <InlineText
-            fieldKey="ios.scheme"
-            source={sourceOf(project, "ios.scheme")}
-            label="Scheme Xcode"
-            value={cfg.scheme ?? ""}
-            placeholder="App"
-            onSave={(v) =>
-              save({ scheme: v.trim() || undefined }, ["ios.scheme"])
-            }
-          />
-          <InlineText
-            fieldKey="ios.releaseConfig"
-            source={sourceOf(project, "ios.releaseConfig")}
-            label="Configuration de release"
-            value={cfg.releaseConfig ?? ""}
-            placeholder="Release"
-            onSave={(v) =>
-              save(
-                { releaseConfig: v.trim() || undefined },
-                ["ios.releaseConfig"],
-              )
-            }
-          />
-        </div>
-        <InlineText
-          fieldKey="ios.primaryLanguage"
-          source={sourceOf(project, "ios.primaryLanguage")}
-          label="Langue principale"
-          value={cfg.primaryLanguage ?? ""}
-          placeholder="fr-FR"
-          onSave={(v) =>
-            save(
-              { primaryLanguage: v.trim() || undefined },
-              ["ios.primaryLanguage"],
-            )
-          }
-        />
-
-        <ExpertDetails title="Détails iOS">
-          <ExpertRow label="Bundle ID" value={cfg.bundleId} />
-          <ExpertRow label="Team ID" value={cfg.teamId} />
-          <ExpertRow label="Scheme" value={cfg.scheme} />
-          <ExpertRow label="Configuration" value={cfg.releaseConfig} />
-          <ExpertRow label="Langue" value={cfg.primaryLanguage} />
-        </ExpertDetails>
-      </div>
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        La publication Apple est prévue, mais elle reste volontairement en pause. Aucune
+        configuration n'est nécessaire pour « {project.name} » tant que cette phase n'est pas
+        reprise.
+      </p>
     </Card>
   );
 }
@@ -1134,8 +960,7 @@ function HistoryTab({ project }: { project: Project }) {
         <HistoryIcon className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
         <div className="font-medium">Aucun événement pour ce projet</div>
         <div className="text-sm text-muted-foreground mt-1">
-          L'historique s'enrichira dès votre première mise à jour de version, build
-          ou publication.
+          L'historique s'enrichira dès votre première mise à jour de version, build ou publication.
         </div>
       </Card>
     );
@@ -1152,22 +977,25 @@ function HistoryTab({ project }: { project: Project }) {
 }
 
 function HistoryRow({ record }: { record: PublishRecord }) {
+  const effectiveKind =
+    record.kind === "publish" && !record.storeRelease && record.outcome === "success"
+      ? "release-prepared"
+      : record.kind;
   const kindLabel: Record<string, string> = {
     version: "Version",
-    build: "Build",
-    publish: "Publication",
+    build: "Fichier Android",
+    "release-prepared": "Publication préparée",
+    publish: "Envoi Google Play",
   };
   return (
     <li className="flex items-center gap-4 p-4">
       <div
         className={
           "flex h-9 w-9 items-center justify-center rounded-full " +
-          (record.outcome === "success"
-            ? "bg-success/10 text-success"
-            : "bg-danger/10 text-danger")
+          (record.outcome === "success" ? "bg-success/10 text-success" : "bg-danger/10 text-danger")
         }
       >
-        {record.kind === "publish" ? (
+        {effectiveKind === "publish" || effectiveKind === "release-prepared" ? (
           <Rocket className="h-4 w-4" />
         ) : record.kind === "build" ? (
           <Package className="h-4 w-4" />
@@ -1177,13 +1005,11 @@ function HistoryRow({ record }: { record: PublishRecord }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium">
-          {kindLabel[record.kind ?? "version"] ?? "Événement"} · v{record.version} ·
-          build {record.build}
+          {kindLabel[effectiveKind ?? "version"] ?? "Événement"} · v{record.version} · nº interne{" "}
+          {record.build}
         </div>
         {record.message && (
-          <div className="text-xs text-muted-foreground truncate">
-            {record.message}
-          </div>
+          <div className="text-xs text-muted-foreground truncate">{record.message}</div>
         )}
         {record.sourceCommit && (
           <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
@@ -1200,8 +1026,6 @@ function HistoryRow({ record }: { record: PublishRecord }) {
 }
 
 /* ---------------- Édition inline ---------------- */
-
-
 
 function InlineText({
   label,
@@ -1244,8 +1068,7 @@ function InlineText({
     } catch (e) {
       // Restaure la valeur précédente et prévient l'utilisateur.
       setLocal(value);
-      const message =
-        e instanceof Error ? e.message : "L'enregistrement a échoué.";
+      const message = e instanceof Error ? e.message : "L'enregistrement a échoué.";
       toast.error("Modification annulée", { description: message });
     }
   }
@@ -1284,9 +1107,7 @@ function InlineText({
           </Button>
         )}
       </div>
-      {error && (
-        <p className="mt-1 text-xs text-warning">{error}</p>
-      )}
+      {error && <p className="mt-1 text-xs text-warning">{error}</p>}
     </div>
   );
 }
@@ -1316,8 +1137,7 @@ function InlineTextarea({
       onSave(local);
     } catch (e) {
       setLocal(value);
-      const message =
-        e instanceof Error ? e.message : "L'enregistrement a échoué.";
+      const message = e instanceof Error ? e.message : "L'enregistrement a échoué.";
       toast.error("Modification annulée", { description: message });
     }
   }
@@ -1394,12 +1214,10 @@ function SigningProfileField({
       )}
       {profiles.length === 0 ? (
         <div className="mt-3 rounded-md border border-dashed bg-background p-3">
-          <p className="text-sm">
-            Aucune signature n'est encore enregistrée dans AppPublisher.
-          </p>
+          <p className="text-sm">Aucune signature n'est encore enregistrée dans AppPublisher.</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Créez ou importez un keystore une seule fois : il sera ensuite
-            réutilisable pour tous vos projets Android.
+            Créez ou importez un keystore une seule fois : il sera ensuite réutilisable pour tous
+            vos projets Android.
           </p>
           <Button size="sm" className="mt-3" asChild>
             <Link to="/signing">

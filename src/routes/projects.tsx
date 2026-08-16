@@ -78,6 +78,7 @@ function ProjectsPage() {
   const [importingRemote, setImportingRemote] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState<ScannedProject[]>([]);
+  const [scanCompleted, setScanCompleted] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toDelete, setToDelete] = useState<Project | null>(null);
   const [query, setQuery] = useState("");
@@ -115,7 +116,7 @@ function ProjectsPage() {
     const created = ProjectsService.save(preview);
     AppStore.refreshProjects();
     if (!settings.activeProjectId) AppStore.setActiveProject(created.id);
-    toast.success("Projet ajouté", { description: created.name });
+    toast.success("Application ajoutée", { description: created.name });
     setAddOpen(false);
     setPath("");
     setPreview(null);
@@ -146,7 +147,7 @@ function ProjectsPage() {
       const created = await ProjectsService.importFromGit(remoteInfo.remoteUrl, remoteBranch);
       AppStore.refreshProjects();
       if (!settings.activeProjectId) AppStore.setActiveProject(created.id);
-      toast.success("Projet Git importé", {
+      toast.success("Application importée", {
         description: `${created.name} · ${remoteBranch} · ${created.source?.shortSha ?? "commit détecté"}`,
       });
       setAddOpen(false);
@@ -167,9 +168,11 @@ function ProjectsPage() {
   async function scan() {
     if (!rootPath.trim()) return;
     setScanning(true);
+    setScanCompleted(false);
     try {
       const res = await ProjectsService.scanFolder(rootPath.trim());
       setScanned(res);
+      setScanCompleted(true);
       setSelected(new Set(res.map((r) => r.path)));
       AppStore.updateSettings({ projectsRootPath: rootPath.trim() });
     } catch (error) {
@@ -184,7 +187,7 @@ function ProjectsPage() {
   function importScanned() {
     const toImport = scanned.filter((s) => selected.has(s.path));
     if (!toImport.length) {
-      toast.info("Aucun projet sélectionné");
+      toast.info("Aucune application sélectionnée");
       return;
     }
     let last: Project | null = null;
@@ -193,9 +196,10 @@ function ProjectsPage() {
     }
     AppStore.refreshProjects();
     if (!settings.activeProjectId && last) AppStore.setActiveProject(last.id);
-    toast.success(`${toImport.length} projet(s) importé(s)`);
+    toast.success(`${toImport.length} application(s) importée(s)`);
     setScanOpen(false);
     setScanned([]);
+    setScanCompleted(false);
     setSelected(new Set());
   }
 
@@ -204,7 +208,7 @@ function ProjectsPage() {
     ProjectsService.remove(toDelete.id);
     if (settings.activeProjectId === toDelete.id) AppStore.setActiveProject(undefined);
     AppStore.refreshProjects();
-    toast.success("Projet retiré");
+    toast.success("Application retirée");
     setToDelete(null);
   }
 
@@ -214,9 +218,9 @@ function ProjectsPage() {
         title="Mes applications"
         subtitle="Ajoutez une application, puis laissez AppPublisher vous indiquer la prochaine action."
         help={{
-          title: "À propos des projets",
+          title: "À propos des applications",
           content:
-            "Chaque projet représente une application. Le projet actif est celui sur lequel s'appliquent les actions du tableau de bord.",
+            "L'application active est celle sur laquelle s'appliquent les actions du parcours de publication.",
         }}
         actions={
           <div className="flex gap-2">
@@ -281,6 +285,15 @@ function ProjectsPage() {
                       })}
                     </div>
                   )}
+                  {scanCompleted && scanned.length === 0 && (
+                    <div
+                      role="status"
+                      className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
+                    >
+                      Aucune application reconnue dans ce dossier. Choisissez le dossier qui
+                      contient directement vos projets, puis réessayez.
+                    </div>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setScanOpen(false)}>
@@ -297,12 +310,12 @@ function ProjectsPage() {
               <DialogTrigger asChild>
                 <Button>
                   <FolderPlus className="h-4 w-4" />
-                  Ajouter un projet
+                  Ajouter une application
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                  <DialogTitle>Ajouter un projet</DialogTitle>
+                  <DialogTitle>Ajouter une application</DialogTitle>
                 </DialogHeader>
                 <Tabs
                   value={addMode}
@@ -341,7 +354,7 @@ function ProjectsPage() {
                       <div className="rounded-lg border bg-muted/40 p-4">
                         <div className="text-sm font-medium">{preview.name}</div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          Version {preview.currentVersion} · Build {preview.currentBuild}
+                          Version {preview.currentVersion} · nº interne {preview.currentBuild}
                         </div>
                       </div>
                     )}
@@ -434,7 +447,7 @@ function ProjectsPage() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <FolderPlus className="h-6 w-6" />
           </div>
-          <div className="text-lg font-semibold">Aucun projet pour l'instant</div>
+          <div className="text-lg font-semibold">Aucune application pour l'instant</div>
           <div className="mt-1 text-sm text-muted-foreground">
             Ajoutez votre première application depuis son dossier ou son lien GitHub.
           </div>
@@ -461,10 +474,10 @@ function ProjectsPage() {
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Retirer ce projet ?</AlertDialogTitle>
+            <AlertDialogTitle>Retirer cette application ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Le projet « {toDelete?.name} » sera retiré d'AppPublisher. Vos fichiers ne seront pas
-              supprimés de votre ordinateur.
+              L'application « {toDelete?.name} » sera retirée d'AppPublisher. Vos fichiers ne seront
+              pas supprimés de votre ordinateur.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -528,7 +541,7 @@ function ProjectsList({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher un projet…"
+            placeholder="Rechercher une application…"
             className="pl-9"
           />
         </div>
@@ -561,7 +574,7 @@ function ProjectsList({
 
       {filtered.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground shadow-soft">
-          Aucun projet ne correspond à ces filtres.
+          Aucune application ne correspond à ces filtres.
         </Card>
       ) : (
         <div className="grid gap-3">
@@ -654,7 +667,7 @@ function ProjectCard({
           <AndroidReadiness project={project} />
         </div>
         <div className="text-right text-xs text-muted-foreground tabular-nums hidden sm:block">
-          v{project.currentVersion} · build {project.currentBuild}
+          Version {project.currentVersion} · nº interne {project.currentBuild}
         </div>
         <TooltipProvider delayDuration={200}>
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>

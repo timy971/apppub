@@ -173,7 +173,7 @@ export interface HealthCheck {
 /* ---------- Historique ---------- */
 
 export type PublishOutcome = "success" | "failure";
-export type PublishKind = "version" | "build" | "publish";
+export type PublishKind = "version" | "build" | "release-prepared" | "publish";
 
 export type AabValidationVerdict = "ready" | "warnings" | "blocked";
 export type AabIssueSeverity = "warning" | "error";

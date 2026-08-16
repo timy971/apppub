@@ -72,7 +72,7 @@ export function PublishHeader({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-semibold tracking-tight truncate">{project.name}</h1>
+              <h2 className="text-2xl font-semibold tracking-tight truncate">{project.name}</h2>
               <ProjectStatusBadge status={status} />
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -81,12 +81,13 @@ export function PublishHeader({
                 <span className="font-medium text-foreground">{project.currentVersion}</span>
               </span>
               <span>
-                Build <span className="font-medium text-foreground">{project.currentBuild}</span>
+                Nº interne{" "}
+                <span className="font-medium text-foreground">{project.currentBuild}</span>
               </span>
               {lastPublish ? (
-                <span>Dernière préparation {formatRelative(lastPublish.createdAt)}</span>
+                <span>Dernier envoi Google Play {formatRelative(lastPublish.createdAt)}</span>
               ) : (
-                <span>Aucune publication préparée pour ce projet.</span>
+                <span>Aucun envoi à Google Play pour cette application.</span>
               )}
             </div>
           </div>

@@ -39,16 +39,27 @@ export function PreflightCard({
   const [state, setState] = useState<BuildPreflight | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyCheckId, setBusyCheckId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await PreflightService.run(project);
       setState(result);
       onReady(result.ok);
       onAndroidInitializationAvailable(
         result.checks.some((check) => check.fix?.kind === "create-android"),
+      );
+    } catch (reason) {
+      setState(null);
+      onReady(false);
+      onAndroidInitializationAvailable(false);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "AppPublisher n'a pas pu terminer les vérifications.",
       );
     } finally {
       setLoading(false);
@@ -138,6 +149,8 @@ export function PreflightCard({
           <div className="mt-0.5">
             {loading ? (
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            ) : error ? (
+              <AlertTriangle className="h-5 w-5 text-danger" />
             ) : state?.hasBlockers ? (
               <AlertTriangle className="h-5 w-5 text-danger" />
             ) : state?.checks.some((c) => c.status === "warning") ? (
@@ -151,11 +164,13 @@ export function PreflightCard({
             <p className="mt-0.5 text-sm text-muted-foreground">
               {loading
                 ? "AppPublisher vérifie votre environnement…"
-                : state?.hasBlockers
-                  ? "Un ou plusieurs points empêchent la création. Suivez les solutions proposées avant de lancer."
-                  : state?.checks.some((c) => c.status === "warning")
-                    ? "La création peut démarrer, mais certains points méritent votre attention."
-                    : "Tout est prêt. Vous pouvez créer le fichier en toute confiance."}
+                : error
+                  ? "La vérification a été interrompue. Réessayez pour continuer."
+                  : state?.hasBlockers
+                    ? "Un ou plusieurs points empêchent la création. Suivez les solutions proposées avant de lancer."
+                    : state?.checks.some((c) => c.status === "warning")
+                      ? "La création peut démarrer, mais certains points méritent votre attention."
+                      : "Tout est prêt. Vous pouvez créer le fichier en toute confiance."}
             </p>
           </div>
         </div>
@@ -164,6 +179,15 @@ export function PreflightCard({
           Revérifier
         </Button>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="mt-4 rounded-lg border border-danger/40 bg-danger/5 p-3 text-sm"
+        >
+          {error}
+        </div>
+      )}
 
       {state && (
         <div className="mt-4 space-y-4">

@@ -14,9 +14,7 @@ export const diagnosticRule: CopilotRule = {
         kind: "blocking",
         priority: 30,
         headline: first.detail || first.label,
-        description:
-          first.why ??
-          "Cet outil est indispensable pour préparer votre application.",
+        description: first.why ?? "Cet outil est indispensable pour préparer votre application.",
         action: {
           title: "Voir le diagnostic",
           description: "Ouvre le rapport complet des outils requis.",
@@ -44,6 +42,7 @@ export const diagnosticRule: CopilotRule = {
         kind: "success",
         priority: 910,
         headline: "Environnement de développement prêt",
+        completedStepId: "diagnostic",
       });
     }
     return recs;

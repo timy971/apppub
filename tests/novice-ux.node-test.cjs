@@ -50,6 +50,8 @@ test("l'onboarding accepte un lien GitHub ou Lovable sans demander de connaître
   assert.match(setup, /Lien de votre application/);
   assert.match(setup, /Gardez le choix recommandé si vous ne savez pas lequel prendre/);
   assert.match(setup, /Dans un dossier sur ce Mac/);
+  assert.match(setup, /dépôt GitHub connecté à votre projet Lovable/);
+  assert.match(setup, /Le lien de\s+partage Lovable ne fonctionne pas ici/);
   assert.doesNotMatch(setup, /package\.json/);
 });
 
@@ -62,6 +64,34 @@ test("la future publication Apple reste visible sans faux bouton actif", () => {
   assert.match(publish, /Publication iPhone et iPad/);
   assert.match(publish, /compte Apple Developer/);
   assert.match(publish, /Vous n'avez rien à configurer maintenant/);
+  assert.doesNotMatch(read("src/components/publish-center/store-targets.tsx"), /title="iOS"/);
+  assert.doesNotMatch(read("src/routes/projects_.$id.tsx"), /Team ID|Scheme Xcode|Fastlane/);
+});
+
+test("la préparation locale et l'envoi Google Play sont deux états distincts", () => {
+  const types = read("src/core/types.ts");
+  const center = read("src/components/publish-center/publish-center.tsx");
+  const publishRule = read("src/core/copilot/rules/publish.ts");
+  assert.match(types, /"release-prepared"/);
+  assert.match(center, /kind: "release-prepared"/);
+  assert.match(publishRule, /completedStepId: "publish"/);
+  assert.match(publishRule, /storeRelease/);
+});
+
+test("les vérifications interrompues proposent toujours de réessayer", () => {
+  assert.match(read("src/routes/diagnostic.tsx"), /Vérification interrompue/);
+  assert.match(read("src/components/build-center/preflight-card.tsx"), /Réessayez pour continuer/);
+  assert.match(read("src/components/publish-center/publish-center.tsx"), /Vérification impossible/);
+  assert.match(read("src/components/publish-center/publish-center.tsx"), />\s*Réessayer\s*</);
+});
+
+test("la création simple associe automatiquement la signature à l'application active", () => {
+  const signing = read("src/routes/signing.tsx");
+  assert.match(signing, /Signature associée à l'application/);
+  assert.match(signing, /signingProfileId: profileId/);
+  assert.match(signing, /Confirmer le mot de passe/);
+  assert.doesNotMatch(signing, /<Label>Alias<\/Label>/);
+  assert.doesNotMatch(signing, /<Label>Organisation \(O\)<\/Label>/);
 });
 
 test("chaque étape principale distingue l'automatique de l'action utilisateur", () => {

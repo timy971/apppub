@@ -1,6 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, FolderOpen, Link, SearchCheck, Send, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  FolderOpen,
+  Link,
+  SearchCheck,
+  Send,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppStore } from "@/core/store/app-store";
@@ -181,7 +190,18 @@ function SetupWizard() {
 
         <Progress step={step} />
 
-        <div className="mt-10">
+        {(step === 1 || step === 2) && (
+          <button
+            type="button"
+            onClick={() => go((step - 1) as Step, "click:back")}
+            className="mt-5 inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Retour
+          </button>
+        )}
+
+        <div className={step === 0 || step === 3 ? "mt-10" : "mt-5"}>
           {step === 0 && (
             <Screen
               title="Publier une application devient un parcours guidé"
@@ -282,7 +302,7 @@ function SetupWizard() {
                     selected={projectSource === "online"}
                     icon={Link}
                     title="Sur GitHub ou Lovable"
-                    text="Je peux copier le lien de mon application."
+                    text="Mon projet Lovable est connecté à GitHub."
                     onClick={() => {
                       setProjectSource("online");
                       setDetectionError(null);
@@ -307,8 +327,8 @@ function SetupWizard() {
                         Lien de votre application
                       </label>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Dans GitHub ou Lovable, copiez le lien de partage du projet puis collez-le
-                        ici.
+                        Collez le lien du dépôt GitHub connecté à votre projet Lovable. Le lien de
+                        partage Lovable ne fonctionne pas ici.
                       </p>
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row">
@@ -445,8 +465,8 @@ function SetupWizard() {
 
           {step === 2 && detected && (
             <Screen
-              title="Projet Lovable détecté"
-              subtitle="Nous avons reconnu votre projet. Vérifiez que tout est correct."
+              title="Application détectée"
+              subtitle="AppPublisher a reconnu le dossier. Vérifiez simplement son nom."
               icon={<Check className="h-6 w-6 text-success" />}
             >
               <div className="rounded-xl border bg-card p-5 shadow-soft">
@@ -512,7 +532,7 @@ function SetupWizard() {
 }
 
 function Progress({ step }: { step: number }) {
-  const steps = ["Bienvenue", "Prénom", "Projet", "Terminé"];
+  const steps = ["Bienvenue", "Prénom", "Application", "Terminé"];
   return (
     <div
       className="flex items-center gap-2"
@@ -524,13 +544,21 @@ function Progress({ step }: { step: number }) {
       aria-valuetext={`${steps[step]}, étape ${step + 1} sur ${steps.length}`}
     >
       {steps.map((label, i) => (
-        <div key={label} className="flex flex-1 items-center gap-2">
+        <div key={label} className="min-w-0 flex-1">
           <div
             className={
               "h-1.5 flex-1 rounded-full transition-colors " +
               (i <= step ? "bg-primary" : "bg-muted")
             }
           />
+          <div
+            className={
+              "mt-2 truncate text-center text-[11px] " +
+              (i === step ? "font-medium text-foreground" : "text-muted-foreground")
+            }
+          >
+            {label}
+          </div>
         </div>
       ))}
     </div>

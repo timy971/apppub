@@ -51,14 +51,14 @@ export function TodayCard({
                 <span className="font-medium text-foreground tabular-nums">
                   {summary.totalProjects}
                 </span>{" "}
-                {summary.totalProjects > 1 ? "projets suivis" : "projet suivi"}
+                {summary.totalProjects > 1 ? "applications suivies" : "application suivie"}
               </li>
               {summary.blockedCount > 0 && (
                 <li>
                   <span className="font-medium text-danger tabular-nums">
                     {summary.blockedCount}
                   </span>{" "}
-                  {summary.blockedCount > 1 ? "projets bloqués" : "projet bloqué"}
+                  {summary.blockedCount > 1 ? "applications bloquées" : "application bloquée"}
                 </li>
               )}
               {summary.attentionCount > 0 && (
@@ -67,13 +67,13 @@ export function TodayCard({
                     {summary.attentionCount}
                   </span>{" "}
                   {summary.attentionCount > 1
-                    ? "projets nécessitent votre attention"
-                    : "projet nécessite votre attention"}
+                    ? "applications nécessitent votre attention"
+                    : "application nécessite votre attention"}
                 </li>
               )}
               {summary.blockedCount === 0 &&
                 summary.attentionCount === 0 &&
-                summary.totalProjects > 0 && <li>Tous vos projets sont en bonne santé.</li>}
+                summary.totalProjects > 0 && <li>Toutes vos applications sont en bonne santé.</li>}
               {summary.lastBuildAt && (
                 <li>
                   Dernier fichier créé{" "}

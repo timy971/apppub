@@ -27,7 +27,12 @@ import { StoreTargetsCard } from "./store-targets";
 import { ValidationSummaryCard } from "./validation-summary";
 import { ReleaseHistoryCard } from "./release-history";
 import { CopilotService } from "@/core/copilot/service";
-import { buildChecklist, computePreparationScore, findLastPublish } from "./shared";
+import {
+  buildChecklist,
+  computePreparationScore,
+  findLastPreparation,
+  findLastPublish,
+} from "./shared";
 
 /**
  * Publish Center — centre de préparation d'une release.
@@ -48,19 +53,30 @@ export function PublishCenter({ project }: { project: Project }) {
   const [notesDraft, setNotesDraft] = useState("");
   const [preparing, setPreparing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setChecks(null);
     setArtifact(null);
+    setLoadingError(null);
     void Promise.all([
       DiagnosticService.run(project),
       verifyPublishArtifact(project, HistoryService.list()),
-    ]).then(([nextChecks, nextArtifact]) => {
-      if (cancelled) return;
-      setChecks(nextChecks);
-      setArtifact(nextArtifact);
-    });
+    ])
+      .then(([nextChecks, nextArtifact]) => {
+        if (cancelled) return;
+        setChecks(nextChecks);
+        setArtifact(nextArtifact);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setLoadingError(
+          error instanceof Error
+            ? error.message
+            : "AppPublisher n'a pas pu vérifier cette application.",
+        );
+      });
     return () => {
       cancelled = true;
     };
@@ -85,13 +101,14 @@ export function PublishCenter({ project }: { project: Project }) {
 
   const score = useMemo(() => computePreparationScore(categories), [categories]);
   const lastPublish = useMemo(() => findLastPublish(history, project), [history, project]);
+  const lastPreparation = useMemo(() => findLastPreparation(history, project), [history, project]);
   const preparedRelease =
-    lastPublish &&
-    lastPublish.version === project.currentVersion &&
-    lastPublish.build === project.currentBuild &&
+    lastPreparation &&
+    lastPreparation.version === project.currentVersion &&
+    lastPreparation.build === project.currentBuild &&
     artifact?.status === "valid" &&
-    lastPublish.artifactPath === artifact.path
-      ? lastPublish
+    lastPreparation.artifactPath === artifact.path
+      ? lastPreparation
       : undefined;
 
   const prepare = useCallback(async () => {
@@ -137,7 +154,7 @@ export function PublishCenter({ project }: { project: Project }) {
         durationMs: Math.round(performance.now() - started),
         outcome: "success",
         message: "Release préparée",
-        kind: "publish",
+        kind: "release-prepared",
         artifactPath: verifiedArtifact.path,
         artifactSizeBytes: verifiedArtifact.size,
         aabValidation: verifiedArtifact.validation,
@@ -162,6 +179,18 @@ export function PublishCenter({ project }: { project: Project }) {
       setPreparing(false);
     }
   }, [project, score.level, settings.autoBackupEnabled, settings.userName, notesFormatted]);
+
+  if (loadingError) {
+    return (
+      <Card role="alert" className="border-danger/40 p-6 shadow-soft">
+        <h2 className="font-semibold">Vérification impossible</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{loadingError}</p>
+        <Button className="mt-4" variant="outline" onClick={() => setRefreshKey((n) => n + 1)}>
+          Réessayer
+        </Button>
+      </Card>
+    );
+  }
 
   if (checks === null || artifact === null) {
     return <PublishCenterSkeleton />;
@@ -198,16 +227,12 @@ export function PublishCenter({ project }: { project: Project }) {
         })()}
       />
 
-      {preparedRelease && (
-        <>
-          <PublishHandoffCard release={preparedRelease} />
-          <GooglePlayCard
-            project={project}
-            release={preparedRelease}
-            onChanged={() => setRefreshKey((n) => n + 1)}
-          />
-        </>
-      )}
+      {preparedRelease && <PublishHandoffCard release={preparedRelease} />}
+      <GooglePlayCard
+        project={project}
+        release={preparedRelease}
+        onChanged={() => setRefreshKey((n) => n + 1)}
+      />
 
       <ReleaseOverviewCard project={project} />
 

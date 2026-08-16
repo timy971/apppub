@@ -18,12 +18,12 @@ function BuildPage() {
       <div>
         <PageHeader title="Créer le fichier Android" />
         <Card className="p-8 text-center shadow-soft">
-          <div className="text-lg font-semibold">Aucun projet actif</div>
+          <div className="text-lg font-semibold">Aucune application active</div>
           <p className="mt-1 text-sm text-muted-foreground">
             Choisissez d'abord l'application pour laquelle vous souhaitez créer un fichier.
           </p>
           <Button asChild className="mt-4">
-            <Link to="/projects">Aller aux projets</Link>
+            <Link to="/projects">Choisir une application</Link>
           </Button>
         </Card>
       </div>
@@ -42,7 +42,7 @@ function BuildPage() {
         }}
       />
       <StepPurpose
-        automatic="installer ce qui manque, préparer Android, construire puis vérifier le fichier."
+        automatic="vérifier les outils nécessaires, préparer Android, construire puis contrôler le fichier."
         yourAction="lancer la création et laisser AppPublisher travailler."
         result="un fichier AAB signé est prêt pour Google Play."
       />

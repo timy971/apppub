@@ -29,7 +29,7 @@ import { GooglePlaySetupGuide } from "./google-play-setup-guide";
 
 interface Props {
   project: Project;
-  release: PublishRecord;
+  release?: PublishRecord;
   onChanged: () => void;
 }
 
@@ -49,8 +49,15 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   const connected = !!connectionId && !!accountEmail;
   const verified = connected && !!android.googlePlayLastCheckedAt;
   const initializationRequired = connected && android.googlePlaySetupStatus === "required";
-  const alreadyPublished =
-    release.storeRelease?.provider === "google-play" && release.storeRelease.track === "internal";
+  const alreadyPublished = HistoryService.list().some(
+    (record) =>
+      record.projectId === project.id &&
+      record.version === project.currentVersion &&
+      record.build === project.currentBuild &&
+      record.outcome === "success" &&
+      record.storeRelease?.provider === "google-play" &&
+      record.storeRelease.track === "internal",
+  );
 
   const connectionArgs = connectionId
     ? { projectPath: project.localPath, packageName, connectionId }
@@ -229,7 +236,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   }
 
   async function publish() {
-    if (!connectionArgs || !release.artifactPath) return;
+    if (!connectionArgs || !release?.artifactPath) return;
     if (!release.notes?.trim()) {
       toast.error("Notes de version manquantes", {
         description: "Préparez de nouveau la release avec des notes avant l'envoi.",
@@ -396,7 +403,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
               )}
               <Button
                 onClick={publish}
-                disabled={busy !== null || !verified || !release.notes || alreadyPublished}
+                disabled={busy !== null || !verified || !release?.notes || alreadyPublished}
               >
                 {busy === "publish" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -421,11 +428,17 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           )}
         </div>
       </div>
+      {!release && (
+        <div className="mt-4 rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+          Vous pouvez vérifier la connexion dès maintenant. L'envoi sera disponible après la
+          création et la préparation du fichier Android.
+        </div>
+      )}
       {initializationRequired && (
         <GooglePlaySetupGuide
           projectName={project.name}
           packageName={packageName}
-          aabPath={release.artifactPath}
+          aabPath={release?.artifactPath}
           verifying={busy === "test"}
           onVerify={testConnection}
         />

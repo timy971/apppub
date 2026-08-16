@@ -20,13 +20,15 @@ export function ActivityCard({ project }: { project: Project }) {
     const lastBuild = history.find(
       (h) => (h.kind === "build" || h.kind === undefined) && h.outcome === "success",
     );
-    const lastPublish = history.find((h) => h.kind === "publish");
+    const lastPreparation = history.find((h) => h.kind === "release-prepared");
+    const lastPublish = history.find((h) => h.kind === "publish" && h.storeRelease);
     const lastBackup = BackupService.list(project.id)[0];
     return [
       { label: "Dernière modification", at: project.updatedAt },
       { label: "Dernière mise à jour de version", at: lastVersion?.createdAt },
       { label: "Dernier build réussi", at: lastBuild?.createdAt },
-      { label: "Dernière préparation de publication", at: lastPublish?.createdAt },
+      { label: "Dernière préparation", at: lastPreparation?.createdAt },
+      { label: "Dernier envoi Google Play", at: lastPublish?.createdAt },
       { label: "Dernière sauvegarde", at: lastBackup?.createdAt },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -40,14 +42,9 @@ export function ActivityCard({ project }: { project: Project }) {
       </div>
       <dl className="space-y-2.5 text-sm">
         {rows.map((r) => (
-          <div
-            key={r.label}
-            className="flex items-baseline justify-between gap-3"
-          >
+          <div key={r.label} className="flex items-baseline justify-between gap-3">
             <dt className="text-muted-foreground">{r.label}</dt>
-            <dd className="text-right tabular-nums">
-              {r.at ? formatRelative(r.at) : "—"}
-            </dd>
+            <dd className="text-right tabular-nums">{r.at ? formatRelative(r.at) : "—"}</dd>
           </div>
         ))}
       </dl>

@@ -24,13 +24,12 @@ export const configurationRule: CopilotRule = {
       const priorityBase = f.severity === "error" ? 20 : f.severity === "warn" ? 60 : 200;
       // Version = étape 2 du cycle : légèrement moins prioritaire qu'un
       // blocage de configuration.
-      const priority =
-        priorityBase +
-        (f.domain === "version" ? 5 : f.domain === "ios" ? 3 : 0);
+      const priority = priorityBase + (f.domain === "version" ? 5 : f.domain === "ios" ? 3 : 0);
 
       recs.push({
         id: `configuration.${f.id}`,
-        kind: f.severity === "error" ? "blocking" : f.severity === "warn" ? "warning" : "information",
+        kind:
+          f.severity === "error" ? "blocking" : f.severity === "warn" ? "warning" : "information",
         priority,
         headline: f.message,
         description: f.explanation ?? f.hint,
@@ -44,6 +43,16 @@ export const configurationRule: CopilotRule = {
               cockpitField: f.action.field,
             }
           : undefined,
+      });
+    }
+    const android = project.publishing?.android;
+    if (android?.signingProfileId || android?.keystorePath || project.keystorePath) {
+      recs.push({
+        id: "configuration.android-signing.ready",
+        kind: "success",
+        priority: 925,
+        headline: "Signature Android associée",
+        completedStepId: "signing",
       });
     }
     return recs;
