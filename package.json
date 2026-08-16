@@ -21,6 +21,7 @@
     "electron:dev": "APPPUBLISHER_DEV_URL=http://localhost:8080 electron electron/main.cjs",
     "make:icons": "bash scripts/make-icons.sh",
     "pack:mac": "node scripts/pack.cjs mac",
+    "verify:mac-release": "node scripts/verify-mac-release.cjs",
     "release:mac": "node scripts/release-mac.cjs",
     "release:mac:publish": "node scripts/release-mac.cjs --publish",
     "pack:win": "node scripts/pack.cjs win"

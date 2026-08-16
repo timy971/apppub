@@ -1,9 +1,28 @@
-# Lot 7 — distribuer AppPublisher sur macOS
+# Lot 9 — installer AppPublisher simplement sur macOS
 
 Ce parcours produit un installateur **DMG universel** (Mac Apple Silicon et
 Intel), signé avec Developer ID, contrôlé par Apple, puis publié dans les
 Releases GitHub. AppPublisher pourra ensuite proposer les nouvelles versions
 depuis son menu **AppPublisher → Rechercher des mises à jour…**.
+
+## Pour l'utilisateur : trois gestes
+
+Le lien public ne change jamais :
+
+**[Télécharger AppPublisher pour Mac](https://github.com/timy971/apppub/releases/latest/download/AppPublisher.dmg)**
+
+1. Ouvrez `AppPublisher.dmg`.
+2. Glissez AppPublisher dans **Applications**.
+3. Ouvrez AppPublisher depuis **Applications**.
+
+Le DMG est universel : l'utilisateur ne choisit ni « Intel », ni « Apple
+Silicon ». Une version officielle ne demande jamais de Terminal, de clic droit
+ou de contournement dans les réglages de sécurité.
+
+> Prérequis actuel : TC Capital doit être inscrite à l'Apple Developer Program.
+> Tant que le certificat Developer ID et les identifiants de notarisation ne
+> sont pas disponibles, le pipeline s'arrête volontairement et aucune version
+> non signée n'est présentée comme un téléchargement officiel.
 
 > Ne placez jamais un certificat, un mot de passe, une clé Apple ou le client
 > OAuth Google dans le dépôt, une issue ou une conversation. Ils vont
@@ -71,14 +90,27 @@ Personal Access Token n'est nécessaire.
 1. Mettez à jour `version.json` avec un numéro jamais publié, par exemple
    `1.1.0`.
 2. Faites fusionner cette modification sur `main`.
-3. Ouvrez **GitHub → Actions → Release macOS → Run workflow**.
-4. Attendez que toutes les étapes soient vertes.
-5. Ouvrez **GitHub → Releases** : le DMG, le ZIP et `latest-mac.yml` doivent
-   être attachés à la version.
+3. Créez et poussez le tag correspondant exactement à la version :
+
+   ```bash
+   git tag v1.1.0
+   git push origin v1.1.0
+   ```
+
+4. Le workflow construit, signe, notarise et **certifie** le paquet avant de
+   créer la release GitHub.
+5. Ouvrez **GitHub → Releases** : `AppPublisher.dmg`, `AppPublisher.zip`,
+   `latest-mac.yml` et le rapport de certification doivent être présents.
+
+Le bouton manuel **Run workflow** construit et certifie les fichiers, mais ne
+les publie pas. Cela permet de vérifier la configuration sans créer de fausse
+version publique.
 
 Le workflow s'arrête avant publication si le client Google, le certificat ou
-les justificatifs Apple manquent. La valeur des secrets n'est jamais écrite
-dans les journaux.
+les justificatifs Apple manquent. Il refuse également un tag différent de la
+version, une architecture absente, un rejet Gatekeeper, une notarisation
+invalide ou un manifeste de mise à jour incomplet. La valeur des secrets n'est
+jamais écrite dans les journaux.
 
 ## 4. Validation obligatoire sur un Mac propre
 
@@ -95,7 +127,7 @@ Utilisez un Mac où AppPublisher n'a jamais été installé :
 6. Acceptez le téléchargement puis **Redémarrer et installer**. La nouvelle
    version doit s'ouvrir et les projets enregistrés doivent être conservés.
 
-Pour une vérification technique complémentaire sur le Mac de compilation :
+Ces contrôles techniques sont maintenant exécutés automatiquement :
 
 ```bash
 codesign --verify --deep --strict --verbose=2 "/Applications/AppPublisher.app"
@@ -103,7 +135,7 @@ spctl --assess --type execute --verbose=2 "/Applications/AppPublisher.app"
 xcrun stapler validate "/Applications/AppPublisher.app"
 ```
 
-Le lot 7 est validé seulement lorsque l'installation Gatekeeper **et** le
+Le lot 9 est validé seulement lorsque l'installation Gatekeeper **et** le
 passage réel d'une version N à N+1 ont réussi sur ce Mac propre.
 
 ## Compilation locale avancée
@@ -116,5 +148,6 @@ npm run release:mac
 ```
 
 Cette commande exige volontairement le client OAuth, le certificat Developer
-ID et les justificatifs de notarisation. Pour publier sur GitHub, utilisez
-`npm run release:mac:publish` avec un `GH_TOKEN` disponible.
+ID et les justificatifs de notarisation. Elle produit aussi le rapport
+`.artifacts/macos-release-verification.json`. Pour publier depuis un tag Git,
+utilisez `npm run release:mac:publish` avec un `GH_TOKEN` disponible.

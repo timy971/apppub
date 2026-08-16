@@ -80,7 +80,22 @@ const result = spawnSync(process.execPath, [path.join(root, "scripts", "pack.cjs
   env: {
     ...process.env,
     APPPUBLISHER_MAC_DISTRIBUTION: "1",
-    APPPUBLISHER_PUBLISH: publish ? "1" : "0",
   },
 });
 if (result.status !== 0) process.exit(result.status ?? 1);
+
+const verification = spawnSync(
+  process.execPath,
+  [path.join(root, "scripts", "verify-mac-release.cjs")],
+  { cwd: root, stdio: "inherit", env: process.env },
+);
+if (verification.status !== 0) process.exit(verification.status ?? 1);
+
+if (publish) {
+  const publication = spawnSync(
+    process.execPath,
+    [path.join(root, "scripts", "publish-mac-release.cjs")],
+    { cwd: root, stdio: "inherit", env: process.env },
+  );
+  if (publication.status !== 0) process.exit(publication.status ?? 1);
+}

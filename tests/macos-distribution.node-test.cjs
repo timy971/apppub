@@ -31,6 +31,7 @@ test("la distribution macOS est universelle, signée, notarisée et publiable", 
   assert.equal(config.mac.identity, undefined);
   assert.equal(config.mac.hardenedRuntime, true);
   assert.equal(config.mac.notarize, true);
+  assert.equal(config.mac.artifactName, "${productName}.${ext}");
   assert.deepEqual(config.publish, {
     provider: "github",
     owner: "timy971",
@@ -38,4 +39,22 @@ test("la distribution macOS est universelle, signée, notarisée et publiable", 
     releaseType: "release",
   });
   assert.match(config.mac.entitlementsInherit, /inherit\.plist$/);
+});
+
+test("la release npm certifie les artefacts avant de les publier", () => {
+  const fs = require("node:fs");
+  const root = path.resolve(__dirname, "..");
+  const workflow = fs.readFileSync(path.join(root, ".github/workflows/release-macos.yml"), "utf8");
+  const releaseScript = fs.readFileSync(path.join(root, "scripts/release-mac.cjs"), "utf8");
+  const packScript = fs.readFileSync(path.join(root, "scripts/pack.cjs"), "utf8");
+
+  assert.match(workflow, /actions\/setup-node@v4/);
+  assert.match(workflow, /npm run release:mac:publish/);
+  assert.doesNotMatch(workflow, /setup-bun|bun install|bun run/);
+  assert.ok(
+    releaseScript.indexOf("verify-mac-release.cjs") <
+      releaseScript.indexOf("publish-mac-release.cjs"),
+    "la certification doit précéder la publication",
+  );
+  assert.match(packScript, /ebArgs\.push\("--publish", "never"\)/);
 });

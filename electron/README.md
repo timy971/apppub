@@ -86,7 +86,7 @@ npm run pack:mac
 # Distribution officielle — vérifie les secrets, signe et notarise sans publier
 npm run release:mac
 
-# Distribution officielle puis publication dans les Releases GitHub
+# Distribution officielle, certification, puis publication GitHub depuis un tag vX.Y.Z
 npm run release:mac:publish
 
 # Packaging Windows (x64) — produit dist-app/AppPublisher Setup *.exe + .zip
