@@ -33,6 +33,9 @@ jobs:
       - name: Run tests
         run: bun run test
 
+      - name: Certify the novice UX journeys
+        run: npm run certify:ux
+
       - name: Check TypeScript
         run: bun run typecheck
 

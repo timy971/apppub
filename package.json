@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:ci": "eslint . --quiet --rule 'prettier/prettier: off'",
+    "certify:ux": "node --test tests/novice-ux.node-test.cjs tests/experience-modes.node-test.cjs tests/ui-interactions.node-test.cjs tests/ux-release-certification.node-test.cjs",
     "certify:android": "node scripts/certify-android-pipeline.cjs",
     "format": "prettier --write .",
     "sync:version": "node scripts/sync-version.cjs",

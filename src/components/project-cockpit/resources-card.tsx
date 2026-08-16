@@ -81,7 +81,8 @@ export function ResourcesCard({ project }: { project: Project }) {
 
   async function copy(value: string) {
     try {
-      await navigator.clipboard.writeText(value);
+      const copied = await bridge().system.copyText(value);
+      if (!copied) throw new Error("Le presse-papiers n'est pas disponible.");
       toast.success("Copié dans le presse-papiers");
     } catch {
       toast.error("Copie impossible");

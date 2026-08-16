@@ -24,6 +24,7 @@ import {
   getSysInfo,
 } from "@/core/diag/logger";
 import { analyze, type AnalysisFinding } from "@/core/diag/analyzer";
+import { bridge } from "@/core/bridge";
 
 export const Route = createFileRoute("/logs")({
   beforeLoad: () => {
@@ -172,7 +173,8 @@ export function TechnicalPanel() {
                 variant="outline"
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(logDir);
+                    const copied = await bridge().system.copyText(logDir);
+                    if (!copied) throw new Error("Le presse-papiers n'est pas disponible.");
                     toast.success("Chemin du dossier copié");
                   } catch {
                     toast.error("Copie impossible");

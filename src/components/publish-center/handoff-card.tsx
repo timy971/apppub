@@ -24,7 +24,8 @@ export function PublishHandoffCard({ release }: { release: PublishRecord }) {
   async function copyNotes() {
     if (!release.notes) return;
     try {
-      await navigator.clipboard.writeText(release.notes);
+      const copied = await bridge().system.copyText(release.notes);
+      if (!copied) throw new Error("Le presse-papiers n'est pas disponible.");
       toast.success("Notes de version copiées");
     } catch {
       toast.error("Impossible de copier les notes");

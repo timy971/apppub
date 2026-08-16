@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ReleaseNotesService } from "@/core/release-notes/service";
+import { bridge } from "@/core/bridge";
 import type { Project } from "@/core/types";
 import { toast } from "sonner";
 import { formatDate } from "./shared";
@@ -47,7 +48,8 @@ export function ReleaseNotesCard({ project, draft, onDraftChange }: Props) {
   const copy = async () => {
     if (!formatted) return;
     try {
-      await navigator.clipboard.writeText(formatted);
+      const copied = await bridge().system.copyText(formatted);
+      if (!copied) throw new Error("Le presse-papiers n'est pas disponible.");
       toast.success("Notes copiées");
     } catch {
       toast.error("Impossible de copier automatiquement");
