@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ExpertOnly } from "@/components/mode-gate";
+import { bridge } from "@/core/bridge";
 
 /**
  * Bloc « Détails techniques » — visible uniquement en mode Expert.
@@ -32,17 +33,10 @@ export function ExpertDetails({
           <Terminal className="h-3.5 w-3.5" />
           <span className="flex-1">{title}</span>
           <ChevronDown
-            className={cn(
-              "h-3.5 w-3.5 transition-transform",
-              open ? "rotate-180" : "",
-            )}
+            className={cn("h-3.5 w-3.5 transition-transform", open ? "rotate-180" : "")}
           />
         </button>
-        {open && (
-          <div className="border-t px-3 py-3 space-y-2 text-xs font-mono">
-            {children}
-          </div>
-        )}
+        {open && <div className="border-t px-3 py-3 space-y-2 text-xs font-mono">{children}</div>}
       </div>
     </ExpertOnly>
   );
@@ -85,14 +79,14 @@ export function CopyButton({
 }) {
   async function copy() {
     try {
-      await navigator.clipboard.writeText(value);
+      const copied = await bridge().system.copyText(value);
+      if (!copied) throw new Error("Le presse-papiers n'est pas disponible.");
       toast.success("Copié", { description: label ?? "Presse-papiers" });
     } catch {
       toast.error("Copie impossible");
     }
   }
-  const cls =
-    size === "xs" ? "h-6 w-6 p-0" : "h-7 px-2";
+  const cls = size === "xs" ? "h-6 w-6 p-0" : "h-7 px-2";
   return (
     <Button
       type="button"

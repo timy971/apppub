@@ -13,32 +13,13 @@ import { CopilotBus } from "@/core/copilot/bus";
  * sont copiés à l'identique. `restore()` permet de remettre le projet dans
  * cet état.
  *
- * Sous Web (preview Lovable), on garde uniquement une trace mémoire
- * (métadonnées + contenu texte) pour continuer à faire fonctionner l'UI.
+ * Les sauvegardes et restaurations sont volontairement indisponibles dans
+ * l'aperçu Web : aucune réussite ne doit être annoncée sans écriture réelle.
  */
 
 const KEY = "backups";
 
-interface StoredBackup extends ProjectBackup {
-  contents?: Record<string, string>;
-}
-
-const SNAPSHOT_FILES = [
-  "version.json",
-  "package.json",
-  "package-lock.json",
-  "pnpm-lock.yaml",
-  "yarn.lock",
-  "bun.lock",
-  "bun.lockb",
-  "capacitor.config.json",
-  "capacitor.config.ts",
-  "capacitor.config.js",
-  "CHANGELOG.md",
-  "android/app/build.gradle",
-  "android/app/build.gradle.kts",
-  "android/variables.gradle",
-];
+type StoredBackup = ProjectBackup;
 
 function uid(): UUID {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -52,24 +33,13 @@ export const BackupService = {
 
   async create(project: Project, reason: ProjectBackup["reason"]): Promise<ProjectBackup> {
     const b = bridge();
-    const files: ProjectBackup["files"] = [];
-    const contents: Record<string, string> = {};
-    let location: string | undefined;
-
-    if (b.runtime === "electron") {
-      const snapshot = await b.backups.create(project.localPath, reason);
-      location = snapshot.location;
-      files.push(...snapshot.files);
-    } else {
-      for (const rel of SNAPSHOT_FILES) {
-        const p = `${project.localPath}/${rel}`;
-        const stat = await b.fs.stat(p);
-        if (!stat?.isFile) continue;
-        files.push({ path: rel, size: stat.size });
-        const text = await b.fs.readText(p);
-        if (text != null) contents[rel] = text;
-      }
+    if (b.runtime !== "electron") {
+      throw new Error("La sauvegarde réelle nécessite l’application AppPublisher installée.");
     }
+    const files: ProjectBackup["files"] = [];
+    const snapshot = await b.backups.create(project.localPath, reason);
+    const location = snapshot.location;
+    files.push(...snapshot.files);
 
     const backup: StoredBackup = {
       id: uid(),
@@ -77,7 +47,6 @@ export const BackupService = {
       reason,
       createdAt: new Date().toISOString(),
       files,
-      contents: b.runtime === "web" ? contents : undefined,
       location,
     };
     const all = storage.get<StoredBackup[]>(KEY, []);
@@ -97,6 +66,7 @@ export const BackupService = {
     project: Project,
     reason: ProjectBackup["reason"],
     snapshot: { location: string; files: ProjectBackup["files"] },
+    changedFiles: string[] = [],
   ): ProjectBackup {
     const backup: StoredBackup = {
       id: uid(),
@@ -105,6 +75,7 @@ export const BackupService = {
       createdAt: new Date().toISOString(),
       files: snapshot.files,
       location: snapshot.location,
+      changedFiles,
     };
     const all = storage.get<StoredBackup[]>(KEY, []);
     storage.set(KEY, [backup, ...all].slice(0, 20));
@@ -118,6 +89,15 @@ export const BackupService = {
     return backup;
   },
 
+  describeChanges(backupId: UUID, changedFiles: string[], createdPaths: string[] = []): void {
+    const all = storage.get<StoredBackup[]>(KEY, []);
+    storage.set(
+      KEY,
+      all.map((item) => (item.id === backupId ? { ...item, changedFiles, createdPaths } : item)),
+    );
+    CopilotBus.notify();
+  },
+
   /**
    * Phase 3 — restaure les fichiers d'une sauvegarde. Sous Electron, on
    * recopie les fichiers depuis le snapshot disque. Sous Web, on rejoue
@@ -128,21 +108,25 @@ export const BackupService = {
     const backup = all.find((b) => b.id === backupId && b.projectId === project.id);
     if (!backup) return false;
     const b = bridge();
+    if (b.runtime !== "electron") {
+      throw new Error("La restauration réelle nécessite l’application AppPublisher installée.");
+    }
 
-    if (b.runtime === "electron" && backup.location) {
-      const restored = await b.backups.restore(project.localPath, backup.location, backup.files);
+    if (backup.location) {
+      const restored = backup.createdPaths?.length
+        ? await b.backups.restore(
+            project.localPath,
+            backup.location,
+            backup.files,
+            backup.createdPaths,
+          )
+        : await b.backups.restore(project.localPath, backup.location, backup.files);
       const ok = restored.files.length === backup.files.length;
       JournalService.log(ok ? "info" : "warn", "Restauration de sauvegarde", {
         project: project.name,
         backupId,
       });
       return ok;
-    }
-
-    if (b.runtime === "web" && backup.contents) {
-      // Preview Lovable : aucune écriture disque réelle. Les contenus sont
-      // conservés uniquement pour simuler un cycle de restauration complet.
-      return true;
     }
 
     return false;

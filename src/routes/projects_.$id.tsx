@@ -41,6 +41,8 @@ import { PlanCard } from "@/components/project-cockpit/plan-card";
 import { SourceBadge } from "@/components/project-cockpit/source-badge";
 import { DiscoveryHint } from "@/components/discovery-hint";
 import { ExpertDetails, ExpertRow } from "@/components/expert-details";
+import { AssistantOrAbove, ExpertOnly } from "@/components/mode-gate";
+import { useMode } from "@/core/store/use-mode";
 import { CopilotService } from "@/core/copilot/service";
 import { BackupService } from "@/core/backup/service";
 import { HealthCard } from "@/components/project-cockpit/health-card";
@@ -417,7 +419,12 @@ function IdentityTab({ project, update }: { project: Project; update: UpdateFn }
       {project.technicalName && (
         <div>
           <Label>Nom technique</Label>
-          <Input value={project.technicalName} readOnly className="mt-1.5 font-mono" />
+          <Input
+            value={project.technicalName}
+            readOnly
+            aria-label="Nom technique"
+            className="mt-1.5 font-mono"
+          />
           <p className="mt-1.5 text-xs text-muted-foreground">
             Nom interne (issu du package.json). Utilisé uniquement par les opérations techniques —
             non modifiable ici.
@@ -464,7 +471,7 @@ function IdentityTab({ project, update }: { project: Project; update: UpdateFn }
             value={project.lifecycle ?? "development"}
             onValueChange={(v) => update({ lifecycle: v as ProjectLifecycle }, [])}
           >
-            <SelectTrigger className="mt-1.5">
+            <SelectTrigger className="mt-1.5" aria-label="Cycle de vie">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -505,6 +512,7 @@ function IdentityTab({ project, update }: { project: Project; update: UpdateFn }
 /* ---------------- Configuration ---------------- */
 
 function ConfigurationTab({ project, update }: { project: Project; update: UpdateFn }) {
+  const mode = useMode();
   const [gitStatus, setGitStatus] = useState<GitProjectStatus | null>(null);
   const [gitLoading, setGitLoading] = useState(false);
 
@@ -589,25 +597,34 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
 
   return (
     <Card className="p-6 shadow-soft space-y-5 max-w-3xl">
-      <DiscoveryHint title="Configuration du dépôt et du build">
-        Ces informations permettent à AppPublisher de retrouver votre code et d'exécuter les bonnes
-        commandes. Elles peuvent être détectées automatiquement ou saisies manuellement.
+      <DiscoveryHint title="Où se trouve votre application ?">
+        AppPublisher connaît déjà son dossier. Ouvrez-le seulement si vous devez consulter les
+        fichiers ; les réglages techniques restent masqués dans ce mode.
       </DiscoveryHint>
 
-      {project.source?.type === "git" && (
-        <GitSourcePanel
-          project={project}
-          status={gitStatus}
-          loading={gitLoading}
-          onRefresh={refreshGit}
-          onSync={syncGit}
-        />
-      )}
+      <AssistantOrAbove>
+        {project.source?.type === "git" && (
+          <GitSourcePanel
+            project={project}
+            status={gitStatus}
+            loading={gitLoading}
+            onRefresh={refreshGit}
+            onSync={syncGit}
+          />
+        )}
+      </AssistantOrAbove>
 
       <div>
         <Label>Dossier local</Label>
         <div className="mt-1.5 flex gap-2">
-          <Input value={project.localPath} readOnly className="font-mono" />
+          {mode === "expert" && (
+            <Input
+              value={project.localPath}
+              readOnly
+              aria-label="Dossier local"
+              className="font-mono"
+            />
+          )}
           <Button variant="secondary" onClick={openProjectFolder}>
             <FolderOpen className="h-4 w-4" />
             Ouvrir
@@ -618,13 +635,15 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
             </Button>
           )}
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Chemin racine du projet. Après une mise à niveau de sécurité, « Réautoriser » permet de
-          confirmer ce dossier sans recréer le projet.
-        </p>
+        {mode !== "discovery" && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Après une mise à niveau de sécurité, « Réautoriser » permet de confirmer ce dossier sans
+            recréer l'application.
+          </p>
+        )}
       </div>
 
-      {project.source?.type !== "git" && (
+      {mode !== "discovery" && project.source?.type !== "git" && (
         <>
           <InlineText
             fieldKey="githubRepo"
@@ -648,36 +667,50 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
         </>
       )}
 
-      <InlineText
-        fieldKey="packageName"
-        source={sourceOf(project, "packageName")}
-        label="Nom de package"
-        value={project.packageName ?? ""}
-        placeholder="com.exemple.monapp"
-        validate={validatePackageName}
-        onSave={(v) => update({ packageName: v.trim() || undefined }, ["packageName"])}
-      />
+      <AssistantOrAbove>
+        <InlineText
+          fieldKey="packageName"
+          source={sourceOf(project, "packageName")}
+          label="Identifiant Android"
+          value={project.packageName ?? ""}
+          placeholder="com.exemple.monapp"
+          validate={validatePackageName}
+          onSave={(v) => update({ packageName: v.trim() || undefined }, ["packageName"])}
+        />
+      </AssistantOrAbove>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div data-cockpit-field="currentVersion">
           <Label>Version actuelle</Label>
-          <Input value={project.currentVersion} readOnly className="mt-1.5 font-mono" />
+          <Input
+            value={project.currentVersion}
+            readOnly
+            aria-label="Version actuelle"
+            className="mt-1.5 font-mono"
+          />
           <p className="mt-1.5 text-xs text-muted-foreground">Modifiée depuis l'onglet Version.</p>
         </div>
         <div>
-          <Label>Build actuel</Label>
-          <Input value={String(project.currentBuild)} readOnly className="mt-1.5 font-mono" />
+          <Label>Numéro interne</Label>
+          <Input
+            value={String(project.currentBuild)}
+            readOnly
+            aria-label="Numéro interne"
+            className="mt-1.5 font-mono"
+          />
         </div>
       </div>
 
-      <InlineText
-        fieldKey="buildCommand"
-        source={sourceOf(project, "buildCommand")}
-        label="Commande de build personnalisée"
-        value={project.buildCommand ?? ""}
-        placeholder="npm run build"
-        onSave={(v) => update({ buildCommand: v.trim() || undefined }, ["buildCommand"])}
-      />
+      <ExpertOnly>
+        <InlineText
+          fieldKey="buildCommand"
+          source={sourceOf(project, "buildCommand")}
+          label="Commande de build personnalisée"
+          value={project.buildCommand ?? ""}
+          placeholder="npm run build"
+          onSave={(v) => update({ buildCommand: v.trim() || undefined }, ["buildCommand"])}
+        />
+      </ExpertOnly>
 
       <ExpertDetails title="Chemins & valeurs brutes">
         <ExpertRow label="Chemin absolu" value={project.localPath} />
@@ -720,6 +753,13 @@ function GitSourcePanel({
     "no-upstream": "Branche distante non suivie",
   };
   const dirty = status?.workingTree === "dirty";
+  const appPublisherFiles = new Set(
+    BackupService.list(project.id).find((backup) => backup.changedFiles?.length)?.changedFiles ??
+      [],
+  );
+  const generatedByAppPublisher = status?.changedFiles.filter((file) =>
+    Array.from(appPublisherFiles).some((known) => file === known || file.startsWith(`${known}/`)),
+  );
   return (
     <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -776,15 +816,27 @@ function GitSourcePanel({
               traités. Vous pouvez toujours construire cette version locale.
             </div>
           </div>
+          {!!generatedByAppPublisher?.length && (
+            <p className="mt-2 text-muted-foreground">
+              {generatedByAppPublisher.length} changement(s) correspondent à la dernière opération
+              AppPublisher. Vous pouvez les examiner ou les annuler dans « Ressources » avant de
+              synchroniser.
+            </p>
+          )}
           {status.changedFiles.length > 0 && (
-            <div className="mt-2 space-y-1 font-mono text-muted-foreground">
-              {status.changedFiles.slice(0, 4).map((file) => (
-                <div key={file}>{file}</div>
-              ))}
-              {status.changedFiles.length > 4 && (
-                <div>… et {status.changedFiles.length - 4} autre(s)</div>
-              )}
-            </div>
+            <details className="mt-2 text-muted-foreground">
+              <summary className="cursor-pointer font-sans font-medium">
+                Voir tous les fichiers ({status.changedFiles.length})
+              </summary>
+              <div className="mt-2 max-h-48 space-y-1 overflow-y-auto font-mono">
+                {status.changedFiles.map((file) => (
+                  <div key={file}>
+                    {file}
+                    {appPublisherFiles.has(file) ? " · AppPublisher" : ""}
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
         </div>
       )}
@@ -862,6 +914,7 @@ function AndroidSection({ project, update }: { project: Project; update: UpdateF
           </p>
           <div className="mt-1.5 flex gap-2">
             <Input
+              aria-label="Clé de signature, chemin manuel"
               value={cfg.keystorePath ?? ""}
               onChange={(e) =>
                 save({ keystorePath: e.target.value || undefined }, ["android.keystorePath"])
@@ -897,7 +950,7 @@ function AndroidSection({ project, update }: { project: Project; update: UpdateF
                 ])
               }
             >
-              <SelectTrigger className="mt-1.5">
+              <SelectTrigger className="mt-1.5" aria-label="Piste Google Play par défaut">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -971,7 +1024,8 @@ function HistoryTab({ project }: { project: Project }) {
         <HistoryIcon className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
         <div className="font-medium">Aucun événement pour ce projet</div>
         <div className="text-sm text-muted-foreground mt-1">
-          L'historique s'enrichira dès votre première mise à jour de version, build ou publication.
+          L'historique s'enrichira dès votre première mise à jour de version, création de fichier
+          Android ou publication.
         </div>
       </Card>
     );
@@ -1057,6 +1111,8 @@ function InlineText({
   source?: FieldSource;
   validate?: FieldValidator;
 }) {
+  const inputId = `cockpit-${fieldKey ?? label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const errorId = `${inputId}-error`;
   const [local, setLocal] = useState(value);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -1087,11 +1143,14 @@ function InlineText({
   return (
     <div data-cockpit-field={fieldKey}>
       <div className="flex items-center gap-2">
-        <Label>{label}</Label>
+        <Label htmlFor={inputId}>{label}</Label>
         <SourceBadge source={dirty ? "user" : source} />
       </div>
       <div className="mt-1.5 flex gap-2">
         <Input
+          id={inputId}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
           value={local}
           placeholder={placeholder}
           maxLength={maxLength}
@@ -1118,7 +1177,11 @@ function InlineText({
           </Button>
         )}
       </div>
-      {error && <p className="mt-1 text-xs text-warning">{error}</p>}
+      {error && (
+        <p id={errorId} role="alert" className="mt-1 text-xs text-warning">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -1138,6 +1201,7 @@ function InlineTextarea({
   fieldKey?: string;
   source?: FieldSource;
 }) {
+  const inputId = `cockpit-${fieldKey ?? label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   const [local, setLocal] = useState(value);
   useEffect(() => setLocal(value), [value]);
   const dirty = local !== value;
@@ -1156,10 +1220,11 @@ function InlineTextarea({
   return (
     <div data-cockpit-field={fieldKey}>
       <div className="flex items-center gap-2">
-        <Label>{label}</Label>
+        <Label htmlFor={inputId}>{label}</Label>
         <SourceBadge source={dirty ? "user" : source} />
       </div>
       <Textarea
+        id={inputId}
         value={local}
         placeholder={placeholder}
         onChange={(e) => setLocal(e.target.value)}
@@ -1243,7 +1308,7 @@ function SigningProfileField({
             value={missingLink ? "__missing__" : (value ?? "__none__")}
             onValueChange={(v) => onChange(v === "__none__" ? undefined : v)}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label="Signature associée à cette application">
               <SelectValue placeholder="Aucune signature associée" />
             </SelectTrigger>
             <SelectContent>

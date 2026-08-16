@@ -282,6 +282,35 @@ test("classifies Google's message-only reused versionCode before the generic 403
   );
 });
 
+test("classifies a wrong upload key before the generic permission error", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-key-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const aabPath = path.join(root, "release.aab");
+  fs.writeFileSync(aabPath, "signed-aab-fixture");
+  const api = publisherWith(async (url, options) => {
+    if (url.endsWith("/edits")) return response(200, { id: "edit-key" });
+    if (url.includes("uploadType=media")) {
+      return response(403, {
+        error: { message: "The Android App Bundle was signed with the wrong key." },
+      });
+    }
+    if (url.endsWith("/edits/edit-key") && options.method === "DELETE") return response(204);
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+
+  await assert.rejects(
+    api.publishInternal({
+      credentials,
+      packageName: "app.cranioscan.android",
+      aabPath,
+      notes: "Mauvaise clé.",
+      language: "fr-FR",
+      releaseName: "CranioScan 1.0.0 (8)",
+    }),
+    (error) => error.code === "upload-key-mismatch",
+  );
+});
+
 test("marks a network interruption during commit as an unknown outcome", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-commit-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ReleaseNotesService } from "@/core/release-notes/service";
+import { bridge } from "@/core/bridge";
 import type { Project } from "@/core/types";
 import { toast } from "sonner";
 import { formatDate } from "./shared";
@@ -47,7 +48,8 @@ export function ReleaseNotesCard({ project, draft, onDraftChange }: Props) {
   const copy = async () => {
     if (!formatted) return;
     try {
-      await navigator.clipboard.writeText(formatted);
+      const copied = await bridge().system.copyText(formatted);
+      if (!copied) throw new Error("Le presse-papiers n'est pas disponible.");
       toast.success("Notes copiées");
     } catch {
       toast.error("Impossible de copier automatiquement");
@@ -62,11 +64,14 @@ export function ReleaseNotesCard({ project, draft, onDraftChange }: Props) {
             <FileText className="h-4 w-4 text-primary" />
             <h2 className="text-base font-semibold">Notes de version</h2>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p id="release-notes-help" className="mt-1 text-xs text-muted-foreground">
             Décrivez brièvement les nouveautés — 500 caractères maximum pour Google Play.
           </p>
         </div>
-        <div className="text-xs text-muted-foreground tabular-nums shrink-0">
+        <div
+          id="release-notes-count"
+          className="text-xs text-muted-foreground tabular-nums shrink-0"
+        >
           {formatted.length}/{MAX_LEN}
           {remaining < 50 && remaining >= 0 && (
             <span className="ml-1 text-warning">· {remaining} restants</span>
@@ -76,12 +81,7 @@ export function ReleaseNotesCard({ project, draft, onDraftChange }: Props) {
 
       <div className="mb-3 flex flex-wrap gap-2">
         {TEMPLATES.map((t) => (
-          <Button
-            key={t.label}
-            variant="outline"
-            size="sm"
-            onClick={() => insertTemplate(t.body)}
-          >
+          <Button key={t.label} variant="outline" size="sm" onClick={() => insertTemplate(t.body)}>
             <Sparkles className="h-3.5 w-3.5" />
             {t.label}
           </Button>
@@ -90,6 +90,8 @@ export function ReleaseNotesCard({ project, draft, onDraftChange }: Props) {
 
       <Textarea
         id="release-notes-input"
+        aria-label="Notes de version pour Google Play"
+        aria-describedby="release-notes-help release-notes-count"
         value={draft}
         onChange={(e) => onDraftChange(e.target.value.slice(0, MAX_LEN * 2))}
         rows={5}
@@ -107,9 +109,7 @@ export function ReleaseNotesCard({ project, draft, onDraftChange }: Props) {
               Copier
             </Button>
           </div>
-          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-            {formatted}
-          </pre>
+          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{formatted}</pre>
         </div>
       )}
 
@@ -120,10 +120,7 @@ export function ReleaseNotesCard({ project, draft, onDraftChange }: Props) {
           </div>
           <ul className="space-y-2">
             {history.slice(0, 3).map((n, i) => (
-              <li
-                key={i}
-                className="rounded-lg border bg-background p-3 text-sm"
-              >
+              <li key={i} className="rounded-lg border bg-background p-3 text-sm">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs text-muted-foreground">
                     v{n.version} · {formatDate(n.createdAt)}

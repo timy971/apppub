@@ -102,7 +102,9 @@ export const AndroidCorrectionService = {
     if (!result.backup && bridge().runtime === "electron") {
       throw new Error("La correction a été appliquée, mais sa sauvegarde n’a pas été retournée.");
     }
-    if (result.backup) BackupService.rememberNative(project, "correction", result.backup);
+    if (result.backup) {
+      BackupService.rememberNative(project, "correction", result.backup, result.changedFiles);
+    }
     await ProjectsService.refreshDetection(project.id);
     JournalService.log("info", "Corrections Android appliquées", {
       projectId: project.id,

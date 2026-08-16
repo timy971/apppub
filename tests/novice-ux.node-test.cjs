@@ -189,3 +189,87 @@ test("la signature se choisit et la suite reste visible dans le même flux", () 
   assert.match(signing, /fallbackTo="\/build"/);
   assert.match(signing, /Signature prête/);
 });
+
+test("le changement d'écran place le focus sur un titre explicite", () => {
+  const root = read("src/routes/__root.tsx");
+  const header = read("src/components/page-header.tsx");
+  const setup = read("src/routes/setup.tsx");
+  assert.match(root, /RouteFocusManager/);
+  assert.match(root, /querySelector<HTMLElement>\("\[data-page-heading\]"\)/);
+  assert.match(header, /data-page-heading/);
+  assert.match(setup, /data-page-heading/);
+});
+
+test("les opérations longues annoncent leur progression et leur résultat", () => {
+  const progress = read("src/components/build-center/progress-panel.tsx");
+  const workflow = read("src/components/workflow-view.tsx");
+  const result = read("src/components/build-center/result-card.tsx");
+  const error = read("src/components/build-center/error-panel.tsx");
+  assert.match(progress, /aria-live="polite"/);
+  assert.match(progress, /aria-valuetext/);
+  assert.match(workflow, /role="status"/);
+  assert.match(result, /role="status"/);
+  assert.match(error, /role="alert"/);
+});
+
+test("les champs critiques ont un nom accessible et les filtres sont utilisables au clavier", () => {
+  const projects = read("src/routes/projects.tsx");
+  const signing = read("src/routes/signing.tsx");
+  const releaseNotes = read("src/components/publish-center/release-notes.tsx");
+  const logs = read("src/routes/logs.tsx");
+  assert.match(projects, /htmlFor="projects-scan-root"/);
+  assert.match(projects, /aria-label="Filtrer par cycle de vie"/);
+  assert.match(signing, /htmlFor="signature-import-password"/);
+  assert.match(releaseNotes, /aria-describedby="release-notes-help release-notes-count"/);
+  assert.match(logs, /aria-pressed=\{selectedLevels\.has\(l\)\}/);
+  assert.doesNotMatch(logs, /<Badge[^>]*onClick/);
+});
+
+test("les chargements et états vides restent compréhensibles", () => {
+  const diagnostic = read("src/routes/diagnostic.tsx");
+  const publish = read("src/components/publish-center/publish-center.tsx");
+  const dashboard = read("src/components/dashboard/focus-card.tsx");
+  assert.match(diagnostic, /Vérification en cours/);
+  assert.match(diagnostic, /Aucun résultat disponible/);
+  assert.match(diagnostic, />\s*Réessayer\s*</);
+  assert.match(publish, /Vérification de l'application et du fichier Android en cours/);
+  assert.match(dashboard, /Chargement de la prochaine action/);
+});
+
+test("Google Play présente un parcours novice en quatre états", () => {
+  const journey = read("src/components/publish-center/google-play-journey.tsx");
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  for (const label of ["À configurer", "Connecté", "Prêt à envoyer", "Envoyé"]) {
+    assert.match(journey, new RegExp(label));
+  }
+  for (const step of [
+    "Compte Google",
+    "Application Play Console",
+    "Fichier Android",
+    "Test interne",
+  ]) {
+    assert.match(journey, new RegExp(step));
+  }
+  assert.match(card, /<GooglePlayJourney/);
+});
+
+test("la première publication manuelle n'est jamais renvoyée avec le même numéro", () => {
+  const types = read("src/core/types.ts");
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  const guide = read("src/components/publish-center/google-play-setup-guide.tsx");
+  assert.match(types, /googlePlayLastKnownBuild\?: number/);
+  assert.match(card, /googlePlayLastKnownBuild === project\.currentBuild/);
+  assert.match(card, /confirmsFirstManualRelease/);
+  assert.match(guide, /mémorisera que ce numéro a déjà été utilisé/);
+});
+
+test("les refus Google Play restent visibles avec une action compréhensible", () => {
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  assert.match(card, /<GooglePlayRecovery/);
+  assert.match(card, /Ce qu’il faut faire/);
+  assert.match(card, /Augmenter le numéro interne/);
+  assert.match(card, /Recréer le fichier Android/);
+  assert.match(card, /Ouvrir Play Console/);
+  assert.match(card, /Les quatre blocages les plus fréquents/);
+  assert.match(card, /Mauvaise clé/);
+});

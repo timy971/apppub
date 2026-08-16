@@ -19,6 +19,7 @@ import type { ExperienceMode, ThemePreference } from "@/core/types";
 import { ModeBadge } from "@/components/mode-badge";
 import { isElectron } from "@/core/bridge";
 import { exportDesktopData, importDesktopData } from "@/core/storage";
+import { EXPERIENCE_MODES } from "@/core/i18n/fr";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -85,6 +86,7 @@ function SettingsPage() {
         <Card className="p-6 shadow-soft">
           <Row label="Votre prénom" hint="Utilisé pour vous accueillir sur le tableau de bord.">
             <Input
+              aria-label="Votre prénom"
               value={settings.userName}
               onChange={(e) => AppStore.updateSettings({ userName: e.target.value })}
               className="max-w-xs"
@@ -122,9 +124,16 @@ function SettingsPage() {
         <Card className="p-6 shadow-soft">
           <Row
             label="Mode d'utilisation"
-            hint="Découverte pour apprendre, Assistant au quotidien, Expert pour plus de détails techniques."
+            hint="Choisissez la quantité d’informations affichée. Vous pouvez changer de mode à tout moment."
           >
-            <ModeBadge />
+            <div className="max-w-md">
+              <ModeBadge />
+              <p className="mt-2 text-sm font-medium">{EXPERIENCE_MODES[settings.mode].summary}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {EXPERIENCE_MODES[settings.mode].shows} Le mode ne change jamais vos données ni le
+                résultat des opérations.
+              </p>
+            </div>
           </Row>
         </Card>
 
@@ -134,7 +143,7 @@ function SettingsPage() {
               value={settings.theme}
               onValueChange={(v) => AppStore.updateSettings({ theme: v as ThemePreference })}
             >
-              <SelectTrigger className="max-w-xs">
+              <SelectTrigger className="max-w-xs" aria-label="Apparence">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -152,6 +161,7 @@ function SettingsPage() {
             hint="Une sauvegarde légère est créée avant chaque opération sensible (version, création du fichier, publication)."
           >
             <Switch
+              aria-label="Sauvegarde automatique"
               checked={settings.autoBackupEnabled ?? true}
               onCheckedChange={(v) => AppStore.updateSettings({ autoBackupEnabled: v })}
             />
@@ -161,6 +171,7 @@ function SettingsPage() {
         <Card className="p-6 shadow-soft">
           <Row label="Aide contextuelle" hint="Affiche une icône d'aide sur chaque écran.">
             <Switch
+              aria-label="Aide contextuelle"
               checked={settings.contextualHelpEnabled}
               onCheckedChange={(v) => AppStore.updateSettings({ contextualHelpEnabled: v })}
             />
@@ -173,7 +184,7 @@ function SettingsPage() {
               value={settings.language}
               onValueChange={(v) => AppStore.updateSettings({ language: v as "fr" | "en" })}
             >
-              <SelectTrigger className="max-w-xs">
+              <SelectTrigger className="max-w-xs" aria-label="Langue">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -192,11 +203,11 @@ function SettingsPage() {
             hint={
               electron
                 ? "AppPublisher tourne comme une véritable application Desktop."
-                : "AppPublisher tourne dans le navigateur : les opérations système sont simulées. Téléchargez la version Desktop pour piloter vos vrais projets."
+                : "Cet aperçu dans le navigateur est en lecture seule. Installez AppPublisher pour modifier, construire et publier vos vrais projets."
             }
           >
             <span className="rounded-full border bg-muted/60 px-3 py-1 text-xs">
-              {electron ? "Desktop (Electron)" : "Aperçu Web (simulé)"}
+              {electron ? "Application installée" : "Aperçu Web · lecture seule"}
             </span>
           </Row>
         </Card>

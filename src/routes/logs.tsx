@@ -13,7 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Logger,
@@ -25,6 +24,7 @@ import {
   getSysInfo,
 } from "@/core/diag/logger";
 import { analyze, type AnalysisFinding } from "@/core/diag/analyzer";
+import { bridge } from "@/core/bridge";
 
 export const Route = createFileRoute("/logs")({
   beforeLoad: () => {
@@ -173,7 +173,8 @@ export function TechnicalPanel() {
                 variant="outline"
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(logDir);
+                    const copied = await bridge().system.copyText(logDir);
+                    if (!copied) throw new Error("Le presse-papiers n'est pas disponible.");
                     toast.success("Chemin du dossier copié");
                   } catch {
                     toast.error("Copie impossible");
@@ -227,6 +228,7 @@ export function TechnicalPanel() {
           <div className="relative flex-1 min-w-[220px]">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              aria-label="Filtrer les événements techniques"
               className="pl-8"
               placeholder="Filtrer (message, module, contexte…)"
               value={q}
@@ -235,14 +237,16 @@ export function TechnicalPanel() {
           </div>
           <div className="flex flex-wrap gap-1">
             {LEVELS.map((l) => (
-              <Badge
+              <Button
                 key={l}
+                type="button"
+                size="sm"
                 variant={selectedLevels.has(l) ? "default" : "outline"}
-                className="cursor-pointer select-none"
+                aria-pressed={selectedLevels.has(l)}
                 onClick={() => toggleLevel(l)}
               >
                 {l}
-              </Badge>
+              </Button>
             ))}
           </div>
         </div>
@@ -252,6 +256,9 @@ export function TechnicalPanel() {
         <div
           ref={scrollRef}
           onScroll={onScroll}
+          role="log"
+          aria-live="off"
+          aria-label="Journal technique détaillé"
           className="max-h-[60vh] overflow-auto p-3 font-mono text-xs"
         >
           {filtered.length === 0 ? (
