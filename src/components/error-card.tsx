@@ -7,13 +7,7 @@ import { Card } from "./ui/card";
 /**
  * ErrorCard — présente une erreur traduite. Jamais de stack, jamais de code.
  */
-export function ErrorCard({
-  error,
-  onRetry,
-}: {
-  error: TranslatedError;
-  onRetry?: () => void;
-}) {
+export function ErrorCard({ error, onRetry }: { error: TranslatedError; onRetry?: () => void }) {
   return (
     <Card className="p-6 shadow-soft border-danger/40">
       <div className="flex items-start gap-4">
@@ -41,7 +35,7 @@ export function ErrorCard({
               </Button>
             )}
             <Button asChild variant="outline">
-              <Link to="/journal">
+              <Link to="/journal" search={{ view: "summary" }}>
                 <LifeBuoy className="h-4 w-4" />
                 Consulter le support
               </Link>

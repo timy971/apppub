@@ -139,7 +139,11 @@ export function ActivityTimeline({
     <Card className="p-6 shadow-soft">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-base font-semibold">Activité récente</h3>
-        <Link to="/history" className="text-xs text-muted-foreground hover:text-foreground">
+        <Link
+          to="/journal"
+          search={{ view: "history" }}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
           Tout l'historique →
         </Link>
       </div>

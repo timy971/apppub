@@ -39,7 +39,7 @@ export function ReleaseHistoryCard({ project, history }: Props) {
           <h2 className="text-base font-semibold">Historique de release</h2>
         </div>
         <Button asChild size="sm" variant="ghost">
-          <Link to="/history">
+          <Link to="/journal" search={{ view: "history" }}>
             Voir tout
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>

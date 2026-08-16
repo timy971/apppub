@@ -40,7 +40,7 @@ const publication = [
 ];
 
 const utils = [
-  { title: "Aide et historique", url: "/journal", icon: LifeBuoy },
+  { title: "Activité et aide", url: "/journal", icon: LifeBuoy },
   { title: "Paramètres", url: "/settings", icon: SettingsIcon },
 ];
 

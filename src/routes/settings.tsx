@@ -204,7 +204,9 @@ function SettingsPage() {
         <Card className="p-6 shadow-soft">
           <Row label="Assistance avancée" hint="Uniquement pour le support technique.">
             <Button variant="outline" asChild>
-              <Link to="/journal">Ouvrir le journal</Link>
+              <Link to="/journal" search={{ view: "summary" }}>
+                Ouvrir Activité et aide
+              </Link>
             </Button>
           </Row>
         </Card>

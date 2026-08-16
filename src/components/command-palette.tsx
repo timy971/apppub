@@ -6,11 +6,9 @@ import {
   GitBranch,
   Hammer,
   HeartPulse,
-  History,
   Settings as SettingsIcon,
   Rocket,
   LifeBuoy,
-  Terminal,
   KeyRound,
   FolderOpen,
 } from "lucide-react";
@@ -25,7 +23,6 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { useProjects } from "@/core/store/app-store";
-import { useIsExpert } from "@/core/store/use-mode";
 
 type NavItem = {
   title: string;
@@ -47,19 +44,14 @@ const publication: NavItem[] = [
 ];
 
 const utils: NavItem[] = [
-  { title: "Journal", url: "/history", icon: History },
+  { title: "Activité et aide", url: "/journal", icon: LifeBuoy },
   { title: "Paramètres", url: "/settings", icon: SettingsIcon },
 ];
-
-const supportBase: NavItem[] = [{ title: "Support", url: "/journal", icon: LifeBuoy }];
-
-const expertOnly: NavItem[] = [{ title: "Console", url: "/logs", icon: Terminal }];
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const projects = useProjects();
-  const isExpert = useIsExpert();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -81,8 +73,6 @@ export function CommandPalette() {
     setOpen(false);
     void navigate({ to: "/projects/$id", params: { id } });
   };
-
-  const support = isExpert ? [...supportBase, ...expertOnly] : supportBase;
 
   const renderGroup = (heading: string, items: NavItem[]) => (
     <CommandGroup heading={heading}>
@@ -109,8 +99,6 @@ export function CommandPalette() {
         {renderGroup("Publication", publication)}
         <CommandSeparator />
         {renderGroup("Outils", utils)}
-        <CommandSeparator />
-        {renderGroup("Assistance", support)}
         {projects.length > 0 && (
           <>
             <CommandSeparator />

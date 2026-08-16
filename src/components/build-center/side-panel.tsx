@@ -30,9 +30,7 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
   const sys = useSystemInfo();
   const android = getAndroidConfig(project);
   const isWindows = sys?.platform === "win32";
-  const gradleCmd = isWindows
-    ? "gradlew.bat bundleRelease"
-    : "./gradlew bundleRelease";
+  const gradleCmd = isWindows ? "gradlew.bat bundleRelease" : "./gradlew bundleRelease";
   const gradleCwd = `${project.localPath}/android`;
 
   return (
@@ -59,9 +57,7 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
               value={
                 <span className="tabular-nums">
                   {formatDuration(stats.averageMs)}{" "}
-                  <span className="text-xs text-muted-foreground">
-                    ({stats.sampleSize} builds)
-                  </span>
+                  <span className="text-xs text-muted-foreground">({stats.sampleSize} builds)</span>
                 </span>
               }
             />
@@ -77,9 +73,7 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
 
       <ExpertDetails title="Commande & environnement" defaultOpen>
         <div className="flex items-start gap-2">
-          <span className="text-muted-foreground min-w-32 shrink-0">
-            Commande
-          </span>
+          <span className="text-muted-foreground min-w-32 shrink-0">Commande</span>
           <span className="min-w-0 flex-1 break-all">{gradleCmd}</span>
           <CopyButton value={gradleCmd} size="xs" />
         </div>
@@ -94,14 +88,14 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
         <ExpertRow label="Plateforme" value={sys?.platform} copyable={false} />
       </ExpertDetails>
 
-
       <Card className="p-5 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Historique rapide
           </div>
           <Link
-            to="/history"
+            to="/journal"
+            search={{ view: "history" }}
             className="text-xs text-primary hover:underline inline-flex items-center gap-1"
           >
             <History className="h-3 w-3" />
@@ -136,10 +130,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function HistoryRow({ rec }: { rec: PublishRecord }) {
-  const OutcomeIcon =
-    rec.outcome === "success" ? CheckCircle2 : XCircle;
-  const tone =
-    rec.outcome === "success" ? "text-success" : "text-danger";
+  const OutcomeIcon = rec.outcome === "success" ? CheckCircle2 : XCircle;
+  const tone = rec.outcome === "success" ? "text-success" : "text-danger";
   return (
     <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
       <OutcomeIcon className={cn("h-4 w-4 shrink-0", tone)} />
