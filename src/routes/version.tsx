@@ -94,9 +94,23 @@ function VersionAssistant() {
     setFailure(null);
     const start = performance.now();
     let backupId: string | undefined;
+    let gitFilesBefore = new Set<string>();
 
     try {
       if (choice !== "readonly") {
+        if (project.source?.type === "git") {
+          const git = await bridge().git.status({
+            projectPath: project.localPath,
+            remoteUrl: project.source.remoteUrl,
+            branch: project.source.branch,
+          });
+          if (git.workingTree === "dirty") {
+            throw new Error(
+              "Enregistrez d’abord vos modifications Git : AppPublisher doit partir d’un projet propre pour pouvoir annuler uniquement ses propres changements.",
+            );
+          }
+          gitFilesBefore = new Set(git.changedFiles);
+        }
         const backup = await BackupService.create(project, "version");
         backupId = backup.id;
       }
@@ -158,7 +172,7 @@ function VersionAssistant() {
               remoteUrl: project.source.remoteUrl,
               branch: project.source.branch,
             });
-            changedFiles = git.changedFiles;
+            changedFiles = git.changedFiles.filter((file) => !gitFilesBefore.has(file));
           }
           BackupService.describeChanges(backupId, changedFiles);
         }
