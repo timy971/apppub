@@ -45,7 +45,7 @@ export function GooglePlaySetupGuide({
     try {
       await bridge().shell.revealItem(aabPath);
     } catch {
-      toast.error("Impossible d’afficher le fichier AAB");
+      toast.error("Impossible d’afficher le fichier Android");
     }
   }
 

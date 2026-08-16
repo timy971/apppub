@@ -38,13 +38,13 @@ function BuildPage() {
         help={{
           title: "À propos du fichier Android",
           content:
-            "Google Play attend un fichier au format AAB. AppPublisher le crée, vérifie sa signature et vous indique précisément où il se trouve.",
+            "Google Play attend un fichier Android signé (format AAB). AppPublisher le crée, le vérifie et vous indique où il se trouve.",
         }}
       />
       <StepPurpose
         automatic="vérifier les outils nécessaires, préparer Android, construire puis contrôler le fichier."
         yourAction="lancer la création et laisser AppPublisher travailler."
-        result="un fichier AAB signé est prêt pour Google Play."
+        result="un fichier Android signé est prêt pour Google Play."
       />
       <BuildCenter project={project} />
     </div>

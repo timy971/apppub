@@ -17,7 +17,7 @@ export function PublishHandoffCard({ release }: { release: PublishRecord }) {
     try {
       await bridge().shell.revealItem(artifactPath);
     } catch {
-      toast.error("Impossible d'afficher le fichier AAB");
+      toast.error("Impossible d'afficher le fichier Android");
     }
   }
 
@@ -50,14 +50,15 @@ export function PublishHandoffCard({ release }: { release: PublishRecord }) {
           <div className="min-w-0">
             <h2 className="font-semibold">Release locale prête</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              L'AAB a été retrouvé et sa signature a été vérifiée. Vous pouvez le publier sur la
-              piste interne ci-dessous, ou conserver l'envoi manuel comme solution de secours.
+              Le fichier Android a été retrouvé et sa signature a été vérifiée. Vous pouvez le
+              publier sur la piste interne ci-dessous, ou conserver l'envoi manuel comme solution de
+              secours.
             </p>
             <div
               className="mt-2 truncate font-mono text-xs text-muted-foreground"
               title={artifactPath}
             >
-              {filename ?? "Fichier AAB"}
+              {filename ?? "Fichier Android"}
               {release.artifactSizeBytes ? ` · ${formatSize(release.artifactSizeBytes)}` : ""}
             </div>
           </div>
@@ -65,7 +66,7 @@ export function PublishHandoffCard({ release }: { release: PublishRecord }) {
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button variant="outline" onClick={revealArtifact} disabled={!artifactPath}>
             <FolderSearch className="h-4 w-4" />
-            Afficher l'AAB
+            Afficher le fichier
           </Button>
           <Button variant="outline" onClick={copyNotes} disabled={!release.notes}>
             <Copy className="h-4 w-4" />

@@ -162,7 +162,11 @@ function DiagnosticPage() {
       {project && !error && (
         <div className="space-y-6">
           {GROUPS.map((g) => {
-            const items = checks.filter((c) => (c.category ?? "environment") === g.id);
+            const items = checks.filter(
+              (c) =>
+                (c.category ?? "environment") === g.id &&
+                (settings.mode !== "discovery" || c.status !== "ok"),
+            );
             if (items.length === 0) return null;
             return (
               <section key={g.id}>
@@ -177,12 +181,11 @@ function DiagnosticPage() {
                           {c.detail && (
                             <div className="mt-1 text-sm text-muted-foreground">{c.detail}</div>
                           )}
-                          {(settings.mode === "discovery" || settings.mode === "expert") &&
-                            c.why && (
-                              <div className="mt-2">
-                                <WhyButton title={c.label}>{c.why}</WhyButton>
-                              </div>
-                            )}
+                          {settings.mode !== "discovery" && c.why && (
+                            <div className="mt-2">
+                              <WhyButton title={c.label}>{c.why}</WhyButton>
+                            </div>
+                          )}
                           {c.status !== "ok" && recoveryFor(c) && (
                             <Button asChild size="sm" variant="outline" className="mt-3">
                               <Link to={recoveryFor(c)!.to}>

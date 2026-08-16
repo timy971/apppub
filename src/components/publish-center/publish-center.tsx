@@ -14,6 +14,7 @@ import type { HealthCheck, Project, PublishRecord } from "@/core/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { AssistantOrAbove, ExpertOnly } from "@/components/mode-gate";
 
 import { PublishHeader } from "./header";
 import { PublishCopilotStrip } from "./copilot-strip";
@@ -118,7 +119,7 @@ export function PublishCenter({ project }: { project: Project }) {
       notesCard?.scrollIntoView({ behavior: "smooth", block: "center" });
       window.setTimeout(() => document.getElementById("release-notes-input")?.focus(), 250);
       toast.warning("Ajoutez les notes de version", {
-        description: "Elles seront envoyées avec l'AAB sur Google Play.",
+        description: "Elles seront envoyées avec le fichier Android sur Google Play.",
       });
       return;
     }
@@ -128,7 +129,7 @@ export function PublishCenter({ project }: { project: Project }) {
       const verifiedArtifact = await verifyPublishArtifact(project, HistoryService.list());
       setArtifact(verifiedArtifact);
       if (verifiedArtifact.status !== "valid" || !verifiedArtifact.path) {
-        toast.error("Le fichier AAB n'est pas publiable", {
+        toast.error("Le fichier Android n'est pas publiable", {
           description: verifiedArtifact.detail,
         });
         return;
@@ -153,7 +154,7 @@ export function PublishCenter({ project }: { project: Project }) {
         user: settings.userName || "vous",
         durationMs: Math.round(performance.now() - started),
         outcome: "success",
-        message: "Release préparée",
+        message: "Publication préparée",
         kind: "release-prepared",
         artifactPath: verifiedArtifact.path,
         artifactSizeBytes: verifiedArtifact.size,
@@ -163,7 +164,7 @@ export function PublishCenter({ project }: { project: Project }) {
       });
       AppStore.refreshProjects();
       setRefreshKey((n) => n + 1);
-      toast.success("Release préparée", {
+      toast.success("Publication préparée", {
         description: "La section Google Play est prête juste en dessous.",
       });
       window.setTimeout(
@@ -234,18 +235,32 @@ export function PublishCenter({ project }: { project: Project }) {
         onChanged={() => setRefreshKey((n) => n + 1)}
       />
 
-      <ReleaseOverviewCard project={project} />
+      <AssistantOrAbove>
+        <ReleaseOverviewCard project={project} />
+      </AssistantOrAbove>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div
+        className={
+          settings.mode === "discovery"
+            ? "grid gap-4"
+            : "grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+        }
+      >
         <div className="space-y-4">
-          <ChecklistCard project={project} categories={categories} />
+          <AssistantOrAbove>
+            <ChecklistCard project={project} categories={categories} />
+          </AssistantOrAbove>
           <ReleaseNotesCard project={project} draft={notesDraft} onDraftChange={setNotesDraft} />
-          <StoreTargetsCard project={project} status={status} />
+          <ExpertOnly>
+            <StoreTargetsCard project={project} status={status} />
+          </ExpertOnly>
         </div>
 
         <div className="space-y-4">
           <ValidationSummaryCard project={project} score={score} categories={categories} />
-          <ReleaseHistoryCard project={project} history={history} refreshKey={refreshKey} />
+          <ExpertOnly>
+            <ReleaseHistoryCard project={project} history={history} refreshKey={refreshKey} />
+          </ExpertOnly>
         </div>
       </div>
     </div>

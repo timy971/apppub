@@ -19,6 +19,7 @@ import type { ExperienceMode, ThemePreference } from "@/core/types";
 import { ModeBadge } from "@/components/mode-badge";
 import { isElectron } from "@/core/bridge";
 import { exportDesktopData, importDesktopData } from "@/core/storage";
+import { EXPERIENCE_MODES } from "@/core/i18n/fr";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -123,9 +124,16 @@ function SettingsPage() {
         <Card className="p-6 shadow-soft">
           <Row
             label="Mode d'utilisation"
-            hint="Découverte pour apprendre, Assistant au quotidien, Expert pour plus de détails techniques."
+            hint="Choisissez la quantité d’informations affichée. Vous pouvez changer de mode à tout moment."
           >
-            <ModeBadge />
+            <div className="max-w-md">
+              <ModeBadge />
+              <p className="mt-2 text-sm font-medium">{EXPERIENCE_MODES[settings.mode].summary}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {EXPERIENCE_MODES[settings.mode].shows} Le mode ne change jamais vos données ni le
+                résultat des opérations.
+              </p>
+            </div>
           </Row>
         </Card>
 
@@ -195,11 +203,11 @@ function SettingsPage() {
             hint={
               electron
                 ? "AppPublisher tourne comme une véritable application Desktop."
-                : "AppPublisher tourne dans le navigateur : les opérations système sont simulées. Téléchargez la version Desktop pour piloter vos vrais projets."
+                : "Cet aperçu dans le navigateur est en lecture seule. Installez AppPublisher pour modifier, construire et publier vos vrais projets."
             }
           >
             <span className="rounded-full border bg-muted/60 px-3 py-1 text-xs">
-              {electron ? "Desktop (Electron)" : "Aperçu Web (simulé)"}
+              {electron ? "Application installée" : "Aperçu Web · lecture seule"}
             </span>
           </Row>
         </Card>

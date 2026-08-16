@@ -56,7 +56,9 @@ export function GooglePlayJourney({
     },
     {
       title: "Fichier Android",
-      detail: artifactReady ? "AAB vérifié avec ses notes" : "AAB et notes à préparer",
+      detail: artifactReady
+        ? "Fichier Android vérifié avec ses notes"
+        : "Fichier Android et notes à préparer",
       done: artifactReady,
       current: applicationReady && !artifactReady,
       icon: FileArchive,
@@ -136,7 +138,7 @@ export function GooglePlayJourney({
       <div className="mt-4 flex items-start gap-2 rounded-lg bg-background px-3 py-2 text-xs text-muted-foreground">
         <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         {initializationRequired
-          ? "À faire vous-même : créer la fiche et déposer le premier AAB dans Play Console. AppPublisher vous guide juste en dessous."
+          ? "À faire vous-même : créer la fiche et déposer le premier fichier Android dans Play Console. AppPublisher vous guide juste en dessous."
           : "AppPublisher vérifie le compte, le fichier et l’application avant d’envoyer uniquement vers les testeurs internes."}
       </div>
     </Card>

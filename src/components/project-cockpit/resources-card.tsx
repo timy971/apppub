@@ -31,6 +31,7 @@ import { AppStore } from "@/core/store/app-store";
 import type { Project } from "@/core/types";
 import { toast } from "sonner";
 import { useCockpitNav } from "./cockpit-nav";
+import { useMode } from "@/core/store/use-mode";
 
 /**
  * Ressources + actions rapides. Toutes les mutations (backup) transitent
@@ -38,6 +39,7 @@ import { useCockpitNav } from "./cockpit-nav";
  */
 export function ResourcesCard({ project }: { project: Project }) {
   const nav = useCockpitNav();
+  const mode = useMode();
   const [backingUp, setBackingUp] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const latestBackup = BackupService.list(project.id)[0];
@@ -255,7 +257,7 @@ export function ResourcesCard({ project }: { project: Project }) {
         <ResourceButton
           icon={<FolderOpen className="h-4 w-4" />}
           label="Dossier du projet"
-          hint={project.localPath}
+          hint={mode === "expert" ? project.localPath : "Ouvrir dans le Finder"}
           onClick={() => open(project.localPath)}
         />
         <ResourceButton
@@ -267,15 +269,15 @@ export function ResourcesCard({ project }: { project: Project }) {
         />
         <ResourceButton
           icon={<Package className="h-4 w-4" />}
-          label="Builds Android"
-          hint="android/app/build/outputs"
+          label="Fichiers Android créés"
+          hint={mode === "expert" ? "android/app/build/outputs" : "Derniers fichiers créés"}
           disabled={!project.detected.hasAndroid}
           onClick={() => open(distPath)}
         />
         <ResourceButton
           icon={<ArchiveRestore className="h-4 w-4" />}
           label="Sauvegardes"
-          hint=".apppublisher-backups"
+          hint={mode === "expert" ? ".apppublisher-backups" : "Copies de sécurité du projet"}
           onClick={() => open(backupsPath)}
         />
         <ResourceButton

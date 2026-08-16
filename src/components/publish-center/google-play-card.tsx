@@ -276,7 +276,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     if (!connectionArgs || !release?.artifactPath) return;
     if (!release.notes?.trim()) {
       toast.error("Notes de version manquantes", {
-        description: "Préparez de nouveau la release avec des notes avant l'envoi.",
+        description: "Préparez de nouveau la publication avec des notes avant l'envoi.",
       });
       return;
     }
@@ -362,7 +362,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         patchAndroidConfig(project, { googlePlayLastKnownBuild: result.versionCode }),
       );
       AppStore.refreshProjects();
-      toast.success("Release envoyée à Google Play", {
+      toast.success("Publication envoyée à Google Play", {
         description: `${packageName} · piste internal · versionCode ${result.versionCode}`,
         duration: 10_000,
       });
@@ -579,7 +579,7 @@ function showGooglePlayError(result: {
       : result.errorCode === "permission-denied"
         ? "Droits Google Play insuffisants"
         : result.errorCode === "version-already-used"
-          ? "Numéro de build déjà utilisé"
+          ? "Numéro interne déjà utilisé"
           : result.errorCode === "upload-key-mismatch"
             ? "Clé de signature non reconnue"
             : result.errorCode === "changes-in-review"
@@ -719,7 +719,7 @@ function googlePlayRecoveryFor(failure: GooglePlayFailure): {
         explanation:
           "Un versionCode ne peut être utilisé qu’une seule fois, même si l’ancienne version a été supprimée ou refusée.",
         solution:
-          "Augmentez le numéro interne, recréez l’AAB, puis revenez l’envoyer. Ne changez pas seulement le nom visible de la version.",
+          "Augmentez le numéro interne, recréez le fichier Android, puis revenez l’envoyer. Ne changez pas seulement le nom visible de la version.",
         action: "version",
       };
     case "aab-invalid":
@@ -731,16 +731,16 @@ function googlePlayRecoveryFor(failure: GooglePlayFailure): {
           failure.errorHint ??
           "Son identifiant, sa version, son numéro interne ou sa signature ne correspond pas au projet actif.",
         solution:
-          "Recréez le fichier depuis l’étape Créer le fichier Android, sans réutiliser un ancien AAB.",
+          "Recréez le fichier depuis l’étape Créer le fichier Android, sans réutiliser un ancien fichier.",
         action: "build",
       };
     case "upload-key-mismatch":
       return {
         title: "Google ne reconnaît pas la clé de signature",
         explanation:
-          "L’AAB a été signé avec une autre clé que celle enregistrée comme clé d’importation dans Play Console.",
+          "Le fichier Android a été signé avec une autre clé que celle enregistrée comme clé d’importation dans Play Console.",
         solution:
-          "Choisissez la signature déjà reconnue par Google, puis recréez l’AAB. Ne créez pas une nouvelle clé pour une mise à jour.",
+          "Choisissez la signature déjà reconnue par Google, puis recréez le fichier Android. Ne créez pas une nouvelle clé pour une mise à jour.",
         action: "signing",
       };
     case "commit-outcome-unknown":
