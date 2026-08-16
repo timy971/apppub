@@ -6,11 +6,7 @@ import { BackupService } from "@/core/backup/service";
 import { ProjectStatusService } from "@/core/projects/status";
 import { useCopilotPlan } from "@/core/copilot/use-copilot-plan";
 import type { Project, ProjectBackup, PublishRecord } from "@/core/types";
-import { TodayCard, type TodaySummary } from "@/components/dashboard/today-card";
-import { NextStepCard } from "@/components/dashboard/next-step-card";
-import { BlockersCard } from "@/components/dashboard/blockers-card";
-import { ReadyCard } from "@/components/dashboard/ready-card";
-import { PlanTimelineCard } from "@/components/dashboard/plan-timeline-card";
+import { DashboardFocusCard } from "@/components/dashboard/focus-card";
 import { ProjectsGrid, type ProjectSummary } from "@/components/dashboard/projects-grid";
 import {
   ActivityTimeline,
@@ -113,17 +109,6 @@ function Dashboard() {
     };
   }, [history, backups]);
 
-  const todaySummary = useMemo<TodaySummary>(() => {
-    const lastBuild = history.find((h) => h.kind === "build" || h.kind === "publish");
-    return {
-      totalProjects: projects.length,
-      attentionCount: globalHealth.attention,
-      blockedCount: globalHealth.blocked,
-      lastBuildAt: lastBuild?.createdAt,
-      nextStep: plan.nextAction.title,
-    };
-  }, [projects.length, globalHealth, history, plan.nextAction.title]);
-
   if (!hydrated || !settings.onboardingCompleted) return null;
 
   const loading = !dataReady;
@@ -131,67 +116,53 @@ function Dashboard() {
 
   return (
     <div className="space-y-8 pb-10">
-      {/* Ligne 1 : bienvenue + prochaine étape (le Copilot pilote) */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        <div className="lg:col-span-2">
-          <TodayCard
-            userName={settings.userName}
-            summary={loading ? null : todaySummary}
-            loading={loading || copilotLoading}
-          />
-        </div>
-        <div className="lg:col-span-3">
-          <NextStepCard
-            plan={copilotLoading ? null : plan}
-            projectId={activeProject?.id}
-            loading={copilotLoading}
-          />
-        </div>
-      </div>
+      <DashboardFocusCard
+        plan={copilotLoading ? null : plan}
+        project={activeProject}
+        userName={settings.userName}
+        loading={copilotLoading}
+      />
 
-      {/* Ligne 2 : ce qui bloque + ce qui est prêt */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <BlockersCard
-          plan={copilotLoading ? null : plan}
-          projectId={activeProject?.id}
-          loading={copilotLoading}
-        />
-        <ReadyCard plan={copilotLoading ? null : plan} loading={copilotLoading} />
-      </div>
-
-      {/* Ligne 3 : chronologie logique */}
-      <PlanTimelineCard plan={copilotLoading ? null : plan} loading={copilotLoading} />
-
-      {/* Les indicateurs détaillés restent hors du mode découverte. */}
-      {settings.mode !== "discovery" && (
+      {summaries.length > 0 && (
         <section>
-          <SectionTitle title="Cette semaine" />
-          <StatsStrip stats={loading ? null : stats} loading={loading} />
+          <SectionTitle
+            title="Mes applications"
+            hint={`${summaries.length} ${summaries.length > 1 ? "applications" : "application"}`}
+          />
+          <ProjectsGrid
+            summaries={summaries}
+            activeId={settings.activeProjectId}
+            loading={loading}
+          />
         </section>
       )}
 
-      {/* Ligne 5 : projets */}
-      <section>
-        <SectionTitle
-          title="Mes applications"
-          hint={
-            summaries.length > 0
-              ? `${summaries.length} ${summaries.length > 1 ? "applications" : "application"}`
-              : undefined
-          }
-        />
-        <ProjectsGrid summaries={summaries} activeId={settings.activeProjectId} loading={loading} />
-      </section>
-
       {settings.mode !== "discovery" && (
-        <div className="grid gap-4 lg:grid-cols-5">
-          <div className="lg:col-span-2">
-            <GlobalHealthCard health={loading ? null : globalHealth} loading={loading} />
+        <details className="group rounded-xl border bg-card p-5 shadow-soft">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium">
+            <span>Indicateurs et activité</span>
+            <span className="text-xs font-normal text-muted-foreground group-open:hidden">
+              Afficher
+            </span>
+            <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">
+              Masquer
+            </span>
+          </summary>
+          <div className="mt-6 space-y-6 border-t pt-6">
+            <section>
+              <SectionTitle title="Cette semaine" />
+              <StatsStrip stats={loading ? null : stats} loading={loading} />
+            </section>
+            <div className="grid gap-4 lg:grid-cols-5">
+              <div className="lg:col-span-2">
+                <GlobalHealthCard health={loading ? null : globalHealth} loading={loading} />
+              </div>
+              <div className="lg:col-span-3">
+                <ActivityTimeline events={activity} loading={loading} />
+              </div>
+            </div>
           </div>
-          <div className="lg:col-span-3">
-            <ActivityTimeline events={activity} loading={loading} />
-          </div>
-        </div>
+        </details>
       )}
     </div>
   );

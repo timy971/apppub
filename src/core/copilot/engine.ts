@@ -87,8 +87,8 @@ export function buildCopilotPlan(
           priority: "low",
         }
       : {
-          title: "Ajouter un projet",
-          description: "Créez la fiche de votre première application.",
+          title: "Ajouter une application",
+          description: "Indiquez où se trouve votre application pour commencer.",
           route: "/projects",
           priority: "high",
         });
@@ -177,7 +177,7 @@ function buildSummary(
   ctx: CopilotRuleContext,
 ): string {
   if (!ctx.project) {
-    return "Ajoutez votre premier projet pour qu'AppPublisher commence à vous accompagner.";
+    return "Ajoutez votre première application pour qu'AppPublisher commence à vous accompagner.";
   }
   if (status === "blocked") {
     return blocking > 1
