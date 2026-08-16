@@ -37,6 +37,8 @@ export interface AndroidPublishingConfig {
   googlePlayLastCheckedAt?: string;
   /** État du parcours manuel imposé par Google avant la première publication API. */
   googlePlaySetupStatus?: "required" | "ready";
+  /** Dernier numéro interne confirmé sur la piste de test, y compris lors du premier envoi manuel. */
+  googlePlayLastKnownBuild?: number;
 }
 
 /** Phase 3 : configuration iOS — structure posée, publication future. */

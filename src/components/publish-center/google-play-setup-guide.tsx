@@ -101,8 +101,8 @@ export function GooglePlaySetupGuide({
         <SetupStep number="3" title="Ajoutez le premier fichier Android au test interne">
           <p>
             Dans Play Console, ouvrez <strong>Tests et publication → Tests → Test interne</strong>,
-            créez une version, déposez le fichier Android ci-dessous, puis enregistrez-la. Il n’est
-            pas nécessaire de publier pour tout le monde.
+            créez une version, déposez le fichier Android ci-dessous, puis lancez sa diffusion
+            auprès des testeurs internes. Il n’est pas nécessaire de publier pour tout le monde.
           </p>
           {aabPath ? (
             <>
@@ -123,8 +123,9 @@ export function GooglePlaySetupGuide({
 
         <SetupStep number="4" title="Laissez AppPublisher vérifier">
           <p>
-            Une fois le premier fichier enregistré dans Play Console, revenez ici. AppPublisher
-            vérifiera la fiche sans publier de nouvelle version.
+            Une fois la première version envoyée aux testeurs internes, revenez ici. AppPublisher
+            vérifiera la fiche et mémorisera que ce numéro a déjà été utilisé, sans envoyer le
+            fichier une seconde fois.
           </p>
           <Button className="mt-3" onClick={onVerify} disabled={verifying}>
             {verifying ? (

@@ -162,6 +162,12 @@ function classifyHttpError(status, payload) {
     /\bversionCode\b.*\balready\b.*\bused\b/i.test(message)
   ) {
     code = "version-already-used";
+  } else if (
+    /signed with the wrong key/i.test(message) ||
+    /certificate.*(?:does not match|mismatch)/i.test(message) ||
+    /wrong upload (?:key|certificate)/i.test(message)
+  ) {
+    code = "upload-key-mismatch";
   } else if (reason === "CHANGES_ALREADY_IN_REVIEW") {
     code = "changes-in-review";
   } else if (status === 401) code = "credentials-rejected";

@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import {
+  AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   KeyRound,
   Loader2,
@@ -24,8 +27,10 @@ import { HistoryService } from "@/core/history/service";
 import { patchAndroidConfig } from "@/core/projects/android-config";
 import { ProjectsService } from "@/core/projects/service";
 import { AppStore, useSettings } from "@/core/store/app-store";
+import { JourneyProgress } from "@/core/navigation/journey-progress";
 import type { Project, PublishRecord } from "@/core/types";
 import { GooglePlaySetupGuide } from "./google-play-setup-guide";
+import { GooglePlayJourney } from "./google-play-journey";
 
 interface Props {
   project: Project;
@@ -34,10 +39,17 @@ interface Props {
 }
 
 type BusyAction = "oauth" | "import" | "test" | "publish" | "disconnect" | null;
+type GooglePlayFailure = {
+  errorCode: string;
+  errorHint?: string;
+  phase?: string;
+  causeCode?: string;
+};
 
 export function GooglePlayCard({ project, release, onChanged }: Props) {
   const settings = useSettings();
   const [busy, setBusy] = useState<BusyAction>(null);
+  const [lastFailure, setLastFailure] = useState<GooglePlayFailure | null>(null);
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const android = project.publishing?.android ?? {};
   const packageName = android.applicationId ?? project.packageName ?? project.playStoreAppId ?? "";
@@ -49,15 +61,22 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   const connected = !!connectionId && !!accountEmail;
   const verified = connected && !!android.googlePlayLastCheckedAt;
   const initializationRequired = connected && android.googlePlaySetupStatus === "required";
-  const alreadyPublished = HistoryService.list().some(
+  const history = HistoryService.list();
+  const successfulGooglePlayReleases = history.filter(
     (record) =>
       record.projectId === project.id &&
-      record.version === project.currentVersion &&
-      record.build === project.currentBuild &&
       record.outcome === "success" &&
-      record.storeRelease?.provider === "google-play" &&
-      record.storeRelease.track === "internal",
+      record.storeRelease?.provider === "google-play",
   );
+  const hasPreviousGooglePlayRelease = successfulGooglePlayReleases.length > 0;
+  const alreadyPublished =
+    android.googlePlayLastKnownBuild === project.currentBuild ||
+    successfulGooglePlayReleases.some(
+      (record) =>
+        record.version === project.currentVersion &&
+        record.build === project.currentBuild &&
+        record.storeRelease?.track === "internal",
+    );
 
   const connectionArgs = connectionId
     ? { projectPath: project.localPath, packageName, connectionId }
@@ -84,13 +103,14 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       return;
     }
     setBusy("oauth");
+    setLastFailure(null);
     try {
       const result = await bridge().googlePlay.connectOAuth({
         projectPath: project.localPath,
         packageName,
       });
       if (!result.ok) {
-        if (result.errorCode !== "cancelled") showGooglePlayError(result);
+        if (result.errorCode !== "cancelled") reportGooglePlayError(result);
         return;
       }
       ProjectsService.update(
@@ -119,7 +139,10 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       }
       onChanged();
     } catch {
-      toast.error("La connexion avec Google a échoué.");
+      reportGooglePlayError({
+        errorCode: "network-error",
+        errorHint: "La connexion avec Google a échoué. Vérifiez Internet, puis réessayez.",
+      });
     } finally {
       setBusy(null);
     }
@@ -131,13 +154,14 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       return;
     }
     setBusy("import");
+    setLastFailure(null);
     try {
       const result = await bridge().googlePlay.importServiceAccount({
         projectPath: project.localPath,
         packageName,
       });
       if (!result.ok) {
-        if (result.errorCode !== "cancelled") showGooglePlayError(result);
+        if (result.errorCode !== "cancelled") reportGooglePlayError(result);
         return;
       }
       ProjectsService.update(
@@ -159,7 +183,10 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       });
       onChanged();
     } catch {
-      toast.error("Impossible d'importer le compte de service.");
+      reportGooglePlayError({
+        errorCode: "credentials-invalid",
+        errorHint: "Le compte de service n’a pas pu être importé.",
+      });
     } finally {
       setBusy(null);
     }
@@ -167,7 +194,9 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
 
   async function testConnection() {
     if (!connectionArgs) return;
+    const confirmsFirstManualRelease = initializationRequired;
     setBusy("test");
+    setLastFailure(null);
     try {
       const result = await bridge().googlePlay.testConnection(connectionArgs);
       if (!result.ok) {
@@ -182,7 +211,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           AppStore.refreshProjects();
           onChanged();
         }
-        showGooglePlayError(result);
+        reportGooglePlayError(result);
         return;
       }
       ProjectsService.update(
@@ -192,6 +221,9 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           googlePlayAccountEmail: result.accountEmail,
           googlePlayAuthMode: result.authMode,
           googlePlaySetupStatus: "ready",
+          googlePlayLastKnownBuild: confirmsFirstManualRelease
+            ? project.currentBuild
+            : android.googlePlayLastKnownBuild,
           defaultTrack: "internal",
         }),
       );
@@ -201,7 +233,10 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       });
       onChanged();
     } catch {
-      toast.error("La vérification Google Play a échoué.");
+      reportGooglePlayError({
+        errorCode: "network-error",
+        errorHint: "La vérification a été interrompue. Votre connexion Google reste enregistrée.",
+      });
     } finally {
       setBusy(null);
     }
@@ -226,6 +261,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         }),
       );
       AppStore.refreshProjects();
+      setLastFailure(null);
       toast.success("Google Play déconnecté");
       onChanged();
     } catch {
@@ -244,6 +280,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       return;
     }
     setBusy("publish");
+    setLastFailure(null);
     const started = performance.now();
     try {
       const result = await bridge().googlePlay.publishInternal({
@@ -281,7 +318,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           } catch {
             // Le verdict Google reste prioritaire sur un défaut d'historique local.
           }
-          showGooglePlayError(result);
+          reportGooglePlayError(result);
           onChanged();
         }
         return;
@@ -319,6 +356,11 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         historySaved = false;
       }
       AppStore.refreshProjects();
+      ProjectsService.update(
+        project.id,
+        patchAndroidConfig(project, { googlePlayLastKnownBuild: result.versionCode }),
+      );
+      AppStore.refreshProjects();
       toast.success("Release envoyée à Google Play", {
         description: `${packageName} · piste internal · versionCode ${result.versionCode}`,
         duration: 10_000,
@@ -332,10 +374,19 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       }
       onChanged();
     } catch {
-      toast.error("La publication Google Play a échoué.");
+      reportGooglePlayError({
+        errorCode: "network-error",
+        errorHint: "L’envoi a été interrompu. Vérifiez Play Console avant de réessayer.",
+        phase: "upload-bundle",
+      });
     } finally {
       setBusy(null);
     }
+  }
+
+  function reportGooglePlayError(result: GooglePlayFailure) {
+    setLastFailure(result);
+    showGooglePlayError(result);
   }
 
   const unavailableReason = !packageName
@@ -440,6 +491,20 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           )}
         </div>
       </div>
+      <GooglePlayJourney
+        connected={connected}
+        applicationReady={verified}
+        artifactReady={!!release?.artifactPath && !!release.notes}
+        sent={alreadyPublished}
+        initializationRequired={initializationRequired}
+        hasPreviousRelease={hasPreviousGooglePlayRelease}
+      />
+      {lastFailure && (
+        <GooglePlayRecovery
+          failure={lastFailure}
+          onRetry={lastFailure.phase === "upload-bundle" ? publish : testConnection}
+        />
+      )}
       {unavailableReason && busy === null && (
         <p className="mt-3 text-xs text-muted-foreground">{unavailableReason}</p>
       )}
@@ -496,6 +561,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           </AccordionItem>
         </Accordion>
       )}
+      <CommonGooglePlayBlockers />
     </Card>
   );
 }
@@ -513,25 +579,27 @@ function showGooglePlayError(result: {
         ? "Droits Google Play insuffisants"
         : result.errorCode === "version-already-used"
           ? "Numéro de build déjà utilisé"
-          : result.errorCode === "changes-in-review"
-            ? "Une modification est déjà en cours de revue"
-            : result.errorCode === "commit-outcome-unknown"
-              ? "Résultat de publication à vérifier"
-              : result.errorCode === "oauth-not-configured"
-                ? "Connexion Google à activer"
-                : result.errorCode === "credentials-missing"
-                  ? "Autorisation Google Play introuvable"
-                  : result.errorCode === "network-timeout"
-                    ? result.phase === "upload-bundle"
-                      ? "Envoi du fichier Android trop long"
-                      : "Google Play ne répond pas"
-                    : result.errorCode === "network-error"
+          : result.errorCode === "upload-key-mismatch"
+            ? "Clé de signature non reconnue"
+            : result.errorCode === "changes-in-review"
+              ? "Une modification est déjà en cours de revue"
+              : result.errorCode === "commit-outcome-unknown"
+                ? "Résultat de publication à vérifier"
+                : result.errorCode === "oauth-not-configured"
+                  ? "Connexion Google à activer"
+                  : result.errorCode === "credentials-missing"
+                    ? "Autorisation Google Play introuvable"
+                    : result.errorCode === "network-timeout"
                       ? result.phase === "upload-bundle"
-                        ? "Envoi du fichier Android interrompu"
-                        : "Communication Google Play interrompue"
-                      : result.errorCode === "aab-read-failed"
-                        ? "Fichier Android impossible à lire"
-                        : "Google Play a refusé l'opération";
+                        ? "Envoi du fichier Android trop long"
+                        : "Google Play ne répond pas"
+                      : result.errorCode === "network-error"
+                        ? result.phase === "upload-bundle"
+                          ? "Envoi du fichier Android interrompu"
+                          : "Communication Google Play interrompue"
+                        : result.errorCode === "aab-read-failed"
+                          ? "Fichier Android impossible à lire"
+                          : "Google Play a refusé l'opération";
   const description =
     result.errorCode === "app-not-found"
       ? "Créez la fiche, ajoutez et enregistrez le premier fichier Android dans le test interne, puis recommencez la vérification."
@@ -539,4 +607,200 @@ function showGooglePlayError(result: {
         ? "Google Play n'accepte jamais deux fichiers avec le même numéro interne. Ouvrez « Préparer la version », augmentez ce numéro, recréez le fichier Android, puis republiez."
         : result.errorHint;
   toast.error(title, { description, duration: 12_000 });
+}
+
+function GooglePlayRecovery({
+  failure,
+  onRetry,
+}: {
+  failure: GooglePlayFailure;
+  onRetry: () => void;
+}) {
+  const recovery = googlePlayRecoveryFor(failure);
+
+  async function openPlayConsole() {
+    try {
+      const opened = await bridge().shell.openExternal("https://play.google.com/console/");
+      if (!opened) toast.error("Impossible d’ouvrir Google Play Console");
+    } catch {
+      toast.error("Impossible d’ouvrir Google Play Console");
+    }
+  }
+
+  return (
+    <div role="alert" className="mt-4 rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">{recovery.title}</p>
+          <p className="mt-1 leading-relaxed text-muted-foreground">{recovery.explanation}</p>
+          <p className="mt-2 font-medium">Ce qu’il faut faire</p>
+          <p className="mt-1 leading-relaxed text-muted-foreground">{recovery.solution}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {recovery.action === "version" && (
+              <Button asChild size="sm">
+                <Link to="/version" onClick={() => JourneyProgress.rememberReturnTo("/publish")}>
+                  Augmenter le numéro interne
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+            {recovery.action === "build" && (
+              <Button asChild size="sm">
+                <Link to="/build" onClick={() => JourneyProgress.rememberReturnTo("/publish")}>
+                  Recréer le fichier Android
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+            {recovery.action === "signing" && (
+              <Button asChild size="sm">
+                <Link to="/signing" onClick={() => JourneyProgress.rememberReturnTo("/publish")}>
+                  Choisir la bonne signature
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+            {recovery.action === "console" && (
+              <Button size="sm" onClick={() => void openPlayConsole()}>
+                Ouvrir Play Console
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            )}
+            {recovery.action === "retry" && (
+              <Button size="sm" onClick={onRetry}>
+                Réessayer
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function googlePlayRecoveryFor(failure: GooglePlayFailure): {
+  title: string;
+  explanation: string;
+  solution: string;
+  action?: "version" | "build" | "signing" | "console" | "retry";
+} {
+  switch (failure.errorCode) {
+    case "app-not-found":
+      return {
+        title: "L’application n’existe pas encore dans Play Console",
+        explanation:
+          "Le compte Google est connecté, mais Google ne trouve aucune application portant cet identifiant Android.",
+        solution:
+          "Suivez l’assistant de première publication ci-dessous, puis revenez vérifier l’accès.",
+        action: "console",
+      };
+    case "permission-denied":
+      return {
+        title: "Le compte est connecté, mais il n’a pas les droits nécessaires",
+        explanation:
+          "La connexion Internet fonctionne. Google refuse l’accès de ce compte à cette application.",
+        solution:
+          "Dans Play Console, ouvrez Utilisateurs et autorisations, puis donnez au compte affiché l’accès à l’application et aux versions de test.",
+        action: "console",
+      };
+    case "version-already-used":
+      return {
+        title: "Ce numéro interne existe déjà chez Google",
+        explanation:
+          "Un versionCode ne peut être utilisé qu’une seule fois, même si l’ancienne version a été supprimée ou refusée.",
+        solution:
+          "Augmentez le numéro interne, recréez l’AAB, puis revenez l’envoyer. Ne changez pas seulement le nom visible de la version.",
+        action: "version",
+      };
+    case "aab-invalid":
+    case "aab-read-failed":
+    case "aab-identity-mismatch":
+      return {
+        title: "Le fichier Android ne correspond pas à cette publication",
+        explanation:
+          failure.errorHint ??
+          "Son identifiant, sa version, son numéro interne ou sa signature ne correspond pas au projet actif.",
+        solution:
+          "Recréez le fichier depuis l’étape Créer le fichier Android, sans réutiliser un ancien AAB.",
+        action: "build",
+      };
+    case "upload-key-mismatch":
+      return {
+        title: "Google ne reconnaît pas la clé de signature",
+        explanation:
+          "L’AAB a été signé avec une autre clé que celle enregistrée comme clé d’importation dans Play Console.",
+        solution:
+          "Choisissez la signature déjà reconnue par Google, puis recréez l’AAB. Ne créez pas une nouvelle clé pour une mise à jour.",
+        action: "signing",
+      };
+    case "commit-outcome-unknown":
+      return {
+        title: "Google a peut-être accepté la version",
+        explanation:
+          "La connexion a été coupée pendant la confirmation finale. Un nouvel essai immédiat risquerait d’utiliser deux fois le même numéro.",
+        solution: "Ouvrez Play Console et vérifiez le test interne avant toute nouvelle tentative.",
+        action: "console",
+      };
+    case "credentials-missing":
+    case "credentials-rejected":
+      return {
+        title: "L’autorisation Google n’est plus valable",
+        explanation:
+          failure.errorHint ?? "AppPublisher ne peut plus utiliser le compte enregistré.",
+        solution:
+          "Déconnectez Google Play, reconnectez le bon compte, puis vérifiez de nouveau l’accès.",
+      };
+    case "network-timeout":
+    case "network-error":
+      return {
+        title: "La communication avec Google a été interrompue",
+        explanation: failure.errorHint ?? "La connexion Google enregistrée n’a pas été supprimée.",
+        solution:
+          failure.phase === "upload-bundle"
+            ? "Vérifiez d’abord le test interne dans Play Console. Si la version n’y apparaît pas, vous pourrez réessayer."
+            : "Vérifiez votre accès Internet, puis relancez uniquement cette vérification.",
+        action: failure.phase === "upload-bundle" ? "console" : "retry",
+      };
+    default:
+      return {
+        title: "Google Play a refusé l’opération",
+        explanation: failure.errorHint ?? "AppPublisher n’a pas reçu de réponse exploitable.",
+        solution:
+          "Consultez le détail ci-dessus, vérifiez Play Console, puis réessayez uniquement après avoir identifié le point bloquant.",
+        action: "console",
+      };
+  }
+}
+
+function CommonGooglePlayBlockers() {
+  return (
+    <Accordion type="single" collapsible className="mt-5 border-t">
+      <AccordionItem value="common-blockers" className="border-b-0">
+        <AccordionTrigger className="py-3 text-sm text-muted-foreground hover:no-underline">
+          Les quatre blocages les plus fréquents
+        </AccordionTrigger>
+        <AccordionContent>
+          <ul className="grid gap-3 text-xs text-muted-foreground md:grid-cols-2">
+            <li className="rounded-lg border bg-muted/20 p-3">
+              <strong className="text-foreground">Numéro déjà utilisé.</strong> Augmentez le numéro
+              interne, puis recréez l’AAB.
+            </li>
+            <li className="rounded-lg border bg-muted/20 p-3">
+              <strong className="text-foreground">Mauvais identifiant.</strong> Le package de l’AAB
+              doit être exactement celui de la fiche Play Console.
+            </li>
+            <li className="rounded-lg border bg-muted/20 p-3">
+              <strong className="text-foreground">Mauvaise clé.</strong> Une mise à jour doit être
+              signée avec la clé d’importation reconnue par Google.
+            </li>
+            <li className="rounded-lg border bg-muted/20 p-3">
+              <strong className="text-foreground">Droits insuffisants.</strong> Le compte connecté
+              doit avoir accès à l’application et aux versions de test.
+            </li>
+          </ul>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
 }
