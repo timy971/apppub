@@ -314,8 +314,8 @@ function ReadyScreen({ onBuild, onDashboard }: { onBuild: () => void; onDashboar
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Projet prêt à construire</h2>
         <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
-          Toutes les informations nécessaires sont réunies. Vous pouvez désormais lancer un build ou
-          préparer une release.
+          Toutes les informations nécessaires sont réunies. Vous pouvez désormais créer le fichier
+          Android puis préparer sa publication.
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-2 pt-2">

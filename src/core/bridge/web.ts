@@ -236,7 +236,7 @@ export const webBridge: SystemBridge = {
       return { removed: [] };
     },
     async completeRollbackGuard() {
-      return { completed: true };
+      return { completed: false, created: [] };
     },
   },
 
@@ -319,8 +319,8 @@ export const webBridge: SystemBridge = {
     async create(projectPath) {
       return { location: `${projectPath}/.apppublisher-backups/simulation`, files: [] };
     },
-    async restore(_projectPath, location, files) {
-      return { location, files };
+    async restore() {
+      throw new Error("La restauration réelle nécessite l’application AppPublisher installée.");
     },
   },
 

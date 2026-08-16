@@ -11,6 +11,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ExpertDetails, ExpertRow, CopyButton } from "@/components/expert-details";
 import { getAndroidConfig } from "@/core/projects/android-config";
 import { bridge } from "@/core/bridge";
+import { useMode } from "@/core/store/use-mode";
+import { termLabel } from "@/core/i18n/fr";
 
 interface Props {
   project: Project;
@@ -20,6 +22,7 @@ interface Props {
 }
 
 export function SidePanel({ project, settings, snap, stats }: Props) {
+  const mode = useMode();
   const recent = useMemo(
     () =>
       HistoryService.forProject(project.id)
@@ -45,11 +48,12 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
             label="Version"
             value={
               <span className="tabular-nums">
-                v{project.currentVersion} · build {project.currentBuild}
+                v{project.currentVersion} · {termLabel("internalNumber", mode).toLowerCase()}{" "}
+                {project.currentBuild}
               </span>
             }
           />
-          <Row label="Type" value="Bundle Android (.aab)" />
+          <Row label="Type" value={termLabel("androidFile", mode)} />
           <Row label="Utilisateur" value={settings.userName || "vous"} />
           {stats.sampleSize > 0 && (
             <Row
@@ -64,7 +68,7 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
           )}
           {stats.lastMs != null && (
             <Row
-              label="Dernier build"
+              label="Dernière création"
               value={<span className="tabular-nums">{formatDuration(stats.lastMs)}</span>}
             />
           )}
@@ -104,7 +108,7 @@ export function SidePanel({ project, settings, snap, stats }: Props) {
         </div>
         {recent.length === 0 ? (
           <div className="text-sm text-muted-foreground">
-            Aucun build enregistré pour ce projet.
+            Aucun fichier Android créé pour cette application.
           </div>
         ) : (
           <ul className="space-y-2">
@@ -130,6 +134,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function HistoryRow({ rec }: { rec: PublishRecord }) {
+  const mode = useMode();
   const OutcomeIcon = rec.outcome === "success" ? CheckCircle2 : XCircle;
   const tone = rec.outcome === "success" ? "text-success" : "text-danger";
   return (
@@ -137,7 +142,7 @@ function HistoryRow({ rec }: { rec: PublishRecord }) {
       <OutcomeIcon className={cn("h-4 w-4 shrink-0", tone)} />
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium">
-          v{rec.version} · build {rec.build}
+          v{rec.version} · {termLabel("internalNumber", mode).toLowerCase()} {rec.build}
         </div>
         <div className="text-xs text-muted-foreground">
           {new Date(rec.createdAt).toLocaleString("fr-FR", {

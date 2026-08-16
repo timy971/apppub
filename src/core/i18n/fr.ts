@@ -22,6 +22,32 @@ export interface Term {
 }
 
 export const TERMS = {
+  application: {
+    label: "Application",
+    technical: "Projet",
+  },
+  androidFile: {
+    label: "Fichier Android",
+    technical: "Bundle Android (.aab)",
+    hint: "Le fichier signé qu’AppPublisher prépare pour Google Play.",
+  },
+  version: {
+    label: "Version",
+    technical: "versionName",
+  },
+  internalNumber: {
+    label: "Numéro interne",
+    technical: "versionCode / build",
+    hint: "Google Play exige un numéro plus grand à chaque nouvel envoi.",
+  },
+  preparation: {
+    label: "Préparation",
+    technical: "Préparation de release",
+  },
+  publication: {
+    label: "Publication",
+    technical: "Release",
+  },
   projectFolder: {
     label: "Dossier du projet",
     technical: "Chemin du projet",
@@ -75,8 +101,8 @@ export const TERMS = {
     why: "Apple exige un Team ID valide pour signer et publier une application iOS.",
   },
   artifact: {
-    label: "Fichier généré (.aab)",
-    technical: "Artifact",
+    label: "Fichier Android",
+    technical: "Artefact AAB",
     why: "Google Play accepte uniquement des fichiers .aab générés pour la version en cours.",
   },
   workingDir: {
@@ -88,7 +114,30 @@ export const TERMS = {
 export type TermKey = keyof typeof TERMS;
 
 /** Retourne le libellé selon le mode d'expérience. */
-export function termLabel(key: TermKey, expert: boolean): string {
+export function termLabel(key: TermKey, mode: ExperienceMode | boolean): string {
   const t = TERMS[key] as Term;
+  const expert = typeof mode === "boolean" ? mode : mode === "expert";
   return expert && t.technical ? t.technical : t.label;
 }
+
+export const EXPERIENCE_MODES: Record<
+  ExperienceMode,
+  { label: string; summary: string; shows: string }
+> = {
+  discovery: {
+    label: "Découverte",
+    summary: "Une seule action claire à la fois.",
+    shows: "L’essentiel, les blocages et la prochaine étape.",
+  },
+  assistant: {
+    label: "Assistant",
+    summary: "Le parcours complet avec des explications.",
+    shows: "Les vérifications, les conseils et les actions guidées.",
+  },
+  expert: {
+    label: "Expert",
+    summary: "Toutes les informations techniques.",
+    shows: "Les chemins, commandes, journaux, identifiants Android et contrôles AAB.",
+  },
+};
+import type { ExperienceMode } from "@/core/types";

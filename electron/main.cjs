@@ -1404,7 +1404,7 @@ ipcMain.handle("backups:create", (_e, projectPath, reason) => {
   return backupManager.create(projectPath, reason);
 });
 
-ipcMain.handle("backups:restore", async (_e, projectPath, location, files) => {
+ipcMain.handle("backups:restore", async (_e, projectPath, location, files, createdPaths) => {
   const project = resolveWithinAllowed(projectPath);
   if (!project) throw new Error("Projet non autorisé.");
   const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
@@ -1412,14 +1412,14 @@ ipcMain.handle("backups:restore", async (_e, projectPath, location, files) => {
     title: "Restaurer cette sauvegarde ?",
     message: `Les fichiers actuels de « ${path.basename(project)} » vont être remplacés.`,
     detail:
-      "AppPublisher vérifiera intégralement le snapshot avant de modifier le premier fichier.",
+      "AppPublisher vérifiera intégralement le snapshot avant de modifier le premier fichier. Les éléments créés par AppPublisher seront supprimés.",
     buttons: ["Restaurer", "Annuler"],
     defaultId: 1,
     cancelId: 1,
     noLink: true,
   });
   if (confirmation.response !== 0) throw new Error("Restauration annulée.");
-  return backupManager.restore(projectPath, location, files);
+  return backupManager.restore(projectPath, location, files, createdPaths);
 });
 
 /* ---------- IPC : Exec (streaming) ---------- */

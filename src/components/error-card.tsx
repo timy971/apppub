@@ -1,8 +1,8 @@
-import { AlertTriangle, RotateCw, LifeBuoy } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { AlertTriangle, RotateCw } from "lucide-react";
 import type { TranslatedError } from "@/core/types";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import { HelpRequestButton } from "./help-request-button";
 
 /**
  * ErrorCard — présente une erreur traduite. Jamais de stack, jamais de code.
@@ -34,12 +34,7 @@ export function ErrorCard({ error, onRetry }: { error: TranslatedError; onRetry?
                 Réessayer
               </Button>
             )}
-            <Button asChild variant="outline">
-              <Link to="/journal" search={{ view: "summary" }}>
-                <LifeBuoy className="h-4 w-4" />
-                Consulter le support
-              </Link>
-            </Button>
+            <HelpRequestButton error={error} />
           </div>
         </div>
       </div>

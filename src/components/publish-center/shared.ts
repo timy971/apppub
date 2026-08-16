@@ -253,7 +253,7 @@ export function buildChecklist(input: {
     id: "version-current",
     label: "Numéro de version défini",
     severity: "ok",
-    detail: `Version ${project.currentVersion} · build ${project.currentBuild}`,
+    detail: `Version ${project.currentVersion} · numéro interne ${project.currentBuild}`,
   });
 
   const envErrors = checks.filter((c) => c.category === "environment" && c.status === "error");
@@ -287,7 +287,7 @@ export function buildChecklist(input: {
     action:
       artifact.status === "valid"
         ? undefined
-        : { kind: "route", label: "Construire l'application", to: "/build" },
+        : { kind: "route", label: "Créer le fichier Android", to: "/build" },
   });
 
   const notesTrim = notes.trim();
@@ -310,7 +310,7 @@ export function buildChecklist(input: {
     catOf("environment", "Environnement", environment),
     catOf("android", "Android", android),
     catOf("ios", "iOS", ios),
-    catOf("build", "Build", build),
+    catOf("build", "Fichier Android", build),
     catOf("notes", "Notes de version", notesCat),
   ];
 

@@ -290,7 +290,10 @@ export interface SystemBridge {
       request: AndroidPreparationRequest,
     ): Promise<{ token: string }>;
     rollbackCreatedArtifacts(projectPath: string, token: string): Promise<{ removed: string[] }>;
-    completeRollbackGuard(projectPath: string, token: string): Promise<{ completed: boolean }>;
+    completeRollbackGuard(
+      projectPath: string,
+      token: string,
+    ): Promise<{ completed: boolean; created: string[] }>;
     createConfig(
       projectPath: string,
       request: AndroidPreparationRequest,
@@ -328,13 +331,14 @@ export interface SystemBridge {
   backups: {
     create(
       projectPath: string,
-      reason: "build" | "correction" | "manual" | "publish" | "version",
+      reason: "android-preparation" | "build" | "correction" | "manual" | "publish" | "version",
     ): Promise<NativeBackupResult>;
     restore(
       projectPath: string,
       location: string,
       files: BackupFileRecord[],
-    ): Promise<NativeBackupResult>;
+      createdPaths?: string[],
+    ): Promise<NativeBackupResult & { removed?: string[] }>;
   };
 
   exec: {

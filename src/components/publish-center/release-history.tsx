@@ -36,7 +36,7 @@ export function ReleaseHistoryCard({ project, history }: Props) {
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <HistoryIcon className="h-4 w-4 text-primary" />
-          <h2 className="text-base font-semibold">Historique de release</h2>
+          <h2 className="text-base font-semibold">Historique de publication</h2>
         </div>
         <Button asChild size="sm" variant="ghost">
           <Link to="/journal" search={{ view: "history" }}>
@@ -47,7 +47,7 @@ export function ReleaseHistoryCard({ project, history }: Props) {
       </div>
       {items.length === 0 ? (
         <div className="text-sm text-muted-foreground">
-          Aucune activité de release pour ce projet.
+          Aucune activité de publication pour cette application.
         </div>
       ) : (
         <ol className="relative space-y-4 border-l pl-5">
@@ -93,7 +93,7 @@ function buildItems(project: Project, history: PublishRecord[]): TimelineItem[] 
       id: r.id,
       kind,
       title: r.storeRelease
-        ? `Publiée sur Google Play — v${r.version} · build ${r.build}`
+        ? `Publiée sur Google Play — v${r.version} · numéro interne ${r.build}`
         : titleFor(kind, r.version, r.build, r.outcome),
       detail: r.message,
       at: r.createdAt,
@@ -130,12 +130,12 @@ function titleFor(
           : "Envoi Google Play en échec"
         : kind === "build"
           ? outcome === "success"
-            ? "Build terminé"
-            : "Build en échec"
+            ? "Fichier Android créé"
+            : "Création du fichier Android en échec"
           : kind === "backup"
             ? "Sauvegarde"
             : "Version mise à jour";
-  return `${prefix} — v${version} · build ${build}`;
+  return `${prefix} — v${version} · numéro interne ${build}`;
 }
 
 function labelReason(reason: string): string {

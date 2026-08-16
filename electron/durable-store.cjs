@@ -3,6 +3,7 @@ const path = require("path");
 const {
   BACKUP_REASONS,
   MAX_STORED_BACKUPS,
+  REMOVABLE_GENERATED_PATHS,
   SNAPSHOT_FILES,
   safeRelativeFile,
 } = require("./backup-schema.cjs");
@@ -91,6 +92,23 @@ function validateBackupValue(value) {
       }
       if (!Number.isSafeInteger(file.size) || file.size < 0) {
         return `la taille de « ${file.path} » est invalide`;
+      }
+    }
+    for (const field of ["changedFiles", "createdPaths"]) {
+      if (backup[field] === undefined) continue;
+      const allowed = field === "createdPaths" ? REMOVABLE_GENERATED_PATHS : null;
+      if (
+        !validArray(
+          backup[field],
+          100,
+          (item) =>
+            typeof item === "string" &&
+            item.length > 0 &&
+            item.length <= 500 &&
+            (!allowed || allowed.includes(item)),
+        )
+      ) {
+        return `la sauvegarde ${backupIndex + 1} a un champ « ${field} » invalide`;
       }
     }
   }

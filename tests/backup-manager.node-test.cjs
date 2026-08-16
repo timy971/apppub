@@ -69,3 +69,23 @@ test("captures Android SDK variables for a correction snapshot", (t) => {
   const snapshot = manager.create(project, "correction");
   assert.ok(snapshot.files.some((file) => file.path === "android/variables.gradle"));
 });
+
+test("undo removes only generated paths that were absent from the snapshot", (t) => {
+  const { project, manager } = fixture(t);
+  const snapshot = manager.create(project, "android-preparation");
+  fs.mkdirSync(path.join(project, "dist"));
+  fs.writeFileSync(path.join(project, "dist", "index.html"), "generated");
+
+  const restored = manager.restore(project, snapshot.location, snapshot.files, ["dist"]);
+  assert.deepEqual(restored.removed, ["dist"]);
+  assert.equal(fs.existsSync(path.join(project, "dist")), false);
+  assert.equal(fs.existsSync(path.join(project, "package.json")), true);
+  assert.throws(
+    () => manager.restore(project, snapshot.location, snapshot.files, ["../../outside"]),
+    /éléments générés invalide/,
+  );
+  assert.throws(
+    () => manager.restore(project, snapshot.location, snapshot.files, ["android"]),
+    /éléments générés invalide/,
+  );
+});

@@ -3,7 +3,12 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { BACKUP_REASONS, SNAPSHOT_FILES, safeRelativeFile } = require("./backup-schema.cjs");
+const {
+  BACKUP_REASONS,
+  REMOVABLE_GENERATED_PATHS,
+  SNAPSHOT_FILES,
+  safeRelativeFile,
+} = require("./backup-schema.cjs");
 
 const BACKUPS_FOLDER = ".apppublisher-backups";
 const REASONS = new Set(BACKUP_REASONS);
@@ -71,7 +76,7 @@ class BackupManager {
     return { location, files };
   }
 
-  restore(projectPath, locationInput, files) {
+  restore(projectPath, locationInput, files, createdPaths = []) {
     const project = this.resolveProject(projectPath);
     const backupRoot = this.access.resolveExisting(path.join(project, BACKUPS_FOLDER));
     const location = this.access.resolveExisting(locationInput);
@@ -106,6 +111,17 @@ class BackupManager {
       return { ...file, source, destination };
     });
 
+    if (
+      !Array.isArray(createdPaths) ||
+      !createdPaths.every(
+        (relative) =>
+          REMOVABLE_GENERATED_PATHS.includes(relative) &&
+          !validated.some((file) => file.path === relative || file.path.startsWith(`${relative}/`)),
+      )
+    ) {
+      throw new Error("Liste d’éléments générés invalide.");
+    }
+
     for (const item of validated) {
       this.fs.mkdirSync(path.dirname(item.destination), { recursive: true });
       const temporary = `${item.destination}.apppublisher-restore-${process.pid}`;
@@ -122,7 +138,17 @@ class BackupManager {
         throw error;
       }
     }
-    return { files: validated.map(({ path: relative, size }) => ({ path: relative, size })) };
+    const removed = [];
+    for (const relative of createdPaths) {
+      const target = this.access.resolveExisting(path.join(project, relative));
+      if (!target) continue;
+      this.fs.rmSync(target, { recursive: true, force: true });
+      removed.push(relative);
+    }
+    return {
+      files: validated.map(({ path: relative, size }) => ({ path: relative, size })),
+      removed,
+    };
   }
 }
 
