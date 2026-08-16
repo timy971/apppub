@@ -44,6 +44,27 @@ test("le premier écran explique la promesse en moins d'une minute", () => {
   assert.match(setup, /Rien n'est envoyé sans votre confirmation/);
 });
 
+test("l'accueil concentre l'attention sur une seule prochaine action", () => {
+  const dashboard = read("src/routes/index.tsx");
+  const focus = read("src/components/dashboard/focus-card.tsx");
+  assert.match(dashboard, /<DashboardFocusCard/);
+  assert.doesNotMatch(dashboard, /<TodayCard|<NextStepCard|<BlockersCard|<ReadyCard/);
+  assert.match(focus, /Application active/);
+  assert.match(focus, /Votre prochaine action/);
+  assert.match(focus, /Étape \{currentIndex \+ 1\} sur \{plan\.steps\.length\}/);
+  assert.match(focus, /<details/);
+  assert.match(focus, /Voir l'état détaillé/);
+  assert.doesNotMatch(focus, /Score \{plan\.score\}|Temps estimé/);
+  assert.match(dashboard, /summaries\.length > 0 &&/);
+});
+
+test("les indicateurs secondaires restent repliés hors du mode découverte", () => {
+  const dashboard = read("src/routes/index.tsx");
+  assert.match(dashboard, /settings\.mode !== "discovery"/);
+  assert.match(dashboard, /<details[^>]*className="group rounded-xl/);
+  assert.match(dashboard, /Indicateurs et activité/);
+});
+
 test("l'onboarding accepte un lien GitHub ou Lovable sans demander de connaître Git", () => {
   const setup = read("src/routes/setup.tsx");
   assert.match(setup, /Sur GitHub ou Lovable/);
