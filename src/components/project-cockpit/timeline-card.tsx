@@ -17,7 +17,7 @@ import { useCockpitNav } from "./cockpit-nav";
 
 interface TimelineEvent {
   id: string;
-  kind: "created" | "version" | "build" | "publish" | "backup" | "diagnostic";
+  kind: "created" | "version" | "build" | "release-prepared" | "publish" | "backup" | "diagnostic";
   title: string;
   detail?: string;
   at: string;
@@ -81,7 +81,11 @@ function buildEvents(project: Project): TimelineEvent[] {
     at: project.createdAt,
   });
   for (const r of HistoryService.forProject(project.id)) {
-    const kind = (r.kind ?? "version") as TimelineEvent["kind"];
+    const kind = (
+      r.kind === "publish" && !r.storeRelease && r.outcome === "success"
+        ? "release-prepared"
+        : (r.kind ?? "version")
+    ) as TimelineEvent["kind"];
     events.push({
       id: r.id,
       kind,
@@ -111,15 +115,19 @@ function titleFor(
   outcome: "success" | "failure",
 ): string {
   const prefix =
-    kind === "publish"
+    kind === "release-prepared"
       ? outcome === "success"
         ? "Publication préparée"
-        : "Publication en échec"
-      : kind === "build"
+        : "Préparation en échec"
+      : kind === "publish"
         ? outcome === "success"
-          ? "Build terminé"
-          : "Build en échec"
-        : "Version mise à jour";
+          ? "Envoyée à Google Play"
+          : "Envoi Google Play en échec"
+        : kind === "build"
+          ? outcome === "success"
+            ? "Build terminé"
+            : "Build en échec"
+          : "Version mise à jour";
   return `${prefix} — v${version} · build ${build}`;
 }
 
@@ -149,6 +157,8 @@ function IconFor({ kind }: { kind: TimelineEvent["kind"] }) {
       return <Package className={cls} />;
     case "publish":
       return <Rocket className={cls} />;
+    case "release-prepared":
+      return <Rocket className={cls} />;
     case "backup":
       return <ArchiveRestore className={cls} />;
     case "diagnostic":
@@ -160,6 +170,8 @@ function bgFor(e: TimelineEvent): string {
   if (e.outcome === "failure") return "bg-danger";
   switch (e.kind) {
     case "publish":
+      return "bg-success";
+    case "release-prepared":
       return "bg-primary";
     case "build":
       return "bg-success";

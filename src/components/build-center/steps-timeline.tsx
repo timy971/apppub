@@ -13,7 +13,7 @@ export function StepsTimeline({ steps, nowMs }: Props) {
   return (
     <Card className="p-5 shadow-soft">
       <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Étapes du build
+        Étapes de création
       </div>
       <ol className="relative space-y-4">
         {steps.map((step, idx) => (
@@ -35,9 +35,7 @@ export function StepsTimeline({ steps, nowMs }: Props) {
                 <StepDuration step={step} nowMs={nowMs} />
               </div>
               {step.description && step.status !== "success" && (
-                <div className="mt-0.5 text-xs text-muted-foreground/80">
-                  {step.description}
-                </div>
+                <div className="mt-0.5 text-xs text-muted-foreground/80">{step.description}</div>
               )}
               {step.detail && (
                 <div className="mt-0.5 text-sm text-muted-foreground">{step.detail}</div>
@@ -56,9 +54,7 @@ function StepDuration({ step, nowMs }: { step: OperationStep; nowMs: number }) {
   const ms = end - step.startedAt;
   if (ms < 300 && step.status !== "running") return null;
   return (
-    <div className="shrink-0 text-xs tabular-nums text-muted-foreground">
-      {formatDuration(ms)}
-    </div>
+    <div className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatDuration(ms)}</div>
   );
 }
 

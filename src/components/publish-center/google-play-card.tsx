@@ -29,7 +29,7 @@ import { GooglePlaySetupGuide } from "./google-play-setup-guide";
 
 interface Props {
   project: Project;
-  release: PublishRecord;
+  release?: PublishRecord;
   onChanged: () => void;
 }
 
@@ -49,8 +49,15 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   const connected = !!connectionId && !!accountEmail;
   const verified = connected && !!android.googlePlayLastCheckedAt;
   const initializationRequired = connected && android.googlePlaySetupStatus === "required";
-  const alreadyPublished =
-    release.storeRelease?.provider === "google-play" && release.storeRelease.track === "internal";
+  const alreadyPublished = HistoryService.list().some(
+    (record) =>
+      record.projectId === project.id &&
+      record.version === project.currentVersion &&
+      record.build === project.currentBuild &&
+      record.outcome === "success" &&
+      record.storeRelease?.provider === "google-play" &&
+      record.storeRelease.track === "internal",
+  );
 
   const connectionArgs = connectionId
     ? { projectPath: project.localPath, packageName, connectionId }
@@ -229,7 +236,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   }
 
   async function publish() {
-    if (!connectionArgs || !release.artifactPath) return;
+    if (!connectionArgs || !release?.artifactPath) return;
     if (!release.notes?.trim()) {
       toast.error("Notes de version manquantes", {
         description: "Préparez de nouveau la release avec des notes avant l'envoi.",
@@ -341,7 +348,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-semibold">Publication Google Play</h2>
-              <Badge variant="outline">Piste internal uniquement</Badge>
+              <Badge variant="outline">Test interne uniquement</Badge>
               {verified && (
                 <Badge className="bg-success/15 text-success hover:bg-success/15">
                   Connexion vérifiée
@@ -366,7 +373,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
             {alreadyPublished && (
               <div className="mt-3 flex items-center gap-2 text-sm text-success">
                 <CheckCircle2 className="h-4 w-4" />
-                Cette release a été envoyée sur la piste interne.
+                Cette version a été envoyée aux testeurs internes.
               </div>
             )}
           </div>
@@ -396,14 +403,14 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
               )}
               <Button
                 onClick={publish}
-                disabled={busy !== null || !verified || !release.notes || alreadyPublished}
+                disabled={busy !== null || !verified || !release?.notes || alreadyPublished}
               >
                 {busy === "publish" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-                Publier sur internal
+                Envoyer aux testeurs internes
               </Button>
               <Button
                 variant="ghost"
@@ -421,11 +428,17 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           )}
         </div>
       </div>
+      {!release && (
+        <div className="mt-4 rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+          Vous pouvez vérifier la connexion dès maintenant. L'envoi sera disponible après la
+          création et la préparation du fichier Android.
+        </div>
+      )}
       {initializationRequired && (
         <GooglePlaySetupGuide
           projectName={project.name}
           packageName={packageName}
-          aabPath={release.artifactPath}
+          aabPath={release?.artifactPath}
           verifying={busy === "test"}
           onVerify={testConnection}
         />
@@ -495,20 +508,20 @@ function showGooglePlayError(result: {
                   ? "Autorisation Google Play introuvable"
                   : result.errorCode === "network-timeout"
                     ? result.phase === "upload-bundle"
-                      ? "Envoi de l'AAB trop long"
+                      ? "Envoi du fichier Android trop long"
                       : "Google Play ne répond pas"
                     : result.errorCode === "network-error"
                       ? result.phase === "upload-bundle"
-                        ? "Envoi de l'AAB interrompu"
+                        ? "Envoi du fichier Android interrompu"
                         : "Communication Google Play interrompue"
                       : result.errorCode === "aab-read-failed"
-                        ? "AAB impossible à lire"
+                        ? "Fichier Android impossible à lire"
                         : "Google Play a refusé l'opération";
   const description =
     result.errorCode === "app-not-found"
-      ? "Créez la fiche, ajoutez et enregistrez le premier AAB dans le test interne, puis recommencez la vérification."
+      ? "Créez la fiche, ajoutez et enregistrez le premier fichier Android dans le test interne, puis recommencez la vérification."
       : result.errorCode === "version-already-used"
-        ? "Google Play n'accepte jamais deux AAB avec le même versionCode. Augmentez le numéro de build dans le Version Center, reconstruisez l'AAB, puis republiez."
+        ? "Google Play n'accepte jamais deux fichiers avec le même numéro interne. Ouvrez « Préparer la version », augmentez ce numéro, recréez le fichier Android, puis republiez."
         : result.errorHint;
   toast.error(title, { description, duration: 12_000 });
 }

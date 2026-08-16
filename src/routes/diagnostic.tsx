@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -11,6 +11,7 @@ import { HealthScoreCard } from "@/components/health-score-card";
 import { WhyButton } from "@/components/why-button";
 import type { HealthCheck, HealthScore } from "@/core/types";
 import { useActiveProject, useSettings } from "@/core/store/app-store";
+import { StepPurpose } from "@/components/step-purpose";
 
 export const Route = createFileRoute("/diagnostic")({
   component: DiagnosticPage,
@@ -28,13 +29,24 @@ function DiagnosticPage() {
   const [checks, setChecks] = useState<HealthCheck[]>([]);
   const [score, setScore] = useState<HealthScore | null>(null);
   const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
+    if (!project) return;
     setRunning(true);
+    setError(null);
     try {
       const c = await DiagnosticService.run(project);
       setChecks(c);
       setScore(HealthScoreService.from(c));
+    } catch (reason) {
+      setChecks([]);
+      setScore(null);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "AppPublisher n'a pas pu terminer la vérification.",
+      );
     } finally {
       setRunning(false);
     }
@@ -48,18 +60,18 @@ function DiagnosticPage() {
   return (
     <div>
       <PageHeader
-        title="Santé du projet"
+        title="Vérifier l'application"
         subtitle={
           project
-            ? `Vérifications automatiques sur « ${project.name} ». Aucun jargon, uniquement l'essentiel.`
-            : "Ajoutez un projet pour lancer une vérification."
+            ? `AppPublisher contrôle automatiquement « ${project.name} » et explique chaque action nécessaire.`
+            : "Ajoutez une application pour lancer sa vérification."
         }
         help={{
-          title: "À propos du diagnostic",
+          title: "Comprendre la vérification",
           content: (
             <>
-              🟢 Tout va bien · 🟠 Attention, action recommandée · 🔴 Problème
-              bloquant. Chaque alerte est accompagnée d'une explication en français.
+              🟢 Tout va bien · 🟠 Attention, action recommandée · 🔴 Problème bloquant. Chaque
+              alerte est accompagnée d'une explication en français.
             </>
           ),
         }}
@@ -71,43 +83,74 @@ function DiagnosticPage() {
         }
       />
 
-      {score && (
+      <StepPurpose
+        automatic="contrôler votre ordinateur et la configuration de l'application."
+        yourAction="ouvrir la première alerte et suivre la solution proposée."
+        result="vous savez exactement si la création du fichier peut commencer."
+      />
+
+      {!project && (
+        <Card className="mb-6 p-8 text-center shadow-soft">
+          <div className="text-lg font-semibold">Ajoutez d'abord votre application</div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            AppPublisher pourra ensuite vérifier automatiquement ce qui est prêt.
+          </p>
+          <Button asChild className="mt-4">
+            <Link to="/projects">Ajouter une application</Link>
+          </Button>
+        </Card>
+      )}
+
+      {error && (
+        <Card role="alert" className="mb-6 border-danger/40 p-5 shadow-soft">
+          <div className="font-semibold">Vérification interrompue</div>
+          <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+          <Button className="mt-4" variant="outline" onClick={refresh} disabled={running}>
+            Réessayer
+          </Button>
+        </Card>
+      )}
+
+      {project && score && (
         <div className="mb-6">
           <HealthScoreCard score={score} />
         </div>
       )}
 
-      <div className="space-y-6">
-        {GROUPS.map((g) => {
-          const items = checks.filter((c) => (c.category ?? "environment") === g.id);
-          if (items.length === 0) return null;
-          return (
-            <section key={g.id}>
-              <div className="mb-2 text-sm font-medium text-muted-foreground">{g.label}</div>
-              <div className="grid gap-3">
-                {items.map((c) => (
-                  <Card key={c.id} className="p-4 shadow-soft">
-                    <div className="flex items-start gap-4">
-                      <StatusDot status={c.status} className="mt-1.5" />
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium">{c.label}</div>
-                        {c.detail && (
-                          <div className="mt-1 text-sm text-muted-foreground">{c.detail}</div>
-                        )}
-                        {(settings.mode === "discovery" || settings.mode === "expert") && c.why && (
-                          <div className="mt-2">
-                            <WhyButton title={c.label}>{c.why}</WhyButton>
-                          </div>
-                        )}
+      {project && !error && (
+        <div className="space-y-6">
+          {GROUPS.map((g) => {
+            const items = checks.filter((c) => (c.category ?? "environment") === g.id);
+            if (items.length === 0) return null;
+            return (
+              <section key={g.id}>
+                <div className="mb-2 text-sm font-medium text-muted-foreground">{g.label}</div>
+                <div className="grid gap-3">
+                  {items.map((c) => (
+                    <Card key={c.id} className="p-4 shadow-soft">
+                      <div className="flex items-start gap-4">
+                        <StatusDot status={c.status} className="mt-1.5" />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium">{c.label}</div>
+                          {c.detail && (
+                            <div className="mt-1 text-sm text-muted-foreground">{c.detail}</div>
+                          )}
+                          {(settings.mode === "discovery" || settings.mode === "expert") &&
+                            c.why && (
+                              <div className="mt-2">
+                                <WhyButton title={c.label}>{c.why}</WhyButton>
+                              </div>
+                            )}
+                        </div>
                       </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+                    </Card>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -59,8 +59,8 @@ export function GooglePlaySetupGuide({
           </h3>
           <p className="mt-1 text-sm leading-relaxed text-amber-900/80 dark:text-amber-100/75">
             Votre compte Google est bien connecté. Google impose simplement de créer la fiche et
-            d’ajouter le premier AAB dans Play Console. AppPublisher pourra ensuite envoyer les
-            mises à jour automatiquement.
+            d’ajouter le premier fichier Android (AAB) dans Play Console. AppPublisher pourra
+            ensuite envoyer les mises à jour automatiquement.
           </p>
         </div>
       </div>
@@ -81,7 +81,7 @@ export function GooglePlaySetupGuide({
         <SetupStep number="2" title="Gardez exactement cet identifiant Android">
           <p>
             Il sera attaché définitivement à la fiche lors du premier téléversement. Ne le modifiez
-            pas dans le fichier AAB.
+            pas dans le fichier Android.
           </p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
             <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border bg-background px-3 py-2 text-xs">
@@ -93,16 +93,16 @@ export function GooglePlaySetupGuide({
             </Button>
           </div>
           <p className="mt-2 text-xs">
-            Si Google indique que cet identifiant est déjà utilisé, n’envoyez pas l’AAB : il faudra
-            d’abord choisir un nouvel identifiant dans AppPublisher et reconstruire l’application.
+            Si Google indique que cet identifiant est déjà utilisé, n’envoyez pas le fichier : il
+            faudra d’abord choisir un nouvel identifiant dans AppPublisher et recréer l’application.
           </p>
         </SetupStep>
 
-        <SetupStep number="3" title="Ajoutez le premier AAB au test interne">
+        <SetupStep number="3" title="Ajoutez le premier fichier Android au test interne">
           <p>
             Dans Play Console, ouvrez <strong>Tests et publication → Tests → Test interne</strong>,
-            créez une version, déposez le fichier AAB ci-dessous, puis enregistrez-la. Il n’est pas
-            nécessaire de publier en production.
+            créez une version, déposez le fichier Android ci-dessous, puis enregistrez-la. Il n’est
+            pas nécessaire de publier pour tout le monde.
           </p>
           {aabPath ? (
             <>
@@ -111,19 +111,19 @@ export function GooglePlaySetupGuide({
               </p>
               <Button className="mt-3" variant="outline" onClick={revealAab}>
                 <FileArchive className="h-4 w-4" />
-                Afficher l’AAB dans le Finder
+                Afficher le fichier dans le Finder
               </Button>
             </>
           ) : (
             <p className="mt-2 text-xs font-medium text-amber-800 dark:text-amber-200">
-              Aucun AAB prêt n’a été trouvé. Revenez au Build Center pour le construire.
+              Aucun fichier prêt n’a été trouvé. Revenez à « Créer le fichier Android ».
             </p>
           )}
         </SetupStep>
 
         <SetupStep number="4" title="Laissez AppPublisher vérifier">
           <p>
-            Une fois le premier AAB enregistré dans Play Console, revenez ici. AppPublisher
+            Une fois le premier fichier enregistré dans Play Console, revenez ici. AppPublisher
             vérifiera la fiche sans publier de nouvelle version.
           </p>
           <Button className="mt-3" onClick={onVerify} disabled={verifying}>

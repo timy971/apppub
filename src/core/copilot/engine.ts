@@ -20,11 +20,12 @@ import { COPILOT_RULES } from "./rules/priority";
  */
 
 const DEFAULT_STEPS: { id: string; title: string }[] = [
-  { id: "project", title: "Projet créé" },
-  { id: "version", title: "Version définie" },
-  { id: "build", title: "Build produit" },
-  { id: "prepare", title: "Préparation release" },
-  { id: "publish", title: "Publication" },
+  { id: "project", title: "Votre application" },
+  { id: "diagnostic", title: "Vérifier" },
+  { id: "version", title: "Préparer la version" },
+  { id: "signing", title: "Protéger" },
+  { id: "build", title: "Créer le fichier" },
+  { id: "publish", title: "Publier" },
 ];
 
 export function buildCopilotPlan(
@@ -50,13 +51,9 @@ export function buildCopilotPlan(
   const steps: CopilotStep[] = DEFAULT_STEPS.map((s, idx) => {
     let status: CopilotStepStatus = "upcoming";
     if (completedIds.has(s.id)) status = "done";
-    // Étape « prepare » est done si publish est done.
-    if (s.id === "prepare" && completedIds.has("publish")) status = "done";
     if (status !== "done") {
       // La 1ʳᵉ étape non « done » devient "current" ou "blocked".
-      const firstPending = DEFAULT_STEPS.findIndex(
-        (x, i) => i >= 0 && !completedIds.has(x.id) && !(x.id === "prepare" && completedIds.has("publish")),
-      );
+      const firstPending = DEFAULT_STEPS.findIndex((x, i) => i >= 0 && !completedIds.has(x.id));
       if (idx === firstPending) {
         status = blockingStep === s.id ? "blocked" : "current";
       }
@@ -103,16 +100,14 @@ export function buildCopilotPlan(
   const warnings: CopilotInsight[] = recs
     .filter((r) => r.kind === "warning" || r.kind === "blocking")
     .map(toInsight);
-  const completed = recs
-    .filter((r) => r.kind === "success")
-    .map((r) => r.headline);
+  const completed = recs.filter((r) => r.kind === "success").map((r) => r.headline);
 
   // 7) Résumé humain (répond à : que se passe-t-il ? pourquoi ?)
   const headline =
     status === "blocked"
-      ? recs.find((r) => r.kind === "blocking")?.headline ?? "Action requise"
+      ? (recs.find((r) => r.kind === "blocking")?.headline ?? "Action requise")
       : status === "attention"
-        ? recs.find((r) => r.kind === "warning")?.headline ?? "Quelques points à surveiller"
+        ? (recs.find((r) => r.kind === "warning")?.headline ?? "Quelques points à surveiller")
         : ctx.project
           ? `${ctx.project.name} est en bonne santé`
           : "Bienvenue sur AppPublisher";
@@ -156,6 +151,8 @@ function firstBlockedStep(recs: CopilotRecommendation[]): string | null {
   const blocker = recs.find((r) => r.kind === "blocking");
   if (!blocker) return null;
   if (blocker.id.startsWith("identity.")) return "project";
+  if (blocker.id.startsWith("diagnostic.")) return "diagnostic";
+  if (blocker.id.startsWith("configuration.android-signing")) return "signing";
   if (blocker.id.startsWith("configuration.")) return "version";
   if (blocker.id.startsWith("build.")) return "build";
   return null;

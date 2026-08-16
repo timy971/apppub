@@ -51,12 +51,12 @@ export function ProjectsGrid({
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <FolderPlus className="h-6 w-6" />
         </div>
-        <div className="text-base font-semibold">Aucun projet pour l'instant</div>
+        <div className="text-base font-semibold">Aucune application pour l'instant</div>
         <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-          Ajoutez votre premier projet pour qu'AppPublisher commence à vous accompagner.
+          Ajoutez votre première application pour qu'AppPublisher commence à vous accompagner.
         </p>
         <Button asChild className="mt-4">
-          <Link to="/projects">Ajouter un projet</Link>
+          <Link to="/projects">Ajouter une application</Link>
         </Button>
       </Card>
     );
@@ -71,13 +71,7 @@ export function ProjectsGrid({
   );
 }
 
-function ProjectCard({
-  summary,
-  isActive,
-}: {
-  summary: ProjectSummary;
-  isActive: boolean;
-}) {
+function ProjectCard({ summary, isActive }: { summary: ProjectSummary; isActive: boolean }) {
   const { project, status, lastBuild, lastPublish } = summary;
   return (
     <Link
@@ -100,7 +94,7 @@ function ProjectCard({
             <span className="truncate font-semibold">{project.name}</span>
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-            v{project.currentVersion} · build {project.currentBuild}
+            Version {project.currentVersion} · nº interne {project.currentBuild}
           </div>
         </div>
         <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -119,7 +113,7 @@ function ProjectCard({
       <div className="mt-4 grid grid-cols-2 gap-2 border-t pt-3 text-xs">
         <MiniStat
           icon={Hammer}
-          label="Build"
+          label="Fichier Android"
           value={lastBuild ? formatRelative(lastBuild.createdAt) : "—"}
         />
         <MiniStat

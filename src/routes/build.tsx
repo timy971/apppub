@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useActiveProject } from "@/core/store/app-store";
 import { BuildCenter } from "@/components/build-center/build-center";
+import { StepPurpose } from "@/components/step-purpose";
 
 export const Route = createFileRoute("/build")({
   component: BuildPage,
@@ -15,14 +16,14 @@ function BuildPage() {
   if (!project) {
     return (
       <div>
-        <PageHeader title="Build Center" />
+        <PageHeader title="Créer le fichier Android" />
         <Card className="p-8 text-center shadow-soft">
-          <div className="text-lg font-semibold">Aucun projet actif</div>
+          <div className="text-lg font-semibold">Aucune application active</div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Sélectionnez un projet pour ouvrir le Build Center.
+            Choisissez d'abord l'application pour laquelle vous souhaitez créer un fichier.
           </p>
           <Button asChild className="mt-4">
-            <Link to="/projects">Aller aux projets</Link>
+            <Link to="/projects">Choisir une application</Link>
           </Button>
         </Card>
       </div>
@@ -32,13 +33,18 @@ function BuildPage() {
   return (
     <div>
       <PageHeader
-        title="Build Center"
-        subtitle="Suivez la construction de votre application en temps réel."
+        title="Créer le fichier Android"
+        subtitle="AppPublisher vérifie les prérequis, construit l'application et vous remet le fichier à publier."
         help={{
-          title: "À propos du Build Center",
+          title: "À propos du fichier Android",
           content:
-            "Chaque étape est expliquée et minutée. Vous pouvez annuler à tout moment, consulter la console, et retrouver l'artefact produit à la fin.",
+            "Google Play attend un fichier au format AAB. AppPublisher le crée, vérifie sa signature et vous indique précisément où il se trouve.",
         }}
+      />
+      <StepPurpose
+        automatic="vérifier les outils nécessaires, préparer Android, construire puis contrôler le fichier."
+        yourAction="lancer la création et laisser AppPublisher travailler."
+        result="un fichier AAB signé est prêt pour Google Play."
       />
       <BuildCenter project={project} />
     </div>

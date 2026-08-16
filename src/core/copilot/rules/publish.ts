@@ -21,22 +21,48 @@ export const publishRule: CopilotRule = {
 
     if (!hasFreshBuild) return null;
 
-    const lastPublish = projectHistory.find(
-      (h) => h.kind === "publish" && h.outcome === "success",
+    const lastStorePublish = projectHistory.find(
+      (h) => h.kind === "publish" && h.outcome === "success" && h.storeRelease,
+    );
+    const lastPreparation = projectHistory.find(
+      (h) =>
+        (h.kind === "release-prepared" || (h.kind === "publish" && !h.storeRelease)) &&
+        h.outcome === "success",
     );
 
+    const alreadyPublishedForThisVersion =
+      lastStorePublish &&
+      lastStorePublish.version === project.currentVersion &&
+      lastStorePublish.build === project.currentBuild;
+
+    if (alreadyPublishedForThisVersion) {
+      return {
+        id: "publish.sent",
+        kind: "success",
+        priority: 950,
+        headline: `Version ${project.currentVersion} envoyée à Google Play`,
+        completedStepId: "publish",
+      };
+    }
+
     const alreadyPreparedForThisVersion =
-      lastPublish &&
-      lastPublish.version === project.currentVersion &&
-      lastPublish.build === project.currentBuild;
+      lastPreparation &&
+      lastPreparation.version === project.currentVersion &&
+      lastPreparation.build === project.currentBuild;
 
     if (alreadyPreparedForThisVersion) {
       return {
         id: "publish.prepared",
-        kind: "success",
-        priority: 940,
-        headline: `Publication préparée pour la version ${project.currentVersion}`,
-        completedStepId: "publish",
+        kind: "information",
+        priority: 85,
+        headline: `Version ${project.currentVersion} prête à être envoyée`,
+        description: "La préparation est terminée, mais rien n'a encore été envoyé à Google Play.",
+        action: {
+          title: "Envoyer à Google Play",
+          description: "Vérifier la connexion puis confirmer l'envoi aux testeurs internes.",
+          route: "/publish",
+          priority: "high",
+        },
       };
     }
 

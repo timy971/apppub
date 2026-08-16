@@ -49,8 +49,7 @@ export function NextStepCard({
       <div className="relative flex items-start gap-5">
         <div
           className={
-            "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-soft " +
-            ring
+            "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-soft " + ring
           }
         >
           <Sparkles className="h-6 w-6" />
@@ -81,22 +80,26 @@ export function NextStepCard({
                   </CopilotActionLink>
                 </Button>
                 <AssistantButton />
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-background/80 backdrop-blur px-3 py-1.5 text-xs text-muted-foreground ring-1 ring-border">
-                  <Clock className="h-3 w-3" />
-                  Publication estimée : {plan.etaMinutes} min
-                </span>
-                <span
-                  className={
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 " +
-                    (plan.overallStatus === "ready"
-                      ? "bg-success/10 text-success ring-success/30"
-                      : plan.overallStatus === "attention"
-                        ? "bg-warning/10 text-warning ring-warning/30"
-                        : "bg-danger/10 text-danger ring-danger/30")
-                  }
-                >
-                  Score {plan.score}/100
-                </span>
+                {projectId && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-background/80 backdrop-blur px-3 py-1.5 text-xs text-muted-foreground ring-1 ring-border">
+                    <Clock className="h-3 w-3" />
+                    Temps estimé dans AppPublisher : {plan.etaMinutes} min
+                  </span>
+                )}
+                {projectId && (
+                  <span
+                    className={
+                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 " +
+                      (plan.overallStatus === "ready"
+                        ? "bg-success/10 text-success ring-success/30"
+                        : plan.overallStatus === "attention"
+                          ? "bg-warning/10 text-warning ring-warning/30"
+                          : "bg-danger/10 text-danger ring-danger/30")
+                    }
+                  >
+                    Score {plan.score}/100
+                  </span>
+                )}
               </div>
             </>
           )}

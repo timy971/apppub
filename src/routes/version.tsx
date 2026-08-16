@@ -26,6 +26,7 @@ import { WhyButton } from "@/components/why-button";
 import { ErrorCard } from "@/components/error-card";
 import { translateError } from "@/core/errors/translator";
 import { toast } from "sonner";
+import { StepPurpose } from "@/components/step-purpose";
 
 export const Route = createFileRoute("/version")({
   component: VersionAssistant,
@@ -74,7 +75,12 @@ function VersionAssistant() {
   const [choice, setChoice] = useState<VersionChangeType | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
-  const [done, setDone] = useState<{ from: string; to: string; build: number } | null>(null);
+  const [done, setDone] = useState<{
+    from: string;
+    to: string;
+    build: number;
+    changed: boolean;
+  } | null>(null);
   const [failure, setFailure] = useState<TranslatedError | null>(null);
 
   if (!project) return <NoProject />;
@@ -157,11 +163,11 @@ function VersionAssistant() {
           message: "Mise à jour de la version",
           kind: "version",
         });
-        setDone({ from: preview.from, to: finalVersion, build: finalBuild });
+        setDone({ from: preview.from, to: finalVersion, build: finalBuild, changed: true });
         toast.success("Version mise à jour", { description: `${preview.from} → ${finalVersion}` });
       } else {
         toast.info("Aucune modification appliquée");
-        setDone({ from: preview.from, to: preview.to, build: preview.newBuild });
+        setDone({ from: preview.from, to: preview.to, build: preview.newBuild, changed: false });
       }
       setWorkflow(wf);
     } catch (e) {
@@ -172,19 +178,34 @@ function VersionAssistant() {
   if (done) {
     return (
       <div>
-        <PageHeader title="Version mise à jour" subtitle="Votre projet est prêt pour la prochaine étape." />
+        <PageHeader
+          title={done.changed ? "Version mise à jour" : "Version vérifiée"}
+          subtitle={
+            done.changed
+              ? "Votre application est prête pour la prochaine étape."
+              : "Aucun fichier n'a été modifié."
+          }
+        />
         <Card className="p-8 text-center shadow-soft">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-success/15 text-success">
             <Check className="h-7 w-7" />
           </div>
           <div className="text-lg font-semibold">
-            {done.from} → <span className="tabular-nums">{done.to}</span>
+            {done.changed ? (
+              <>
+                {done.from} → <span className="tabular-nums">{done.to}</span>
+              </>
+            ) : (
+              <>
+                Version <span className="tabular-nums">{done.to}</span>
+              </>
+            )}
           </div>
-          <div className="mt-1 text-sm text-muted-foreground">Build {done.build}</div>
+          <div className="mt-1 text-sm text-muted-foreground">Numéro interne {done.build}</div>
           <div className="mt-6 flex justify-center gap-2">
             <Button asChild>
               <Link to="/build">
-                Construire l'application
+                Créer le fichier Android
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -200,23 +221,29 @@ function VersionAssistant() {
   return (
     <div>
       <PageHeader
-        title="Modifier la version"
+        title="Préparer la version"
         subtitle="Choisissez le type de mise à jour. AppPublisher calcule automatiquement le nouveau numéro."
         help={{
           title: "À propos des versions",
           content: (
             <>
-              Une version est composée de trois nombres : majeur.mineur.correctif.
-              AppPublisher se charge de mettre à jour le bon.
+              Une version est composée de trois nombres : majeur.mineur.correctif. AppPublisher se
+              charge de mettre à jour le bon.
             </>
           ),
         }}
       />
 
+      <StepPurpose
+        automatic="calculer les nouveaux numéros et sauvegarder l'application avant toute modification."
+        yourAction="indiquer s'il s'agit d'une correction, d'une nouveauté ou d'une grande évolution."
+        result="Google Play reconnaît cette version comme nouvelle."
+      />
+
       <div className="mb-6 rounded-xl border bg-muted/40 p-4 text-sm flex items-center justify-between">
         <span>
-          Version actuelle · <strong className="tabular-nums">{project.currentVersion}</strong> · Build{" "}
-          <strong className="tabular-nums">{project.currentBuild}</strong>
+          Version actuelle · <strong className="tabular-nums">{project.currentVersion}</strong> ·
+          Numéro interne <strong className="tabular-nums">{project.currentBuild}</strong>
         </span>
         {settings.autoBackupEnabled && (
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -279,12 +306,20 @@ function VersionAssistant() {
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmer la mise à jour</AlertDialogTitle>
+            <AlertDialogTitle>
+              {choice === "readonly" ? "Vérifier la version" : "Confirmer la mise à jour"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              La version passera de{" "}
-              <strong className="tabular-nums">{preview?.from}</strong> à{" "}
-              <strong className="tabular-nums">{preview?.to}</strong>. Cette opération met à jour votre projet.
-              {settings.autoBackupEnabled && " Une sauvegarde sera automatiquement créée."}
+              {choice === "readonly" ? (
+                <>AppPublisher vérifiera les numéros actuels sans modifier vos fichiers.</>
+              ) : (
+                <>
+                  La version passera de <strong className="tabular-nums">{preview?.from}</strong> à{" "}
+                  <strong className="tabular-nums">{preview?.to}</strong>. Cette opération met à
+                  jour votre application.
+                  {settings.autoBackupEnabled && " Une sauvegarde sera automatiquement créée."}
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -300,11 +335,11 @@ function VersionAssistant() {
 function NoProject() {
   return (
     <div>
-      <PageHeader title="Modifier la version" />
+      <PageHeader title="Préparer la version" />
       <Card className="p-8 text-center shadow-soft">
-        <div className="text-lg font-semibold">Aucun projet actif</div>
+        <div className="text-lg font-semibold">Aucune application active</div>
         <Button asChild className="mt-4">
-          <Link to="/projects">Aller aux projets</Link>
+          <Link to="/projects">Choisir une application</Link>
         </Button>
       </Card>
     </div>

@@ -37,12 +37,8 @@ export function TodayCard({
     <Card className="p-7 shadow-soft">
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">
-            {now}
-          </div>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            {greet(userName)} 👋
-          </h1>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">{now}</div>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">{greet(userName)} 👋</h1>
           {loading || !summary ? (
             <div className="mt-4 space-y-2">
               <Skeleton className="h-4 w-64" />
@@ -55,14 +51,14 @@ export function TodayCard({
                 <span className="font-medium text-foreground tabular-nums">
                   {summary.totalProjects}
                 </span>{" "}
-                {summary.totalProjects > 1 ? "projets suivis" : "projet suivi"}
+                {summary.totalProjects > 1 ? "applications suivies" : "application suivie"}
               </li>
               {summary.blockedCount > 0 && (
                 <li>
                   <span className="font-medium text-danger tabular-nums">
                     {summary.blockedCount}
                   </span>{" "}
-                  {summary.blockedCount > 1 ? "projets bloqués" : "projet bloqué"}
+                  {summary.blockedCount > 1 ? "applications bloquées" : "application bloquée"}
                 </li>
               )}
               {summary.attentionCount > 0 && (
@@ -71,16 +67,16 @@ export function TodayCard({
                     {summary.attentionCount}
                   </span>{" "}
                   {summary.attentionCount > 1
-                    ? "projets nécessitent votre attention"
-                    : "projet nécessite votre attention"}
+                    ? "applications nécessitent votre attention"
+                    : "application nécessite votre attention"}
                 </li>
               )}
-              {summary.blockedCount === 0 && summary.attentionCount === 0 && summary.totalProjects > 0 && (
-                <li>Tous vos projets sont en bonne santé.</li>
-              )}
+              {summary.blockedCount === 0 &&
+                summary.attentionCount === 0 &&
+                summary.totalProjects > 0 && <li>Toutes vos applications sont en bonne santé.</li>}
               {summary.lastBuildAt && (
                 <li>
-                  Dernier build{" "}
+                  Dernier fichier créé{" "}
                   <span className="font-medium text-foreground">
                     {formatRelative(summary.lastBuildAt)}
                   </span>
@@ -89,9 +85,7 @@ export function TodayCard({
               {summary.nextStep && (
                 <li className="pt-1">
                   Prochaine étape :{" "}
-                  <span className="font-medium text-foreground">
-                    {summary.nextStep}
-                  </span>
+                  <span className="font-medium text-foreground">{summary.nextStep}</span>
                 </li>
               )}
             </ul>

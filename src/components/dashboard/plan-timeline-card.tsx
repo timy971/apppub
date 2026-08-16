@@ -19,7 +19,7 @@ export function PlanTimelineCard({
       <Card className="p-6 shadow-soft">
         <Header />
         <div className="mt-4 flex gap-4">
-          {[0, 1, 2, 3, 4].map((i) => (
+          {[0, 1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} className="h-16 flex-1" />
           ))}
         </div>
@@ -29,7 +29,7 @@ export function PlanTimelineCard({
   return (
     <Card className="p-6 shadow-soft">
       <Header />
-      <ol className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <ol className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {plan.steps.map((step, idx) => {
           const isLast = idx === plan.steps.length - 1;
           const Icon =
@@ -53,8 +53,7 @@ export function PlanTimelineCard({
               <div className="flex items-center gap-2 w-full">
                 <div
                   className={
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1 " +
-                    color
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1 " + color
                   }
                 >
                   <Icon className="h-4 w-4" />

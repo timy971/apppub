@@ -11,23 +11,14 @@ import { NextStepCard } from "@/components/dashboard/next-step-card";
 import { BlockersCard } from "@/components/dashboard/blockers-card";
 import { ReadyCard } from "@/components/dashboard/ready-card";
 import { PlanTimelineCard } from "@/components/dashboard/plan-timeline-card";
-import {
-  ProjectsGrid,
-  type ProjectSummary,
-} from "@/components/dashboard/projects-grid";
+import { ProjectsGrid, type ProjectSummary } from "@/components/dashboard/projects-grid";
 import {
   ActivityTimeline,
   buildActivityEvents,
   type ActivityEvent,
 } from "@/components/dashboard/activity-timeline";
-import {
-  GlobalHealthCard,
-  type GlobalHealth,
-} from "@/components/dashboard/global-health-card";
-import {
-  StatsStrip,
-  type DashboardStats,
-} from "@/components/dashboard/stats-strip";
+import { GlobalHealthCard, type GlobalHealth } from "@/components/dashboard/global-health-card";
+import { StatsStrip, type DashboardStats } from "@/components/dashboard/stats-strip";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -70,7 +61,9 @@ function Dashboard() {
       project: p,
       status: ProjectStatusService.evaluate(p),
       lastBuild: history.find((h) => h.projectId === p.id && h.kind === "build"),
-      lastPublish: history.find((h) => h.projectId === p.id && h.kind === "publish"),
+      lastPublish: history.find(
+        (h) => h.projectId === p.id && h.kind === "publish" && Boolean(h.storeRelease),
+      ),
     }));
     return list.sort((a, b) => {
       const activeA = a.project.id === activeId ? 0 : 1;
@@ -104,17 +97,13 @@ function Dashboard() {
     const weekAgo = Date.now() - 7 * 86400000;
     const recent = history.filter((h) => new Date(h.createdAt).getTime() >= weekAgo);
     const builds = recent.filter((h) => h.kind === "build");
-    const publishes = recent.filter((h) => h.kind === "publish");
+    const publishes = recent.filter((h) => h.kind === "publish" && Boolean(h.storeRelease));
     const versions = recent.filter((h) => h.kind === "version");
     const allBuilds = history.filter((h) => h.kind === "build" && h.durationMs > 0);
     const avg =
       allBuilds.length === 0
         ? null
-        : Math.round(
-            allBuilds.reduce((s, h) => s + h.durationMs, 0) /
-              allBuilds.length /
-              60000,
-          );
+        : Math.round(allBuilds.reduce((s, h) => s + h.durationMs, 0) / allBuilds.length / 60000);
     return {
       buildsThisWeek: builds.length,
       publishesThisWeek: publishes.length,
@@ -173,38 +162,37 @@ function Dashboard() {
       {/* Ligne 3 : chronologie logique */}
       <PlanTimelineCard plan={copilotLoading ? null : plan} loading={copilotLoading} />
 
-      {/* Ligne 4 : statistiques */}
-      <section>
-        <SectionTitle title="Cette semaine" />
-        <StatsStrip stats={loading ? null : stats} loading={loading} />
-      </section>
+      {/* Les indicateurs détaillés restent hors du mode découverte. */}
+      {settings.mode !== "discovery" && (
+        <section>
+          <SectionTitle title="Cette semaine" />
+          <StatsStrip stats={loading ? null : stats} loading={loading} />
+        </section>
+      )}
 
       {/* Ligne 5 : projets */}
       <section>
         <SectionTitle
-          title="Mes projets"
+          title="Mes applications"
           hint={
             summaries.length > 0
-              ? `${summaries.length} ${summaries.length > 1 ? "projets" : "projet"}`
+              ? `${summaries.length} ${summaries.length > 1 ? "applications" : "application"}`
               : undefined
           }
         />
-        <ProjectsGrid
-          summaries={summaries}
-          activeId={settings.activeProjectId}
-          loading={loading}
-        />
+        <ProjectsGrid summaries={summaries} activeId={settings.activeProjectId} loading={loading} />
       </section>
 
-      {/* Ligne 6 : santé globale + activité */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        <div className="lg:col-span-2">
-          <GlobalHealthCard health={loading ? null : globalHealth} loading={loading} />
+      {settings.mode !== "discovery" && (
+        <div className="grid gap-4 lg:grid-cols-5">
+          <div className="lg:col-span-2">
+            <GlobalHealthCard health={loading ? null : globalHealth} loading={loading} />
+          </div>
+          <div className="lg:col-span-3">
+            <ActivityTimeline events={activity} loading={loading} />
+          </div>
         </div>
-        <div className="lg:col-span-3">
-          <ActivityTimeline events={activity} loading={loading} />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

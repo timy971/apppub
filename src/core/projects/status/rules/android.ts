@@ -70,18 +70,18 @@ export const androidRules: ProjectRule[] = [
     evaluate: ({ project }) => {
       if (!project.detected.hasAndroid) return null;
       const cfg = getAndroidConfig(project);
-      return cfg.keystorePath && cfg.keystorePath.trim().length > 0
+      return cfg.signingProfileId || (cfg.keystorePath && cfg.keystorePath.trim().length > 0)
         ? null
         : {
             severity: "warn",
-            message: "Aucune clé de signature n'est configurée.",
+            message: "Aucune signature n'est associée à l'application.",
             explanation:
-              "Le keystore signe cryptographiquement votre APK/AAB. Sans lui, Google Play refuse la publication.",
+              "La signature prouve à Google Play que les futures versions viennent bien de vous.",
             action: {
-              label: "Configurer le keystore",
+              label: "Choisir une signature",
               tab: "publishing",
               section: "android",
-              field: "android.keystorePath",
+              field: "android.signingProfileId",
             },
           };
     },

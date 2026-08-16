@@ -49,14 +49,14 @@ export function BuildCenterHeader({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-            <span>Build Center · Android</span>
+            <span>Création du fichier Android</span>
             <span aria-hidden>·</span>
             <span className="tabular-nums">
-              v{project.currentVersion} · build {project.currentBuild}
+              Version {project.currentVersion} · numéro interne {project.currentBuild}
             </span>
           </div>
           <div className="mt-0.5 flex items-center gap-3">
-            <h1 className="truncate text-xl font-semibold">{project.name}</h1>
+            <h2 className="truncate text-xl font-semibold">{project.name}</h2>
             <StatusBadge status={status} />
           </div>
         </div>
@@ -78,7 +78,7 @@ export function BuildCenterHeader({
               disabled={!canStart}
               title={canStart ? undefined : "Le préflight signale un point bloquant."}
             >
-              Lancer le build
+              Créer le fichier Android
             </Button>
           )}
           {isRunning && (
@@ -89,7 +89,7 @@ export function BuildCenterHeader({
           )}
           {isFinished && (
             <Button variant="outline" onClick={onReset}>
-              Nouveau build
+              Créer un nouveau fichier
             </Button>
           )}
         </div>

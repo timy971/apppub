@@ -8,6 +8,7 @@ import { useActiveProject } from "@/core/store/app-store";
 import { bridge } from "@/core/bridge";
 import { FileText, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
+import type { PublishRecord } from "@/core/types";
 
 export const Route = createFileRoute("/history")({
   component: HistoryPage,
@@ -23,22 +24,22 @@ function HistoryPage() {
   return (
     <div>
       <PageHeader
-        title="Historique"
+        title="Opérations passées"
         subtitle={
           project
-            ? `Publications et builds de « ${project.name} ».`
-            : "Toutes les publications et builds."
+            ? `Fichiers créés et publications de « ${project.name} ».`
+            : "Tous les fichiers créés et toutes les publications."
         }
         help={{
-          title: "À propos de l'historique",
+          title: "À propos des opérations passées",
           content:
-            "Chaque opération importante est mémorisée pour vous permettre de retrouver une ancienne version en un clin d'œil.",
+            "Chaque opération importante est mémorisée pour retrouver un fichier ou comprendre ce qui a été publié.",
         }}
       />
 
       {records.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground shadow-soft">
-          Aucune opération enregistrée pour l'instant.
+          Aucune opération pour l'instant. Les fichiers créés et les publications apparaîtront ici.
         </Card>
       ) : (
         <div className="grid gap-3">
@@ -59,11 +60,11 @@ function HistoryPage() {
                   <div className="flex items-center gap-2">
                     <div className="font-medium truncate">{r.projectName}</div>
                     <span className="text-[11px] rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
-                      {r.storeRelease ? "Google Play · internal" : (r.kind ?? "action")}
+                      {r.storeRelease ? "Google Play · test interne" : readableKind(r)}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    v{r.version} · build {r.build} · par {r.user} ·{" "}
+                    Version {r.version} · nº interne {r.build} · par {r.user} ·{" "}
                     {new Date(r.createdAt).toLocaleString("fr-FR")}
                   </div>
                   {r.message && (
@@ -145,6 +146,20 @@ function formatDuration(ms: number): string {
   const m = Math.floor(s / 60);
   const r = Math.round(s % 60);
   return `${m}m ${r}s`;
+}
+
+function readableKind(record: PublishRecord): string {
+  const kind = record.kind;
+  if (kind === "build") return "Fichier Android";
+  if (kind === "release-prepared") return "Publication préparée";
+  if (kind === "publish") {
+    return !record.storeRelease && record.outcome === "success"
+      ? "Publication préparée"
+      : "Envoi Google Play";
+  }
+  if (kind === "version") return "Version";
+  if (kind === "backup") return "Sauvegarde";
+  return "Action";
 }
 
 function formatSize(bytes: number): string {

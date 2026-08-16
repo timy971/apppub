@@ -15,7 +15,7 @@ import { formatRelative } from "./shared";
 
 interface TimelineItem {
   id: string;
-  kind: "version" | "build" | "publish" | "backup";
+  kind: "version" | "build" | "release-prepared" | "publish" | "backup";
   title: string;
   detail?: string;
   at: string;
@@ -84,7 +84,11 @@ function buildItems(project: Project, history: PublishRecord[]): TimelineItem[] 
   const items: TimelineItem[] = [];
   for (const r of history) {
     if (r.projectId !== project.id) continue;
-    const kind = (r.kind ?? "version") as TimelineItem["kind"];
+    const kind = (
+      r.kind === "publish" && !r.storeRelease && r.outcome === "success"
+        ? "release-prepared"
+        : (r.kind ?? "version")
+    ) as TimelineItem["kind"];
     items.push({
       id: r.id,
       kind,
@@ -116,17 +120,21 @@ function titleFor(
   outcome?: "success" | "failure",
 ): string {
   const prefix =
-    kind === "publish"
+    kind === "release-prepared"
       ? outcome === "success"
         ? "Publication préparée"
-        : "Publication en échec"
-      : kind === "build"
+        : "Préparation en échec"
+      : kind === "publish"
         ? outcome === "success"
-          ? "Build terminé"
-          : "Build en échec"
-        : kind === "backup"
-          ? "Sauvegarde"
-          : "Version mise à jour";
+          ? "Envoyée à Google Play"
+          : "Envoi Google Play en échec"
+        : kind === "build"
+          ? outcome === "success"
+            ? "Build terminé"
+            : "Build en échec"
+          : kind === "backup"
+            ? "Sauvegarde"
+            : "Version mise à jour";
   return `${prefix} — v${version} · build ${build}`;
 }
 
@@ -154,6 +162,8 @@ function IconFor({ kind }: { kind: TimelineItem["kind"] }) {
       return <Package className={cls} />;
     case "publish":
       return <Rocket className={cls} />;
+    case "release-prepared":
+      return <Rocket className={cls} />;
     case "backup":
       return <ArchiveRestore className={cls} />;
   }
@@ -161,7 +171,8 @@ function IconFor({ kind }: { kind: TimelineItem["kind"] }) {
 
 function bgFor(e: TimelineItem): string {
   if (e.outcome === "failure") return "bg-danger";
-  if (e.kind === "publish") return "bg-primary";
+  if (e.kind === "publish") return "bg-success";
+  if (e.kind === "release-prepared") return "bg-primary";
   if (e.kind === "build") return "bg-success";
   if (e.kind === "backup") return "bg-muted-foreground";
   return "bg-warning";

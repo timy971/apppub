@@ -39,16 +39,27 @@ export function PreflightCard({
   const [state, setState] = useState<BuildPreflight | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyCheckId, setBusyCheckId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await PreflightService.run(project);
       setState(result);
       onReady(result.ok);
       onAndroidInitializationAvailable(
         result.checks.some((check) => check.fix?.kind === "create-android"),
+      );
+    } catch (reason) {
+      setState(null);
+      onReady(false);
+      onAndroidInitializationAvailable(false);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "AppPublisher n'a pas pu terminer les vérifications.",
       );
     } finally {
       setLoading(false);
@@ -86,9 +97,7 @@ export function PreflightCard({
           case "adopt-keystore": {
             const path = check.fix.payload?.path;
             if (!path) break;
-            const confirmed = window.confirm(
-              `Utiliser cette clé de signature ?\n\n${path}`,
-            );
+            const confirmed = window.confirm(`Utiliser cette clé de signature ?\n\n${path}`);
             if (!confirmed) break;
             const patch = patchAndroidConfig(project, { keystorePath: path });
             ProjectsService.update(project.id, patch, {
@@ -135,59 +144,67 @@ export function PreflightCard({
 
   return (
     <Card className={cn("p-5 shadow-soft", tone)}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5">
-              {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              ) : state?.hasBlockers ? (
-                <AlertTriangle className="h-5 w-5 text-danger" />
-              ) : state?.checks.some((c) => c.status === "warning") ? (
-                <ShieldCheck className="h-5 w-5 text-warning" />
-              ) : (
-                <CheckCircle2 className="h-5 w-5 text-success" />
-              )}
-            </div>
-            <div>
-              <div className="text-base font-semibold">Préparation du build</div>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                {loading
-                  ? "AppPublisher vérifie votre environnement…"
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5">
+            {loading ? (
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            ) : error ? (
+              <AlertTriangle className="h-5 w-5 text-danger" />
+            ) : state?.hasBlockers ? (
+              <AlertTriangle className="h-5 w-5 text-danger" />
+            ) : state?.checks.some((c) => c.status === "warning") ? (
+              <ShieldCheck className="h-5 w-5 text-warning" />
+            ) : (
+              <CheckCircle2 className="h-5 w-5 text-success" />
+            )}
+          </div>
+          <div>
+            <div className="text-base font-semibold">Vérifications avant de créer le fichier</div>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {loading
+                ? "AppPublisher vérifie votre environnement…"
+                : error
+                  ? "La vérification a été interrompue. Réessayez pour continuer."
                   : state?.hasBlockers
-                    ? "Un ou plusieurs points bloquent le build. Corrigez-les avant de lancer."
+                    ? "Un ou plusieurs points empêchent la création. Suivez les solutions proposées avant de lancer."
                     : state?.checks.some((c) => c.status === "warning")
-                      ? "Le build peut démarrer, mais des points méritent attention."
-                      : "Tout est prêt. Vous pouvez lancer le build en toute confiance."}
-              </p>
-            </div>
+                      ? "La création peut démarrer, mais certains points méritent votre attention."
+                      : "Tout est prêt. Vous pouvez créer le fichier en toute confiance."}
+            </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => void refresh()} disabled={loading}>
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-            Revérifier
-          </Button>
         </div>
+        <Button variant="ghost" size="sm" onClick={() => void refresh()} disabled={loading}>
+          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+          Revérifier
+        </Button>
+      </div>
 
-        {state && (
-          <div className="mt-4 space-y-4">
-            {grouped.map(([cat, items]) => (
-              <section key={cat}>
-                <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {CATEGORY_LABEL[cat] ?? cat}
-                </div>
-                <div className="space-y-1.5">
-                  {items.map((c) => (
-                    <CheckItem
-                      key={c.id}
-                      check={c}
-                      running={busyCheckId === c.id}
-                      onFix={applyFix}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        )}
+      {error && (
+        <div
+          role="alert"
+          className="mt-4 rounded-lg border border-danger/40 bg-danger/5 p-3 text-sm"
+        >
+          {error}
+        </div>
+      )}
+
+      {state && (
+        <div className="mt-4 space-y-4">
+          {grouped.map(([cat, items]) => (
+            <section key={cat}>
+              <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {CATEGORY_LABEL[cat] ?? cat}
+              </div>
+              <div className="space-y-1.5">
+                {items.map((c) => (
+                  <CheckItem key={c.id} check={c} running={busyCheckId === c.id} onFix={applyFix} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }

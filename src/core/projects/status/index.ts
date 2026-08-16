@@ -5,7 +5,6 @@ import { identityRules } from "./rules/identity";
 import { versionRules } from "./rules/version";
 import { gitRules } from "./rules/git";
 import { androidRules } from "./rules/android";
-import { iosRules } from "./rules/ios";
 import { buildRules } from "./rules/build";
 
 /**
@@ -17,7 +16,6 @@ const REGISTRY: ProjectRule[] = [
   ...versionRules,
   ...gitRules,
   ...androidRules,
-  ...iosRules,
   ...buildRules,
 ];
 
@@ -30,4 +28,12 @@ export const ProjectStatusService = {
   },
 };
 
-export type { ProjectStatus, ProjectStatusLevel, RuleFinding, StatusSeverity, StatusDomain, CockpitTab, RuleAction } from "./types";
+export type {
+  ProjectStatus,
+  ProjectStatusLevel,
+  RuleFinding,
+  StatusSeverity,
+  StatusDomain,
+  CockpitTab,
+  RuleAction,
+} from "./types";
