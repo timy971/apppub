@@ -36,6 +36,7 @@ import { Separator } from "@/components/ui/separator";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import { ProjectLifecycleBadge, LIFECYCLE_OPTIONS } from "@/components/project-lifecycle-badge";
 import { NextActionCard } from "@/components/project-cockpit/next-action-card";
+import { JourneyContinuation } from "@/components/journey-continuation";
 import { PlanCard } from "@/components/project-cockpit/plan-card";
 import { SourceBadge } from "@/components/project-cockpit/source-badge";
 import { DiscoveryHint } from "@/components/discovery-hint";
@@ -243,6 +244,16 @@ function ProjectCockpit() {
             </Button>
           )}
         </div>
+      </div>
+
+      <div className="mb-4">
+        <JourneyContinuation
+          fallbackTo="/diagnostic"
+          fallbackLabel="Continuer la vérification"
+          title="Correction en cours"
+          description="Lorsque le point demandé est corrigé, revenez directement à l'étape que vous aviez quittée."
+          onlyWhenReturning
+        />
       </div>
 
       <Tabs value={nav.tab} onValueChange={(v) => nav.setTab(v as CockpitTab)}>

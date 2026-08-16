@@ -350,6 +350,8 @@ export type ThemePreference = "light" | "dark" | "system";
 /** Phase 2 : ajout de « discovery » — un mode pédagogique premières utilisations. */
 export type ExperienceMode = "discovery" | "assistant" | "expert";
 export type Language = "fr" | "en";
+export type PublicationJourneyPath =
+  "/projects" | "/diagnostic" | "/version" | "/signing" | "/build" | "/publish";
 
 export interface Settings {
   userName: string;
@@ -362,6 +364,10 @@ export interface Settings {
   contextualHelpEnabled: boolean;
   /** Phase 2 — proposer une sauvegarde avant chaque opération sensible. */
   autoBackupEnabled?: boolean;
+  /** Dernière étape consultée, pour reprendre simplement après un redémarrage. */
+  lastJourneyPath?: PublicationJourneyPath;
+  /** Étape à retrouver après une correction effectuée dans un autre écran. */
+  returnToJourneyPath?: PublicationJourneyPath;
 }
 
 /* ---------- Phase 2 : Bridge système ---------- */

@@ -338,6 +338,18 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     }
   }
 
+  const unavailableReason = !packageName
+    ? "Renseignez d'abord l'identifiant Android de l'application."
+    : connected && alreadyPublished
+      ? "Cette version a déjà été envoyée. Préparez un nouveau numéro de version pour republier."
+      : connected && !verified
+        ? "Vérifiez l'accès au compte Google avant l'envoi."
+        : connected && !release
+          ? "Créez puis préparez le fichier Android avant l'envoi."
+          : connected && !release?.notes
+            ? "Ajoutez les notes de version puis préparez de nouveau la publication."
+            : undefined;
+
   return (
     <Card id="google-play-publication" className="border-primary/30 p-6 shadow-soft">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -428,6 +440,9 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           )}
         </div>
       </div>
+      {unavailableReason && busy === null && (
+        <p className="mt-3 text-xs text-muted-foreground">{unavailableReason}</p>
+      )}
       {!release && (
         <div className="mt-4 rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
           Vous pouvez vérifier la connexion dès maintenant. L'envoi sera disponible après la

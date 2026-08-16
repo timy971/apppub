@@ -64,33 +64,35 @@ export function BuildCenterHeader({
           <Clock className="h-4 w-4" />
           {isRunning || isFinished ? formatDuration(elapsedMs) : "—"}
         </div>
-        <div className="flex items-center gap-2">
-          {!isRunning && !isFinished && canInitializeAndroid && (
-            <Button size="lg" onClick={onInitializeAndroid}>
-              <Smartphone className="h-4 w-4" />
-              Créer le projet Android
-            </Button>
-          )}
-          {!isRunning && !isFinished && !canInitializeAndroid && (
-            <Button
-              size="lg"
-              onClick={onStart}
-              disabled={!canStart}
-              title={canStart ? undefined : "Le préflight signale un point bloquant."}
-            >
-              Créer le fichier Android
-            </Button>
-          )}
-          {isRunning && (
-            <Button variant="outline" size="lg" onClick={onCancel}>
-              <StopCircle className="h-4 w-4" />
-              Annuler
-            </Button>
-          )}
-          {isFinished && (
-            <Button variant="outline" onClick={onReset}>
-              Créer un nouveau fichier
-            </Button>
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+            {!isRunning && !isFinished && canInitializeAndroid && (
+              <Button size="lg" onClick={onInitializeAndroid}>
+                <Smartphone className="h-4 w-4" />
+                Créer le projet Android
+              </Button>
+            )}
+            {!isRunning && !isFinished && !canInitializeAndroid && (
+              <Button size="lg" onClick={onStart} disabled={!canStart}>
+                Créer le fichier Android
+              </Button>
+            )}
+            {isRunning && (
+              <Button variant="outline" size="lg" onClick={onCancel}>
+                <StopCircle className="h-4 w-4" />
+                Annuler
+              </Button>
+            )}
+            {isFinished && (
+              <Button variant="outline" onClick={onReset}>
+                Créer un nouveau fichier
+              </Button>
+            )}
+          </div>
+          {!isRunning && !isFinished && !canInitializeAndroid && !canStart && (
+            <p className="max-w-xs text-right text-xs text-muted-foreground">
+              Le bouton s'activera après la correction des points signalés juste en dessous.
+            </p>
           )}
         </div>
       </div>

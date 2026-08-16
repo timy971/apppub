@@ -1,4 +1,5 @@
-import { ArrowRight, Check, ChevronDown, CircleAlert, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, CircleAlert, RotateCcw, Sparkles } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 import { CopilotActionLink } from "@/components/copilot-action-link";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CopilotPlan } from "@/core/copilot/types";
 import type { Project } from "@/core/types";
+import type { PublicationJourneyPath } from "@/core/types";
+import { JOURNEY_LABELS } from "@/core/navigation/journey-progress";
 import { cn } from "@/lib/utils";
 
 function greeting(name: string): string {
@@ -29,11 +32,13 @@ export function DashboardFocusCard({
   project,
   userName,
   loading,
+  lastJourneyPath,
 }: {
   plan: CopilotPlan | null;
   project?: Project;
   userName: string;
   loading: boolean;
+  lastJourneyPath?: PublicationJourneyPath;
 }) {
   const date = new Date().toLocaleDateString("fr-FR", {
     weekday: "long",
@@ -157,6 +162,14 @@ export function DashboardFocusCard({
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </CopilotActionLink>
           </Button>
+          {project && lastJourneyPath && lastJourneyPath !== plan.nextAction.route && (
+            <Button asChild variant="ghost" className="ml-2 mt-5">
+              <Link to={lastJourneyPath}>
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Reprendre : {JOURNEY_LABELS[lastJourneyPath]}
+              </Link>
+            </Button>
+          )}
         </div>
 
         {project && (plan.warnings.length > 0 || plan.completed.length > 0) && (

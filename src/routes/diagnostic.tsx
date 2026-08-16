@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { WhyButton } from "@/components/why-button";
 import type { HealthCheck, HealthScore } from "@/core/types";
 import { useActiveProject, useSettings } from "@/core/store/app-store";
 import { StepPurpose } from "@/components/step-purpose";
+import { JourneyContinuation } from "@/components/journey-continuation";
 
 export const Route = createFileRoute("/diagnostic")({
   component: DiagnosticPage,
@@ -112,8 +113,20 @@ function DiagnosticPage() {
       )}
 
       {project && score && (
-        <div className="mb-6">
+        <div className="mb-6 space-y-4">
           <HealthScoreCard score={score} />
+          {score.grade !== "blocked" && (
+            <JourneyContinuation
+              fallbackTo="/version"
+              fallbackLabel="Préparer la version"
+              title="Vérification terminée"
+              description={
+                score.grade === "warning"
+                  ? "Aucun blocage n'empêche de continuer. Vous pourrez revenir sur les points d'attention plus tard."
+                  : "Les contrôles essentiels sont passés. La prochaine étape consiste à préparer le numéro de version."
+              }
+            />
+          )}
         </div>
       )}
 
@@ -141,6 +154,14 @@ function DiagnosticPage() {
                                 <WhyButton title={c.label}>{c.why}</WhyButton>
                               </div>
                             )}
+                          {c.status !== "ok" && recoveryFor(c) && (
+                            <Button asChild size="sm" variant="outline" className="mt-3">
+                              <Link to={recoveryFor(c)!.to}>
+                                {recoveryFor(c)!.label}
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </Link>
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </Card>
@@ -153,4 +174,14 @@ function DiagnosticPage() {
       )}
     </div>
   );
+}
+
+function recoveryFor(check: HealthCheck): { to: "/build" | "/version"; label: string } | undefined {
+  if (check.id === "project-android") {
+    return { to: "/build", label: "Préparer Android" };
+  }
+  if (check.id === "version-json" || check.id === "version-script") {
+    return { to: "/version", label: "Préparer la version" };
+  }
+  return undefined;
 }

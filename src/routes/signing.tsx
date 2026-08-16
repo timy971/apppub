@@ -57,6 +57,7 @@ import {
   type SecretsSupportInfo,
 } from "@/features/android-signing";
 import { StepPurpose } from "@/components/step-purpose";
+import { JourneyContinuation } from "@/components/journey-continuation";
 import { ExpertDetails, ExpertRow } from "@/components/expert-details";
 import { useActiveProject, AppStore } from "@/core/store/app-store";
 import { ProjectsService } from "@/core/projects/service";
@@ -147,6 +148,11 @@ function SigningPage() {
     [profiles],
   );
 
+  const associatedProfileId = activeProject?.publishing?.android?.signingProfileId;
+  const associatedProfile = associatedProfileId
+    ? sorted.find((profile) => profile.id === associatedProfileId)
+    : undefined;
+
   const finishProfile = (profileId?: string) => {
     reload();
     if (!activeProject || !profileId) return;
@@ -160,6 +166,8 @@ function SigningPage() {
       description: `« ${activeProject.name} » utilisera automatiquement cette signature.`,
     });
   };
+
+  const associate = (profileId: string) => finishProfile(profileId);
 
   return (
     <div className="space-y-6">
@@ -255,9 +263,21 @@ function SigningPage() {
                   )
               }
               onDelete={() => setToDelete(p)}
+              selected={p.id === associatedProfileId}
+              applicationName={activeProject?.name}
+              onSelect={() => associate(p.id)}
             />
           ))}
         </div>
+      )}
+
+      {activeProject && associatedProfile && (
+        <JourneyContinuation
+          fallbackTo="/build"
+          fallbackLabel="Créer le fichier Android"
+          title="Signature prête"
+          description={`« ${associatedProfile.name} » protège maintenant « ${activeProject.name} ». Vous pouvez reprendre le parcours.`}
+        />
       )}
 
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} onDone={finishProfile} />
@@ -301,12 +321,18 @@ function ProfileRow({
   onValidate,
   onReveal,
   onDelete,
+  selected,
+  applicationName,
+  onSelect,
 }: {
   profile: SigningProfile;
   busy: boolean;
   onValidate: () => void;
   onReveal: () => void;
   onDelete: () => void;
+  selected: boolean;
+  applicationName?: string;
+  onSelect: () => void;
 }) {
   const cert = profile.certificate;
   const expired = isExpired(cert);
@@ -334,6 +360,11 @@ function ProfileRow({
                 Expire bientôt
               </Badge>
             )}
+            {selected && applicationName && (
+              <Badge className="gap-1 bg-primary/10 text-primary hover:bg-primary/10">
+                <ShieldCheck className="h-3 w-3" /> Utilisée par {applicationName}
+              </Badge>
+            )}
           </div>
           {cert && (
             <div className="mt-2 text-xs text-muted-foreground">
@@ -354,6 +385,11 @@ function ProfileRow({
           )}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
+          {applicationName && !selected && (
+            <Button size="sm" onClick={onSelect}>
+              Utiliser pour {applicationName}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={onValidate} disabled={busy}>
             <RefreshCw className={`mr-2 h-4 w-4 ${busy ? "animate-spin" : ""}`} /> Vérifier
           </Button>

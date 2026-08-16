@@ -159,3 +159,33 @@ test("les titres des étapes n'exposent plus les noms techniques historiques", (
   assert.doesNotMatch(read("src/routes/publish.tsx"), /title="Publish Center"/);
   assert.doesNotMatch(read("src/routes/signing.tsx"), /title="Signatures Android"/);
 });
+
+test("le parcours reprend la dernière étape après un redémarrage", () => {
+  const types = read("src/core/types.ts");
+  const progress = read("src/core/navigation/journey-progress.ts");
+  const journey = read("src/components/publication-journey.tsx");
+  const focus = read("src/components/dashboard/focus-card.tsx");
+  assert.match(types, /lastJourneyPath\?: PublicationJourneyPath/);
+  assert.match(progress, /JourneyProgress/);
+  assert.match(journey, /JourneyProgress\.visit\(normalized\)/);
+  assert.match(focus, /Reprendre : \{JOURNEY_LABELS\[lastJourneyPath\]\}/);
+});
+
+test("une correction ramène à l'étape qui l'a demandée", () => {
+  const progress = read("src/core/navigation/journey-progress.ts");
+  const continuation = read("src/components/journey-continuation.tsx");
+  const preflight = read("src/components/build-center/preflight-card.tsx");
+  const publish = read("src/components/publish-center/header.tsx");
+  assert.match(progress, /returnToJourneyPath/);
+  assert.match(continuation, /Revenir à « \$\{JOURNEY_LABELS\[returnTo\]\} »/);
+  assert.match(preflight, /rememberReturnTo\("\/build"\)/);
+  assert.match(publish, /rememberReturnTo\("\/publish"\)/);
+});
+
+test("la signature se choisit et la suite reste visible dans le même flux", () => {
+  const signing = read("src/routes/signing.tsx");
+  assert.match(signing, /Utiliser pour \{applicationName\}/);
+  assert.match(signing, /selected=\{p\.id === associatedProfileId\}/);
+  assert.match(signing, /fallbackTo="\/build"/);
+  assert.match(signing, /Signature prête/);
+});

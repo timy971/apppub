@@ -7,6 +7,7 @@ import type { Project, PublishRecord } from "@/core/types";
 import type { ProjectStatus } from "@/core/projects/status";
 import type { ChecklistAction, PreparationScore } from "./shared";
 import { formatRelative } from "./shared";
+import { JourneyProgress } from "@/core/navigation/journey-progress";
 
 interface Props {
   project: Project;
@@ -41,6 +42,7 @@ export function PublishHeader({
 
   const handleClick = () => {
     if (blocked) {
+      JourneyProgress.rememberReturnTo("/publish");
       if (firstBlocker?.kind === "route") {
         void navigate({ to: firstBlocker.to });
         return;

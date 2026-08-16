@@ -104,19 +104,27 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
       toast.info("Ouverture du dossier disponible dans l'application Desktop.");
     }
   }
-  function copyPath() {
+  async function copyPath() {
     if (!artifact.aabPath) return;
-    void navigator.clipboard.writeText(artifact.aabPath).then(
-      () => toast.success("Chemin copié."),
-      () => toast.error("Impossible de copier le chemin."),
-    );
+    try {
+      const copied = await bridge().system.copyText(artifact.aabPath);
+      toast[copied ? "success" : "error"](
+        copied ? "Chemin copié." : "Impossible de copier le chemin.",
+      );
+    } catch {
+      toast.error("Impossible de copier le chemin.");
+    }
   }
-  function copyChecksum() {
+  async function copyChecksum() {
     if (!checksum) return;
-    void navigator.clipboard.writeText(checksum).then(
-      () => toast.success("Empreinte copiée."),
-      () => toast.error("Impossible de copier l'empreinte."),
-    );
+    try {
+      const copied = await bridge().system.copyText(checksum);
+      toast[copied ? "success" : "error"](
+        copied ? "Empreinte copiée." : "Impossible de copier l'empreinte.",
+      );
+    } catch {
+      toast.error("Impossible de copier l'empreinte.");
+    }
   }
   async function revealReport() {
     if (!artifact.aabReportPath) return;
@@ -246,12 +254,12 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
             <Button variant="outline" onClick={openFolder}>
               Ouvrir le dossier
             </Button>
-            <Button variant="outline" onClick={copyPath}>
+            <Button variant="outline" onClick={() => void copyPath()}>
               <Copy className="h-4 w-4" />
               Copier le chemin
             </Button>
             {checksum && (
-              <Button variant="ghost" onClick={copyChecksum}>
+              <Button variant="ghost" onClick={() => void copyChecksum()}>
                 Copier l'empreinte
               </Button>
             )}

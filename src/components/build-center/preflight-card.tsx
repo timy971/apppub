@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CheckItem } from "./check-item";
 import { cn } from "@/lib/utils";
+import { JourneyProgress } from "@/core/navigation/journey-progress";
 
 interface Props {
   project: Project;
@@ -109,6 +110,7 @@ export function PreflightCard({
           }
           case "open-cockpit": {
             const payload = check.fix.payload ?? {};
+            JourneyProgress.rememberReturnTo("/build");
             void navigate({
               to: "/projects/$id",
               params: { id: project.id },
@@ -120,6 +122,7 @@ export function PreflightCard({
             return; // pas de refresh, on quitte l'écran
           }
           case "open-diagnostic": {
+            JourneyProgress.rememberReturnTo("/build");
             void navigate({ to: "/diagnostic" });
             return;
           }

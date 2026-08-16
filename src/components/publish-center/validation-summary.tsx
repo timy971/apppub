@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { Project } from "@/core/types";
 import type { ChecklistCategory, PreparationScore } from "./shared";
+import { JourneyProgress } from "@/core/navigation/journey-progress";
 
 interface Props {
   project: Project;
@@ -87,7 +88,10 @@ export function ValidationSummaryCard({ project, score, categories }: Props) {
           <div className="mt-4 flex flex-wrap gap-2">
             <Button asChild size="sm" variant="outline">
               {firstActionable?.kind === "route" ? (
-                <Link to={firstActionable.to}>
+                <Link
+                  to={firstActionable.to}
+                  onClick={() => JourneyProgress.rememberReturnTo("/publish")}
+                >
                   {firstActionable.label}
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
@@ -95,6 +99,7 @@ export function ValidationSummaryCard({ project, score, categories }: Props) {
                 <Link
                   to="/projects/$id"
                   params={{ id: project.id }}
+                  onClick={() => JourneyProgress.rememberReturnTo("/publish")}
                   search={targetField ? { tab: targetTab, field: targetField } : { tab: targetTab }}
                 >
                   {firstActionable ? firstActionable.label : "Ouvrir le cockpit projet"}
