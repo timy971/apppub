@@ -13,6 +13,7 @@ import type { HealthCheck, HealthScore } from "@/core/types";
 import { useActiveProject, useSettings } from "@/core/store/app-store";
 import { StepPurpose } from "@/components/step-purpose";
 import { JourneyContinuation } from "@/components/journey-continuation";
+import { HelpRequestButton } from "@/components/help-request-button";
 
 export const Route = createFileRoute("/diagnostic")({
   component: DiagnosticPage,
@@ -106,9 +107,12 @@ function DiagnosticPage() {
         <Card role="alert" className="mb-6 border-danger/40 p-5 shadow-soft">
           <div className="font-semibold">Vérification interrompue</div>
           <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-          <Button className="mt-4" variant="outline" onClick={refresh} disabled={running}>
-            Réessayer
-          </Button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" onClick={refresh} disabled={running}>
+              Réessayer
+            </Button>
+            <HelpRequestButton />
+          </div>
         </Card>
       )}
 

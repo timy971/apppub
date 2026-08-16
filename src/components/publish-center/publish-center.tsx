@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AssistantOrAbove, ExpertOnly } from "@/components/mode-gate";
+import { HelpRequestButton } from "@/components/help-request-button";
 
 import { PublishHeader } from "./header";
 import { PublishCopilotStrip } from "./copilot-strip";
@@ -186,9 +187,12 @@ export function PublishCenter({ project }: { project: Project }) {
       <Card role="alert" className="border-danger/40 p-6 shadow-soft">
         <h2 className="font-semibold">Vérification impossible</h2>
         <p className="mt-2 text-sm text-muted-foreground">{loadingError}</p>
-        <Button className="mt-4" variant="outline" onClick={() => setRefreshKey((n) => n + 1)}>
-          Réessayer
-        </Button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setRefreshKey((n) => n + 1)}>
+            Réessayer
+          </Button>
+          <HelpRequestButton />
+        </div>
       </Card>
     );
   }
