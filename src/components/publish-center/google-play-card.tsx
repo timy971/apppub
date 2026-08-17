@@ -180,7 +180,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       );
       AppStore.refreshProjects();
       toast.success("Compte de service enregistré", {
-        description: "La clé privée est conservée dans le trousseau macOS.",
+        description: "La clé privée est conservée dans le stockage sécurisé du système.",
       });
       onChanged();
     } catch {
@@ -536,7 +536,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   Réservé aux équipes et aux automatisations. Sélectionnez le fichier JSON d'un
                   compte de service déjà invité dans Google Play Console. Sa clé privée sera
-                  conservée dans le trousseau macOS.
+                  conservée dans le stockage sécurisé du système.
                 </p>
                 <Button
                   className="mt-3"

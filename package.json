@@ -24,7 +24,10 @@
     "verify:mac-release": "node scripts/verify-mac-release.cjs",
     "release:mac": "node scripts/release-mac.cjs",
     "release:mac:publish": "node scripts/release-mac.cjs --publish",
-    "pack:win": "node scripts/pack.cjs win"
+    "pack:win": "node scripts/pack.cjs win",
+    "verify:win-release": "node scripts/verify-win-release.cjs",
+    "release:win": "node scripts/release-win.cjs",
+    "release:win:publish": "node scripts/release-win.cjs --publish"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

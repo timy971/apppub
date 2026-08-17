@@ -18,6 +18,7 @@ const { spawnSync } = require("child_process");
 
 const target = process.argv[2] || "mac";
 const macDistribution = target === "mac" && process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
+const windowsDistribution = target === "win" && process.env.APPPUBLISHER_WIN_DISTRIBUTION === "1";
 if (!["mac", "win"].includes(target)) {
   console.error(`Cible inconnue : ${target}. Utilisez "mac" ou "win".`);
   process.exit(1);
@@ -91,9 +92,7 @@ if (target === "mac" && !fs.existsSync(path.join(buildDir, "icon.icns"))) {
   );
 }
 if (target === "win" && !fs.existsSync(path.join(buildDir, "icon.ico"))) {
-  warn(
-    "build/icon.ico absent — l'icône Windows sera à générer avant une livraison Windows finale.",
-  );
+  fail("build/icon.ico manquant. Ajoutez l'icône Windows avant pack:win.");
 }
 
 for (const rel of ["electron/main.cjs", "electron/preload.cjs", "app.config.cjs"]) {
@@ -153,6 +152,26 @@ if (macDistribution) {
   }
   ok("DMG, ZIP et manifeste de mise à jour produits.");
 }
+if (
+  target === "win" &&
+  !windowsDistribution &&
+  !fs.existsSync(path.join(distApp, "win-unpacked", "AppPublisher.exe"))
+) {
+  fail("AppPublisher.exe non produit — le packaging Windows local n'est pas valide.");
+}
+if (windowsDistribution) {
+  const artifacts = fs.existsSync(distApp) ? fs.readdirSync(distApp) : [];
+  for (const required of [
+    "AppPublisher-Setup.exe",
+    "AppPublisher-Setup.exe.blockmap",
+    "latest.yml",
+  ]) {
+    if (!artifacts.includes(required)) {
+      fail(`Artefact ${required} non produit — la distribution Windows n'est pas valide.`);
+    }
+  }
+  ok("Installateur EXE, blockmap et manifeste de mise à jour produits.");
+}
 
 /* ---------- 6. Rapport ---------- */
 const produced = fs.existsSync(distApp)
@@ -175,7 +194,9 @@ console.log(
       ? macDistribution
         ? "macOS universel — signé et notarisé"
         : "macOS (arm64) — développement local"
-      : "Windows (x64)"
+      : windowsDistribution
+        ? "Windows 10/11 (x64) — signé"
+        : "Windows (x64) — développement local"
   }`,
 );
 console.log(` Durée     : ${seconds} s`);
