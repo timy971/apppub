@@ -5,7 +5,7 @@ const STARTUP_DELAY_MS = 12 * 1000;
  * Pilote electron-updater sans dépendre du renderer. Les dialogues natifs
  * restent accessibles même si l'interface React rencontre un problème.
  */
-class MacUpdateManager {
+class DesktopUpdateManager {
   constructor(options) {
     this.app = options.app;
     this.dialog = options.dialog;
@@ -28,7 +28,7 @@ class MacUpdateManager {
   }
 
   isSupported() {
-    return this.platform === "darwin" && this.app.isPackaged === true;
+    return ["darwin", "win32"].includes(this.platform) && this.app.isPackaged === true;
   }
 
   start() {
@@ -184,4 +184,10 @@ class MacUpdateManager {
   }
 }
 
-module.exports = { MacUpdateManager, SIX_HOURS_MS, STARTUP_DELAY_MS };
+// Alias conservé pour ne pas casser d'éventuelles intégrations existantes.
+module.exports = {
+  DesktopUpdateManager,
+  MacUpdateManager: DesktopUpdateManager,
+  SIX_HOURS_MS,
+  STARTUP_DELAY_MS,
+};

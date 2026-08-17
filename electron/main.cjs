@@ -26,6 +26,7 @@ const {
   Menu,
   clipboard,
   session,
+  safeStorage,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -73,7 +74,8 @@ const {
   validateServiceAccountCredentials,
 } = require("./google-play-publisher.cjs");
 const { GooglePlayOAuth, loadGooglePlayOAuthConfig } = require("./google-play-oauth.cjs");
-const { MacUpdateManager } = require("./update-manager.cjs");
+const { DesktopUpdateManager } = require("./update-manager.cjs");
+const { WindowsSecretStore } = require("./windows-secret-store.cjs");
 const { autoUpdater } = require("electron-updater");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
@@ -82,7 +84,7 @@ const signingSessions = new SigningSessionRegistry();
 const trustedWebContentsIds = new Set();
 const knownSecretValues = new Set();
 let mainWindow = null;
-let macUpdateManager = null;
+let desktopUpdateManager = null;
 
 /* ---------- Bootstrap : PATH utilisateur (macOS/Linux) ----------
  *
@@ -606,7 +608,7 @@ function setupDiagnosticMenu() {
           { type: "separator" },
           {
             label: "Rechercher des mises à jour…",
-            click: () => void macUpdateManager?.checkNow(),
+            click: () => void desktopUpdateManager?.checkNow(),
           },
           { type: "separator" },
           { role: "services" },
@@ -616,6 +618,19 @@ function setupDiagnosticMenu() {
           { role: "unhide" },
           { type: "separator" },
           { role: "quit" },
+        ],
+      });
+    }
+    if (process.platform === "win32") {
+      template.push({
+        label: "Aide",
+        submenu: [
+          {
+            label: "Rechercher des mises à jour…",
+            click: () => void desktopUpdateManager?.checkNow(),
+          },
+          { type: "separator" },
+          { role: "about" },
         ],
       });
     }
@@ -927,7 +942,7 @@ app
 
     safeStep("about-panel", () => configureAboutPanel());
     safeStep("auto-update-manager", () => {
-      macUpdateManager = new MacUpdateManager({
+      desktopUpdateManager = new DesktopUpdateManager({
         app,
         dialog,
         updater: autoUpdater,
@@ -944,7 +959,7 @@ app
       diagWrite({ level: "info", message: "boot step start: createWindow" });
       createWindow();
       diagWrite({ level: "info", message: "boot step ok: createWindow" });
-      safeStep("auto-update-start", () => macUpdateManager?.start());
+      safeStep("auto-update-start", () => desktopUpdateManager?.start());
     } catch (e) {
       diagWrite({
         level: "fatal",
@@ -977,7 +992,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  macUpdateManager?.stop();
+  desktopUpdateManager?.stop();
   activeExecutions.cancelAll();
   signingSessions.clear();
 });
@@ -2406,15 +2421,27 @@ ipcMain.handle("aab:inspect", async (_e, request) => {
 });
 
 /* ==========================================================================
- *  IPC : Secrets (macOS Keychain)
+ *  IPC : Secrets (stockage sécurisé du système)
  *
  *  macOS : utilise `/usr/bin/security` (fourni par le système).
- *  Windows / Linux : renvoie systématiquement `available:false`.
+ *  Windows : utilise Electron safeStorage, adossé à DPAPI.
+ *  Linux : renvoie `available:false`.
  *  Le service Keychain est fixe : "com.apppublisher.signing".
  * ========================================================================== */
 
 const KEYCHAIN_SERVICE = "com.apppublisher.signing";
 const GOOGLE_PLAY_KEYCHAIN_SERVICE = "com.apppublisher.google-play";
+let windowsSecretStoreInstance = null;
+
+function windowsSecretStore() {
+  if (!windowsSecretStoreInstance) {
+    windowsSecretStoreInstance = new WindowsSecretStore({
+      file: path.join(app.getPath("userData"), "windows-secrets.json"),
+      safeStorage,
+    });
+  }
+  return windowsSecretStoreInstance;
+}
 
 function secretsSupported() {
   if (process.platform === "darwin") {
@@ -2430,10 +2457,13 @@ function secretsSupported() {
     }
   }
   if (process.platform === "win32") {
+    const available = windowsSecretStore().isAvailable();
     return {
       platform: "win32",
-      available: false,
-      reason: "Le trousseau Windows n'est pas encore pris en charge par cette version.",
+      available,
+      reason: available
+        ? undefined
+        : "Le chiffrement sécurisé Windows n'est pas disponible pour cette session.",
     };
   }
   return {
@@ -2462,6 +2492,35 @@ function runSecurity(args, input) {
       } catch {}
     }
   });
+}
+
+async function setSecureSecret(service, account, value) {
+  if (process.platform === "win32") return windowsSecretStore().set(service, account, value);
+  const line =
+    [
+      "add-generic-password",
+      "-a",
+      quoteForSecurityInteractive(account),
+      "-s",
+      quoteForSecurityInteractive(service),
+      "-w",
+      quoteForSecurityInteractive(value),
+      "-U",
+    ].join(" ") + "\n";
+  await runSecurity(["-i"], line);
+  return (await getSecureSecret(service, account)) === value;
+}
+
+async function getSecureSecret(service, account) {
+  if (process.platform === "win32") return windowsSecretStore().get(service, account);
+  const result = await runSecurity(["find-generic-password", "-a", account, "-s", service, "-w"]);
+  return result.code === 0 ? result.stdout.replace(/\r?\n$/, "") : null;
+}
+
+async function deleteSecureSecret(service, account) {
+  if (process.platform === "win32") return windowsSecretStore().delete(service, account);
+  await runSecurity(["delete-generic-password", "-a", account, "-s", service]);
+  return true;
 }
 
 function accountFor(profileId, field) {
@@ -2510,18 +2569,12 @@ async function setGooglePlayCredentials(connectionId, credentials) {
   const secret =
     credentials.type === "authorized_user" ? credentials.refresh_token : credentials.private_key;
   if (secret) knownSecretValues.add(secret);
-  const line =
-    [
-      "add-generic-password",
-      "-a",
-      quoteForSecurityInteractive(googlePlayAccountFor(connectionId)),
-      "-s",
-      quoteForSecurityInteractive(GOOGLE_PLAY_KEYCHAIN_SERVICE),
-      "-w",
-      quoteForSecurityInteractive(serialized),
-      "-U",
-    ].join(" ") + "\n";
-  await runSecurity(["-i"], line);
+  const storedOk = await setSecureSecret(
+    GOOGLE_PLAY_KEYCHAIN_SERVICE,
+    googlePlayAccountFor(connectionId),
+    serialized,
+  );
+  if (!storedOk) return false;
   const stored = await getGooglePlayCredentials(connectionId);
   const storedSecret =
     stored?.type === "authorized_user" ? stored.refresh_token : stored?.private_key;
@@ -2539,17 +2592,10 @@ async function getGooglePlayCredentials(connectionId) {
     googlePlayAccountFor(connectionId),
     legacyGooglePlayAccountFor(connectionId),
   ]) {
-    const result = await runSecurity([
-      "find-generic-password",
-      "-a",
-      account,
-      "-s",
-      GOOGLE_PLAY_KEYCHAIN_SERVICE,
-      "-w",
-    ]);
-    if (result.code !== 0) continue;
+    const stored = await getSecureSecret(GOOGLE_PLAY_KEYCHAIN_SERVICE, account);
+    if (!stored) continue;
     try {
-      const credentials = validateGooglePlayCredentials(JSON.parse(result.stdout));
+      const credentials = validateGooglePlayCredentials(JSON.parse(stored));
       const secret =
         credentials.type === "authorized_user"
           ? credentials.refresh_token
@@ -2606,16 +2652,8 @@ async function getStoredSecret(profileId, field) {
   const sup = secretsSupported();
   if (!sup.available) return null;
   const account = accountFor(profileId, field);
-  const result = await runSecurity([
-    "find-generic-password",
-    "-a",
-    account,
-    "-s",
-    KEYCHAIN_SERVICE,
-    "-w",
-  ]);
-  if (result.code !== 0) return null;
-  const value = result.stdout.replace(/\r?\n$/, "");
+  const value = await getSecureSecret(KEYCHAIN_SERVICE, account);
+  if (!value) return null;
   if (value.length >= 4) knownSecretValues.add(value);
   return value;
 }
@@ -2700,35 +2738,8 @@ ipcMain.handle("secrets:set", async (_e, profileId, field, value) => {
   if (!storedSigningProfile(profileId)) return false;
   knownSecretValues.add(value);
   const account = accountFor(profileId, field);
-  // SÉCURITÉ : le mot de passe ne doit JAMAIS apparaître dans l'argv du
-  // process enfant (visible via `ps` par tout process local). On utilise le
-  // mode interactif de `security` : la commande complète (et donc le secret)
-  // est transmise uniquement via stdin. `-U` met à jour l'entrée existante.
-  const line =
-    [
-      "add-generic-password",
-      "-a",
-      quoteForSecurityInteractive(account),
-      "-s",
-      quoteForSecurityInteractive(KEYCHAIN_SERVICE),
-      "-w",
-      quoteForSecurityInteractive(value),
-      "-U",
-    ].join(" ") + "\n";
-  const r = await runSecurity(["-i"], line);
-  // `security -i` renvoie 0 même sur erreur de sous-commande : on vérifie
-  // que la valeur est bien relisible depuis le trousseau.
-  const check = await runSecurity([
-    "find-generic-password",
-    "-a",
-    account,
-    "-s",
-    KEYCHAIN_SERVICE,
-    "-w",
-  ]);
-  const stored = check.code === 0 ? check.stdout.replace(/\r?\n$/, "") : null;
-  if (stored !== value) {
-    diagSigning("warn", "secrets:set échec", { profileId, field, code: r.code });
+  if (!(await setSecureSecret(KEYCHAIN_SERVICE, account, value))) {
+    diagSigning("warn", "secrets:set échec", { profileId, field });
     return false;
   }
   diagSigning("info", "secrets:set", { profileId, field });
@@ -2795,7 +2806,7 @@ ipcMain.handle("secrets:remove", async (_e, profileId) => {
   if (confirmation.response !== 0) return false;
   for (const field of ["storepass", "keypass"]) {
     const account = accountFor(profileId, field);
-    await runSecurity(["delete-generic-password", "-a", account, "-s", KEYCHAIN_SERVICE]);
+    await deleteSecureSecret(KEYCHAIN_SERVICE, account);
   }
   diagSigning("info", "secrets:remove", { profileId });
   return true;
@@ -2826,7 +2837,7 @@ ipcMain.handle("google-play:connectOAuth", async (_event, args) => {
       return {
         ok: false,
         errorCode: "keychain-write-failed",
-        errorHint: "L'autorisation Google n'a pas pu être enregistrée dans le trousseau macOS.",
+        errorHint: "L'autorisation Google n'a pas pu être enregistrée dans le stockage sécurisé.",
       };
     }
     diagSigning("info", "google-play:connectOAuth", {
@@ -2888,8 +2899,8 @@ ipcMain.handle("google-play:importServiceAccount", async (_event, args) => {
       message: `Associer ${credentials.client_email} à « ${project.name} » ?`,
       detail:
         `Application : ${args.packageName}\n\n` +
-        "La clé sera copiée dans le trousseau macOS. Le fichier JSON d'origine ne sera ni modifié ni supprimé.",
-      buttons: ["Importer dans le trousseau", "Annuler"],
+        "La clé sera copiée dans le stockage sécurisé du système. Le fichier JSON d'origine ne sera ni modifié ni supprimé.",
+      buttons: ["Importer de façon sécurisée", "Annuler"],
       defaultId: 1,
       cancelId: 1,
       noLink: true,
@@ -2902,7 +2913,7 @@ ipcMain.handle("google-play:importServiceAccount", async (_event, args) => {
       return {
         ok: false,
         errorCode: "keychain-write-failed",
-        errorHint: "La clé Google n'a pas pu être enregistrée dans le trousseau macOS.",
+        errorHint: "La clé Google n'a pas pu être enregistrée dans le stockage sécurisé.",
       };
     }
     diagSigning("info", "google-play:importServiceAccount", {
@@ -2940,7 +2951,7 @@ ipcMain.handle("google-play:testConnection", async (_event, args) => {
     return {
       ok: false,
       errorCode: "credentials-missing",
-      errorHint: "L'autorisation Google Play est absente du trousseau macOS.",
+      errorHint: "L'autorisation Google Play est absente du stockage sécurisé.",
     };
   }
   try {
@@ -2973,7 +2984,7 @@ ipcMain.handle("google-play:disconnect", async (_event, args) => {
     title: "Déconnecter Google Play ?",
     message: `Retirer l'accès Google Play de « ${project.name} » ?`,
     detail:
-      "L'autorisation sera supprimée du trousseau. Aucun projet ni aucune release Google Play ne sera supprimé.",
+      "L'autorisation sera supprimée du stockage sécurisé. Aucun projet ni aucune release Google Play ne sera supprimé.",
     buttons: ["Déconnecter", "Annuler"],
     defaultId: 1,
     cancelId: 1,
@@ -2984,13 +2995,7 @@ ipcMain.handle("google-play:disconnect", async (_event, args) => {
     googlePlayAccountFor(args.connectionId),
     legacyGooglePlayAccountFor(args.connectionId),
   ]) {
-    await runSecurity([
-      "delete-generic-password",
-      "-a",
-      account,
-      "-s",
-      GOOGLE_PLAY_KEYCHAIN_SERVICE,
-    ]);
+    await deleteSecureSecret(GOOGLE_PLAY_KEYCHAIN_SERVICE, account);
   }
   diagSigning("info", "google-play:disconnect", {
     projectId: project.id,
@@ -3020,7 +3025,7 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
     return {
       ok: false,
       errorCode: "credentials-missing",
-      errorHint: "L'autorisation Google Play est absente du trousseau macOS.",
+      errorHint: "L'autorisation Google Play est absente du stockage sécurisé.",
     };
   }
   const signature = await verifyAabSignature(aabPath);

@@ -8,7 +8,7 @@ limité à la piste `internal` : aucune méthode du bridge ne permet de sélecti
 
 L'utilisateur clique sur **Se connecter avec Google**, choisit le compte autorisé dans Play Console
 dans son navigateur, puis revient automatiquement dans AppPublisher. Le jeton de renouvellement est
-conservé dans le trousseau macOS ; aucun mot de passe Google n'entre dans l'application.
+conservé dans le stockage sécurisé de macOS ou Windows ; aucun mot de passe Google n'entre dans l'interface.
 
 Pour activer ce bouton dans une compilation AppPublisher :
 
@@ -40,7 +40,7 @@ Références officielles :
 - https://developers.google.com/android-publisher/getting_started
 - https://developers.google.com/android-publisher/api-ref/rest/v3/edits
 
-Sous **Options avancées**, AppPublisher copie la clé dans le trousseau macOS. Il ne modifie et ne
+Sous **Options avancées**, AppPublisher copie la clé dans le stockage sécurisé du système. Il ne modifie et ne
 supprime pas le fichier JSON d'origine : l'utilisateur reste responsable de sa conservation ou de
 sa suppression sécurisée.
 

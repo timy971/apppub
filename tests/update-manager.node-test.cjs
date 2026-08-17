@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
-const { MacUpdateManager } = require("../electron/update-manager.cjs");
+const { DesktopUpdateManager } = require("../electron/update-manager.cjs");
 
 function fixture(overrides = {}) {
   const updater = new EventEmitter();
@@ -15,7 +15,7 @@ function fixture(overrides = {}) {
       return { response: 0 };
     },
   };
-  const manager = new MacUpdateManager({
+  const manager = new DesktopUpdateManager({
     app: { isPackaged: true, getVersion: () => "1.0.0" },
     dialog,
     updater,
@@ -29,11 +29,16 @@ function fixture(overrides = {}) {
   return { manager, updater, dialogs };
 }
 
-test("les mises à jour sont désactivées hors application macOS installée", () => {
+test("les mises à jour sont désactivées hors application desktop installée", () => {
   const { manager } = fixture({
     app: { isPackaged: false, getVersion: () => "1.0.0" },
   });
   assert.equal(manager.start(), false);
+});
+
+test("les mises à jour sont également activées dans l'application Windows installée", () => {
+  const { manager } = fixture({ platform: "win32" });
+  assert.equal(manager.start(), true);
 });
 
 test("une mise à jour disponible est proposée puis téléchargée", async () => {

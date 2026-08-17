@@ -12,7 +12,23 @@
  */
 const app = require("./app.config.cjs");
 const fs = require("fs");
-const distribution = process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
+const macDistribution = process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
+const windowsDistribution = process.env.APPPUBLISHER_WIN_DISTRIBUTION === "1";
+const distribution = macDistribution || windowsDistribution;
+const azureSigningKeys = [
+  "WINDOWS_AZURE_PUBLISHER_NAME",
+  "WINDOWS_AZURE_ENDPOINT",
+  "WINDOWS_AZURE_CERTIFICATE_PROFILE",
+  "WINDOWS_AZURE_SIGNING_ACCOUNT",
+];
+const azureSigning = azureSigningKeys.every((name) => process.env[name])
+  ? {
+      publisherName: process.env.WINDOWS_AZURE_PUBLISHER_NAME,
+      endpoint: process.env.WINDOWS_AZURE_ENDPOINT,
+      certificateProfileName: process.env.WINDOWS_AZURE_CERTIFICATE_PROFILE,
+      codeSigningAccountName: process.env.WINDOWS_AZURE_SIGNING_ACCOUNT,
+    }
+  : undefined;
 
 module.exports = {
   appId: app.appId,
@@ -37,6 +53,7 @@ module.exports = {
   // Compression raisonnable : équilibre taille / temps de packaging.
   compression: "normal",
   removePackageScripts: true,
+  forceCodeSigning: windowsDistribution,
   extraMetadata: {
     name: "apppublisher",
     productName: app.productName,
@@ -52,20 +69,20 @@ module.exports = {
     artifactName: "${productName}.${ext}",
     category: "public.app-category.developer-tools",
     icon: "build/icon.icns",
-    target: distribution
+    target: macDistribution
       ? [
           { target: "dmg", arch: ["universal"] },
           { target: "zip", arch: ["universal"] },
         ]
       : [{ target: "dir", arch: ["arm64"] }],
     darkModeSupport: true,
-    hardenedRuntime: distribution,
+    hardenedRuntime: macDistribution,
     gatekeeperAssess: false,
     // En local, une .app non signée reste disponible pour les tests rapides.
     // En distribution, electron-builder choisit le certificat Developer ID
     // Application du trousseau ou celui fourni par CSC_LINK.
-    identity: distribution ? undefined : null,
-    notarize: distribution,
+    identity: macDistribution ? undefined : null,
+    notarize: macDistribution,
     entitlements: "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
     extendInfo: {
@@ -94,22 +111,23 @@ module.exports = {
       }
     : null,
 
-  // ---------- Windows (préparation) ----------
-  // Génération possible dès qu'electron-builder est lancé sur Windows,
-  // ou sur macOS avec Wine installé. Non bloquant pour la Phase 3.6.
+  // ---------- Windows ----------
   win: {
+    // Nom stable pour conserver un lien de téléchargement permanent.
+    artifactName: "${productName}-Setup.${ext}",
     icon: "build/icon.ico",
-    target: [
-      { target: "nsis", arch: ["x64"] },
-      { target: "zip", arch: ["x64"] },
-    ],
+    target: windowsDistribution
+      ? [{ target: "nsis", arch: ["x64"] }]
+      : [{ target: "dir", arch: ["x64"] }],
+    azureSignOptions: windowsDistribution ? azureSigning : undefined,
   },
   nsis: {
-    oneClick: false,
+    oneClick: true,
     perMachine: false,
-    allowToChangeInstallationDirectory: true,
-    createDesktopShortcut: true,
+    allowElevation: true,
+    createDesktopShortcut: false,
     createStartMenuShortcut: true,
     shortcutName: app.productName,
+    deleteAppDataOnUninstall: false,
   },
 };
