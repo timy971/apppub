@@ -111,7 +111,7 @@ export function GooglePlaySetupGuide({
               </p>
               <Button className="mt-3" variant="outline" onClick={revealAab}>
                 <FileArchive className="h-4 w-4" />
-                Afficher le fichier dans le Finder
+                Afficher le fichier dans son dossier
               </Button>
             </>
           ) : (

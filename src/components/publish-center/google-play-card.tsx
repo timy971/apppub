@@ -28,9 +28,11 @@ import { patchAndroidConfig } from "@/core/projects/android-config";
 import { ProjectsService } from "@/core/projects/service";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import { JourneyProgress } from "@/core/navigation/journey-progress";
+import { googlePlayLaunchProgress } from "@/core/google-play/launch-plan";
 import type { Project, PublishRecord } from "@/core/types";
 import { GooglePlaySetupGuide } from "./google-play-setup-guide";
 import { GooglePlayJourney } from "./google-play-journey";
+import { GooglePlayLaunchAssistant } from "./google-play-launch-assistant";
 import { HelpRequestButton } from "@/components/help-request-button";
 
 interface Props {
@@ -78,6 +80,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         record.build === project.currentBuild &&
         record.storeRelease?.track === "internal",
     );
+  const publicLaunch = googlePlayLaunchProgress(android.googlePlayLaunchPlan);
 
   const connectionArgs = connectionId
     ? { projectPath: project.localPath, packageName, connectionId }
@@ -412,7 +415,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-semibold">Publication Google Play</h2>
-              <Badge variant="outline">Test interne uniquement</Badge>
+              <Badge variant="outline">Test interne : étape automatique</Badge>
               {verified && (
                 <Badge className="bg-success/15 text-success hover:bg-success/15">
                   Connexion vérifiée
@@ -432,7 +435,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
             <p className="mt-2 text-xs text-muted-foreground">
               {initializationRequired
                 ? "Google demande une première création dans Play Console avant d’autoriser AppPublisher à publier."
-                : "L'application doit déjà exister dans Play Console. AppPublisher ne peut ni créer la fiche, ni compléter les déclarations réglementaires à votre place."}
+                : "AppPublisher envoie d’abord une version de test sûre, puis vous accompagne jusqu’à la demande de publication publique."}
             </p>
             {alreadyPublished && (
               <div className="mt-3 flex items-center gap-2 text-sm text-success">
@@ -499,6 +502,9 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         sent={alreadyPublished}
         initializationRequired={initializationRequired}
         hasPreviousRelease={hasPreviousGooglePlayRelease}
+        publicTasksDone={publicLaunch.completed}
+        publicTasksTotal={publicLaunch.total}
+        publicLaunchComplete={publicLaunch.complete}
       />
       {lastFailure && (
         <GooglePlayRecovery
@@ -522,6 +528,14 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           aabPath={release?.artifactPath}
           verifying={busy === "test"}
           onVerify={testConnection}
+        />
+      )}
+      {connected && (
+        <GooglePlayLaunchAssistant
+          project={project}
+          packageName={packageName}
+          internalReleaseReady={alreadyPublished}
+          onChanged={onChanged}
         />
       )}
       {!connected && (

@@ -247,6 +247,7 @@ test("Google Play présente un parcours novice en quatre états", () => {
     "Application Play Console",
     "Fichier Android",
     "Test interne",
+    "Mise en ligne publique",
   ]) {
     assert.match(journey, new RegExp(step));
   }
@@ -272,4 +273,32 @@ test("les refus Google Play restent visibles avec une action compréhensible", (
   assert.match(card, /Ouvrir Play Console/);
   assert.match(card, /Les quatre blocages les plus fréquents/);
   assert.match(card, /Mauvaise clé/);
+});
+
+test("le test interne continue vers une vraie checklist de publication publique", () => {
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  const assistant = read("src/components/publish-center/google-play-launch-assistant.tsx");
+  const plan = read("src/core/google-play/launch-plan.ts");
+  assert.match(card, /<GooglePlayLaunchAssistant/);
+  assert.match(card, /Test interne : étape automatique/);
+  assert.match(assistant, /Mise en ligne publique/);
+  assert.match(assistant, /Prochaine action/);
+  assert.match(assistant, /Dossier envoyé à Google/);
+  assert.match(assistant, /Il n’est public qu’après l’acceptation/);
+  for (const requirement of [
+    "politique de confidentialité",
+    "sécurité des données",
+    "public cible",
+    "questionnaire de classification",
+    "tests exigés par Google",
+    "version de production",
+  ]) {
+    assert.match(plan, new RegExp(requirement, "i"));
+  }
+});
+
+test("les instructions de fichier sont compatibles macOS et Windows", () => {
+  const guide = read("src/components/publish-center/google-play-setup-guide.tsx");
+  assert.match(guide, /Afficher le fichier dans son dossier/);
+  assert.doesNotMatch(guide, /Afficher le fichier dans le Finder/);
 });

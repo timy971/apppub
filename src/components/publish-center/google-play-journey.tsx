@@ -1,16 +1,26 @@
-import { Check, Circle, CircleAlert, FileArchive, Send, Store, UserRound } from "lucide-react";
+import {
+  Check,
+  Circle,
+  CircleAlert,
+  FileArchive,
+  Rocket,
+  Send,
+  Store,
+  UserRound,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-export type GooglePlayJourneyState = "setup" | "connected" | "ready" | "sent";
+export type GooglePlayJourneyState = "setup" | "connected" | "ready" | "sent" | "submitted";
 
 const STATE_LABELS: Record<GooglePlayJourneyState, string> = {
   setup: "À configurer",
   connected: "Connecté",
   ready: "Prêt à envoyer",
-  sent: "Envoyé",
+  sent: "Envoyé en test interne",
+  submitted: "Dossier envoyé à Google",
 };
 
 export function GooglePlayJourney({
@@ -20,6 +30,9 @@ export function GooglePlayJourney({
   sent,
   initializationRequired,
   hasPreviousRelease,
+  publicTasksDone,
+  publicTasksTotal,
+  publicLaunchComplete,
 }: {
   connected: boolean;
   applicationReady: boolean;
@@ -27,14 +40,19 @@ export function GooglePlayJourney({
   sent: boolean;
   initializationRequired: boolean;
   hasPreviousRelease: boolean;
+  publicTasksDone: number;
+  publicTasksTotal: number;
+  publicLaunchComplete: boolean;
 }) {
-  const state: GooglePlayJourneyState = sent
-    ? "sent"
-    : connected && applicationReady && artifactReady
-      ? "ready"
-      : connected
-        ? "connected"
-        : "setup";
+  const state: GooglePlayJourneyState = publicLaunchComplete
+    ? "submitted"
+    : sent
+      ? "sent"
+      : connected && applicationReady && artifactReady
+        ? "ready"
+        : connected
+          ? "connected"
+          : "setup";
   const steps = [
     {
       title: "Compte Google",
@@ -70,6 +88,17 @@ export function GooglePlayJourney({
       current: state === "ready",
       icon: Send,
     },
+    {
+      title: "Mise en ligne publique",
+      detail: publicLaunchComplete
+        ? "Dossier envoyé à Google pour examen"
+        : sent
+          ? `${publicTasksDone}/${publicTasksTotal} étapes confirmées`
+          : "Disponible après le premier test interne",
+      done: publicLaunchComplete,
+      current: sent && !publicLaunchComplete,
+      icon: Rocket,
+    },
   ];
 
   return (
@@ -94,7 +123,7 @@ export function GooglePlayJourney({
         </Badge>
       </div>
 
-      <ol className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <ol className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {steps.map((step, index) => {
           const Icon = step.icon;
           return (

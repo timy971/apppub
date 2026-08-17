@@ -11,6 +11,28 @@ export type UUID = string;
 
 export type ProjectLifecycle = "development" | "published" | "archived";
 
+export type GooglePlayLaunchTaskId =
+  | "internal-test-installed"
+  | "internal-test-validated"
+  | "store-texts"
+  | "store-graphics"
+  | "privacy-policy"
+  | "app-access"
+  | "ads-declaration"
+  | "target-audience"
+  | "content-rating"
+  | "data-safety"
+  | "countries-and-pricing"
+  | "testing-requirements"
+  | "production-release"
+  | "review-submitted";
+
+export interface GooglePlayLaunchPlan {
+  /** Les validations sont déclarées par l'utilisateur dans Play Console. */
+  completedTasks: GooglePlayLaunchTaskId[];
+  updatedAt?: string;
+}
+
 /** Phase 3 : configuration Android d'un projet (extraite du modèle racine). */
 export interface AndroidPublishingConfig {
   applicationId?: string;
@@ -39,6 +61,8 @@ export interface AndroidPublishingConfig {
   googlePlaySetupStatus?: "required" | "ready";
   /** Dernier numéro interne confirmé sur la piste de test, y compris lors du premier envoi manuel. */
   googlePlayLastKnownBuild?: number;
+  /** Progression novice vers une première mise en ligne publique. */
+  googlePlayLaunchPlan?: GooglePlayLaunchPlan;
 }
 
 /** Phase 3 : configuration iOS — structure posée, publication future. */
