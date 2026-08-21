@@ -1,4 +1,5 @@
 import type { CopilotRecommendation, CopilotRule } from "../types";
+import { hasLinkedSigningProfile } from "@/core/navigation/publication-next-step";
 
 /**
  * Rejoue les findings de ProjectStatusService et les convertit en
@@ -13,6 +14,9 @@ export const configurationRule: CopilotRule = {
 
     const recs: CopilotRecommendation[] = [];
     for (const f of status.findings) {
+      // La signature est traitée ci-dessous avec la liste réelle des profils,
+      // afin de détecter aussi une association devenue obsolète.
+      if (f.id === "android.keystore") continue;
       const isConfigDomain =
         f.domain === "android" ||
         f.domain === "ios" ||
@@ -45,14 +49,29 @@ export const configurationRule: CopilotRule = {
           : undefined,
       });
     }
-    const android = project.publishing?.android;
-    if (android?.signingProfileId || android?.keystorePath || project.keystorePath) {
+    const signingReady = hasLinkedSigningProfile(project, ctx.signingProfileIds ?? []);
+    if (signingReady) {
       recs.push({
         id: "configuration.android-signing.ready",
         kind: "success",
         priority: 925,
         headline: "Signature Android associée",
         completedStepId: "signing",
+      });
+    } else {
+      recs.push({
+        id: "configuration.android-signing.required",
+        kind: "warning",
+        priority: 48,
+        headline: "Protégez l'application avant de créer le fichier Android",
+        description:
+          "Créez une signature ou associez un profil existant. AppPublisher en aura besoin pour produire un fichier accepté par Google Play.",
+        action: {
+          title: "Protéger l'application",
+          description: "Créer ou choisir la signature Android de cette application.",
+          route: "/signing",
+          priority: "medium",
+        },
       });
     }
     return recs;

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Project, PublishRecord } from "@/core/types";
 import { buildCopilotPlan } from "./engine";
 import { publishRule } from "./rules/publish";
+import { configurationRule } from "./rules/configuration";
+import { versionRule } from "./rules/version";
 import type { CopilotRuleContext, CopilotRule } from "./types";
 
 const project = {
@@ -71,6 +73,45 @@ describe("buildCopilotPlan", () => {
       "Publier",
     ]);
     expect(plan.steps.at(-1)).toMatchObject({ id: "publish", status: "current" });
+  });
+
+  it("requires signature protection after versioning when no profile is linked", () => {
+    const plan = buildCopilotPlan(
+      {
+        project,
+        signingProfileIds: [],
+        status: readyStatus,
+        checks: [],
+        history: [record("version")],
+        backups: [],
+      },
+      [configurationRule, versionRule],
+    );
+
+    expect(plan.nextAction).toMatchObject({
+      route: "/signing",
+      title: "Protéger l'application",
+    });
+  });
+
+  it("offers the Android build after versioning when the linked profile exists", () => {
+    const signedProject = {
+      ...project,
+      publishing: { android: { signingProfileId: "release-profile" } },
+    } as Project;
+    const plan = buildCopilotPlan(
+      {
+        project: signedProject,
+        signingProfileIds: ["release-profile"],
+        status: readyStatus,
+        checks: [],
+        history: [record("version")],
+        backups: [],
+      },
+      [configurationRule, versionRule],
+    );
+
+    expect(plan.nextAction.route).toBe("/build");
   });
 });
 

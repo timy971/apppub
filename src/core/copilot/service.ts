@@ -8,6 +8,7 @@ import type {
 import { ProjectStatusService } from "@/core/projects/status";
 import { buildCopilotPlan } from "./engine";
 import type { CopilotPlan, CopilotRuleContext } from "./types";
+import { ProfilesStore } from "@/features/android-signing";
 
 /**
  * CopilotService — devient un simple agrégateur.
@@ -27,6 +28,7 @@ export const CopilotService = {
   }): CopilotPlan {
     const ctx: CopilotRuleContext = {
       project: input.project,
+      signingProfileIds: ProfilesStore.list().map((profile) => profile.id),
       status: input.project ? ProjectStatusService.evaluate(input.project) : null,
       checks: input.checks,
       history: input.history,

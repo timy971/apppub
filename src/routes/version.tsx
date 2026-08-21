@@ -28,6 +28,8 @@ import { ErrorCard } from "@/components/error-card";
 import { translateError } from "@/core/errors/translator";
 import { toast } from "sonner";
 import { StepPurpose } from "@/components/step-purpose";
+import { ProfilesStore } from "@/features/android-signing";
+import { nextStepAfterVersion } from "@/core/navigation/publication-next-step";
 
 export const Route = createFileRoute("/version")({
   component: VersionAssistant,
@@ -87,6 +89,10 @@ function VersionAssistant() {
   if (!project) return <NoProject />;
 
   const preview = choice ? VersionService.preview(project, choice) : null;
+  const nextStep = nextStepAfterVersion(
+    project,
+    ProfilesStore.list().map((profile) => profile.id),
+  );
 
   async function apply() {
     if (!choice || !preview || !project) return;
@@ -233,8 +239,8 @@ function VersionAssistant() {
           <div className="mt-1 text-sm text-muted-foreground">Numéro interne {done.build}</div>
           <div className="mt-6 flex justify-center gap-2">
             <Button asChild>
-              <Link to="/build">
-                Créer le fichier Android
+              <Link to={nextStep.to}>
+                {nextStep.label}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>

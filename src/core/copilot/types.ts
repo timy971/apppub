@@ -50,6 +50,7 @@ export interface CopilotInsight {
 /** Contexte d'entrée injecté au moteur. */
 export interface CopilotRuleContext {
   project: Project | undefined;
+  signingProfileIds?: string[];
   status: ProjectStatus | null;
   checks: HealthCheck[];
   history: PublishRecord[];
