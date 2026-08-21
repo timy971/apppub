@@ -36,6 +36,25 @@ test("persists typed application data atomically across restarts", (t) => {
   assert.equal(second.get("unknown").ok, false);
 });
 
+test("accepts only known publication journey paths in settings", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-journey-store-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const store = new DurableStore(path.join(root, "store.json"));
+
+  assert.deepEqual(
+    store.set("settings", {
+      language: "fr",
+      lastJourneyPath: "/projects",
+      returnToJourneyPath: "/publish",
+    }),
+    { ok: true },
+  );
+  assert.equal(
+    store.set("settings", { language: "fr", lastJourneyPath: "/not-a-real-step" }).ok,
+    false,
+  );
+});
+
 test("does not replace valid data when its safety copy cannot be written", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-store-backup-failure-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
