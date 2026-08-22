@@ -177,17 +177,21 @@ test("une correction ramène à l'étape qui l'a demandée", () => {
   const preflight = read("src/components/build-center/preflight-card.tsx");
   const publish = read("src/components/publish-center/header.tsx");
   assert.match(progress, /returnToJourneyPath/);
-  assert.match(continuation, /Revenir à « \$\{JOURNEY_LABELS\[returnTo\]\} »/);
+  assert.match(continuation, /Continuer vers « \$\{JOURNEY_LABELS\[returnTo\]\} »/);
   assert.match(preflight, /rememberReturnTo\("\/build"\)/);
   assert.match(publish, /rememberReturnTo\("\/publish"\)/);
 });
 
 test("la signature se choisit et la suite reste visible dans le même flux", () => {
   const signing = read("src/routes/signing.tsx");
+  const continuation = read("src/components/journey-continuation.tsx");
   assert.match(signing, /Utiliser pour \{applicationName\}/);
   assert.match(signing, /selected=\{p\.id === associatedProfileId\}/);
   assert.match(signing, /fallbackTo="\/build"/);
   assert.match(signing, /Signature prête/);
+  assert.match(signing, /L'étape suivante consiste à créer le fichier Android/);
+  assert.match(continuation, /Continuer vers «/);
+  assert.doesNotMatch(continuation, /Revenir à «/);
 });
 
 test("le changement d'écran place le focus sur un titre explicite", () => {
