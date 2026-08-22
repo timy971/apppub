@@ -1,4 +1,4 @@
-import { ArrowRight, CornerUpLeft } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
@@ -27,8 +27,7 @@ export function JourneyContinuation({
   if (onlyWhenReturning && !returnTo) return null;
 
   const target = returnTo ?? fallbackTo;
-  const label = returnTo ? `Revenir à « ${JOURNEY_LABELS[returnTo]} »` : fallbackLabel;
-  const Icon = returnTo ? CornerUpLeft : ArrowRight;
+  const label = returnTo ? `Continuer vers « ${JOURNEY_LABELS[returnTo]} »` : fallbackLabel;
 
   return (
     <Card className="border-primary/30 bg-primary/5 p-5 shadow-soft">
@@ -45,7 +44,7 @@ export function JourneyContinuation({
           }}
         >
           {label}
-          <Icon className="h-4 w-4" />
+          <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
     </Card>

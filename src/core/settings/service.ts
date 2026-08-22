@@ -19,7 +19,9 @@ export const SettingsService = {
     storage.set(STORAGE_KEYS.settings, next);
   },
   update(patch: Partial<Settings>): Settings {
-    const next = { ...this.load(), ...patch };
+    const next = Object.fromEntries(
+      Object.entries({ ...this.load(), ...patch }).filter(([, value]) => value !== undefined),
+    ) as unknown as Settings;
     this.save(next);
     return next;
   },
