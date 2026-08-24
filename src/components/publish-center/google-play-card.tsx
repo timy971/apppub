@@ -47,6 +47,9 @@ type GooglePlayFailure = {
   errorHint?: string;
   phase?: string;
   causeCode?: string;
+  attemptedVersionCode?: number;
+  existingVersionCode?: number;
+  minimumVersionCode?: number;
 };
 
 export function GooglePlayCard({ project, release, onChanged }: Props) {
@@ -586,6 +589,9 @@ function showGooglePlayError(result: {
   errorHint?: string;
   phase?: string;
   causeCode?: string;
+  attemptedVersionCode?: number;
+  existingVersionCode?: number;
+  minimumVersionCode?: number;
 }) {
   const title =
     result.errorCode === "app-not-found"
@@ -594,33 +600,39 @@ function showGooglePlayError(result: {
         ? "Droits Google Play insuffisants"
         : result.errorCode === "version-already-used"
           ? "Numéro interne déjà utilisé"
-          : result.errorCode === "upload-key-mismatch"
-            ? "Clé de signature non reconnue"
-            : result.errorCode === "changes-in-review"
-              ? "Une modification est déjà en cours de revue"
-              : result.errorCode === "commit-outcome-unknown"
-                ? "Résultat de publication à vérifier"
-                : result.errorCode === "oauth-not-configured"
-                  ? "Connexion Google à activer"
-                  : result.errorCode === "credentials-missing"
-                    ? "Autorisation Google Play introuvable"
-                    : result.errorCode === "network-timeout"
-                      ? result.phase === "upload-bundle"
-                        ? "Envoi du fichier Android trop long"
-                        : "Google Play ne répond pas"
-                      : result.errorCode === "network-error"
+          : result.errorCode === "version-too-low"
+            ? "Numéro interne trop faible"
+            : result.errorCode === "upload-key-mismatch"
+              ? "Clé de signature non reconnue"
+              : result.errorCode === "changes-in-review"
+                ? "Une modification est déjà en cours de revue"
+                : result.errorCode === "commit-outcome-unknown"
+                  ? "Résultat de publication à vérifier"
+                  : result.errorCode === "oauth-not-configured"
+                    ? "Connexion Google à activer"
+                    : result.errorCode === "credentials-missing"
+                      ? "Autorisation Google Play introuvable"
+                      : result.errorCode === "network-timeout"
                         ? result.phase === "upload-bundle"
-                          ? "Envoi du fichier Android interrompu"
-                          : "Communication Google Play interrompue"
-                        : result.errorCode === "aab-read-failed"
-                          ? "Fichier Android impossible à lire"
-                          : "Google Play a refusé l'opération";
+                          ? "Envoi du fichier Android trop long"
+                          : "Google Play ne répond pas"
+                        : result.errorCode === "network-error"
+                          ? result.phase === "upload-bundle"
+                            ? "Envoi du fichier Android interrompu"
+                            : "Communication Google Play interrompue"
+                          : result.errorCode === "aab-read-failed"
+                            ? "Fichier Android impossible à lire"
+                            : "Google Play a refusé l'opération";
   const description =
     result.errorCode === "app-not-found"
       ? "Créez la fiche, ajoutez et enregistrez le premier fichier Android dans le test interne, puis recommencez la vérification."
       : result.errorCode === "version-already-used"
         ? "Google Play n'accepte jamais deux fichiers avec le même numéro interne. Ouvrez « Préparer la version », augmentez ce numéro, recréez le fichier Android, puis republiez."
-        : result.errorHint;
+        : result.errorCode === "version-too-low"
+          ? result.minimumVersionCode
+            ? `Google Play utilise déjà le numéro ${result.existingVersionCode}. Choisissez au minimum ${result.minimumVersionCode} dans « Préparer la version », puis recréez le fichier Android.`
+            : "Cette version ne peut remplacer aucune version existante. Choisissez un numéro interne supérieur au plus grand numéro présent dans Google Play, puis recréez le fichier Android."
+          : result.errorHint;
   toast.error(title, { description, duration: 12_000 });
 }
 
@@ -734,6 +746,18 @@ function googlePlayRecoveryFor(failure: GooglePlayFailure): {
           "Un versionCode ne peut être utilisé qu’une seule fois, même si l’ancienne version a été supprimée ou refusée.",
         solution:
           "Augmentez le numéro interne, recréez le fichier Android, puis revenez l’envoyer. Ne changez pas seulement le nom visible de la version.",
+        action: "version",
+      };
+    case "version-too-low":
+      return {
+        title: "Le numéro interne est trop faible",
+        explanation:
+          failure.attemptedVersionCode && failure.existingVersionCode
+            ? `Votre fichier utilise le numéro ${failure.attemptedVersionCode}, tandis que Google Play possède déjà la version ${failure.existingVersionCode}.`
+            : "Google Play possède déjà une version plus récente que le fichier Android préparé.",
+        solution: failure.minimumVersionCode
+          ? `Ouvrez « Préparer la version », choisissez au minimum ${failure.minimumVersionCode}, puis recréez le fichier Android avant de le renvoyer.`
+          : "Ouvrez « Préparer la version », choisissez un numéro interne supérieur au plus grand numéro de Play Console, puis recréez le fichier Android.",
         action: "version",
       };
     case "aab-invalid":

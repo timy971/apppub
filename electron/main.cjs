@@ -2618,6 +2618,9 @@ function publicGooglePlayError(error) {
       status: error.status,
       phase: error.phase,
       causeCode: error.causeCode,
+      attemptedVersionCode: error.attemptedVersionCode,
+      existingVersionCode: error.existingVersionCode,
+      minimumVersionCode: error.minimumVersionCode,
     };
   }
   return {

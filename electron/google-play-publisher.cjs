@@ -18,6 +18,9 @@ class GooglePlayError extends Error {
     this.reason = options.reason;
     this.phase = options.phase;
     this.causeCode = options.causeCode;
+    this.attemptedVersionCode = options.attemptedVersionCode;
+    this.existingVersionCode = options.existingVersionCode;
+    this.minimumVersionCode = options.minimumVersionCode;
   }
 }
 
@@ -158,6 +161,12 @@ function classifyHttpError(status, payload) {
   if (
     reason === "apkUpgradeVersionConflict" ||
     reason === "apkNotificationMessageKeyUpgradeVersionConflict" ||
+    /does not allow any existing users to upgrade to the newly added (?:apks?|app bundles?)/i.test(
+      message,
+    )
+  ) {
+    code = "version-too-low";
+  } else if (
     /version\s*code\b.*\balready\s+been\s+used\b/i.test(message) ||
     /\bversionCode\b.*\balready\b.*\bused\b/i.test(message)
   ) {
@@ -177,6 +186,21 @@ function classifyHttpError(status, payload) {
     status,
     reason,
   });
+}
+
+function highestTrackVersionCode(payload, trackName = INTERNAL_TRACK) {
+  const tracks = Array.isArray(payload?.tracks) ? payload.tracks : [];
+  const track = tracks.find((candidate) => candidate?.track === trackName);
+  const releases = Array.isArray(track?.releases) ? track.releases : [];
+  let highest = 0;
+  for (const release of releases) {
+    const versionCodes = Array.isArray(release?.versionCodes) ? release.versionCodes : [];
+    for (const value of versionCodes) {
+      const versionCode = Number(value);
+      if (Number.isSafeInteger(versionCode) && versionCode > highest) highest = versionCode;
+    }
+  }
+  return highest;
 }
 
 function networkCauseCode(error) {
@@ -325,6 +349,15 @@ class GooglePlayPublisher {
     }
   }
 
+  async highestExistingVersionCode(packageName, editId, token) {
+    const payload = await this.request(
+      `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/tracks`,
+      token,
+      { method: "GET", phase: "inspect-versions" },
+    );
+    return highestTrackVersionCode(payload);
+  }
+
   async testConnection(credentialsInput, packageNameInput) {
     const credentials = validateGooglePlayCredentials(credentialsInput);
     const packageName = normalizePackageName(packageNameInput);
@@ -376,6 +409,13 @@ class GooglePlayPublisher {
     const editId = await this.insertEdit(packageName, token);
     let committed = false;
     try {
+      onStep("inspect-versions");
+      const highestExistingVersionCode = await this.highestExistingVersionCode(
+        packageName,
+        editId,
+        token,
+      );
+
       onStep("upload-bundle");
       let bundleBytes;
       try {
@@ -412,6 +452,19 @@ class GooglePlayPublisher {
         throw new GooglePlayError(
           "invalid-response",
           "Google Play n'a pas reconnu la version de l'AAB.",
+        );
+      }
+      if (highestExistingVersionCode > 0 && bundle.versionCode <= highestExistingVersionCode) {
+        const minimumVersionCode = highestExistingVersionCode + 1;
+        throw new GooglePlayError(
+          "version-too-low",
+          `Le numéro interne ${bundle.versionCode} est trop faible. Google Play utilise déjà le numéro ${highestExistingVersionCode}. Choisissez au minimum ${minimumVersionCode}, puis recréez le fichier Android.`,
+          {
+            phase: "inspect-versions",
+            attemptedVersionCode: bundle.versionCode,
+            existingVersionCode: highestExistingVersionCode,
+            minimumVersionCode,
+          },
         );
       }
 
@@ -492,6 +545,7 @@ module.exports = {
   GooglePlayError,
   GooglePlayPublisher,
   INTERNAL_TRACK,
+  highestTrackVersionCode,
   normalizeLocale,
   normalizeNotes,
   normalizePackageName,

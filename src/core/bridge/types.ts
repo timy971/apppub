@@ -240,6 +240,9 @@ export type GooglePlayResult<T extends object = Record<string, never>> =
       status?: number;
       phase?: string;
       causeCode?: string;
+      attemptedVersionCode?: number;
+      existingVersionCode?: number;
+      minimumVersionCode?: number;
     };
 
 export interface GooglePlayPublishResult {
