@@ -188,16 +188,17 @@ function classifyHttpError(status, payload) {
   });
 }
 
-function highestTrackVersionCode(payload, trackName = INTERNAL_TRACK) {
+function highestPublishedVersionCode(payload) {
   const tracks = Array.isArray(payload?.tracks) ? payload.tracks : [];
-  const track = tracks.find((candidate) => candidate?.track === trackName);
-  const releases = Array.isArray(track?.releases) ? track.releases : [];
   let highest = 0;
-  for (const release of releases) {
-    const versionCodes = Array.isArray(release?.versionCodes) ? release.versionCodes : [];
-    for (const value of versionCodes) {
-      const versionCode = Number(value);
-      if (Number.isSafeInteger(versionCode) && versionCode > highest) highest = versionCode;
+  for (const track of tracks) {
+    const releases = Array.isArray(track?.releases) ? track.releases : [];
+    for (const release of releases) {
+      const versionCodes = Array.isArray(release?.versionCodes) ? release.versionCodes : [];
+      for (const value of versionCodes) {
+        const versionCode = Number(value);
+        if (Number.isSafeInteger(versionCode) && versionCode > highest) highest = versionCode;
+      }
     }
   }
   return highest;
@@ -355,7 +356,7 @@ class GooglePlayPublisher {
       token,
       { method: "GET", phase: "inspect-versions" },
     );
-    return highestTrackVersionCode(payload);
+    return highestPublishedVersionCode(payload);
   }
 
   async testConnection(credentialsInput, packageNameInput) {
@@ -545,7 +546,7 @@ module.exports = {
   GooglePlayError,
   GooglePlayPublisher,
   INTERNAL_TRACK,
-  highestTrackVersionCode,
+  highestPublishedVersionCode,
   normalizeLocale,
   normalizeNotes,
   normalizePackageName,

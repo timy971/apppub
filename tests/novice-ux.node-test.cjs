@@ -291,6 +291,7 @@ test("les refus Google Play restent visibles avec une action compréhensible", (
   assert.match(card, /Le numéro est corrigé, mais le fichier Android est encore ancien/);
   assert.match(version, /Google Play exige un numéro plus élevé/);
   assert.match(version, /requiredGooglePlayVersionCode/);
+  assert.match(version, /Appliquer la mise à jour minimale/);
   assert.match(card, /Recréer le fichier Android/);
   assert.match(card, /Ouvrir Play Console/);
   assert.match(card, /Les quatre blocages les plus fréquents/);

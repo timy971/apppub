@@ -5,7 +5,7 @@ const path = require("node:path");
 const test = require("node:test");
 const {
   GooglePlayPublisher,
-  highestTrackVersionCode,
+  highestPublishedVersionCode,
   normalizeLocale,
   normalizeNotes,
   validateOAuthCredentials,
@@ -113,17 +113,17 @@ test("normalizes Play locales and enforces the 500-character release-note limit"
   assert.throws(() => normalizeNotes("x".repeat(501)), /500/);
 });
 
-test("finds the highest versionCode already published on the internal track", () => {
+test("finds the highest versionCode across every Google Play track", () => {
   assert.equal(
-    highestTrackVersionCode({
+    highestPublishedVersionCode({
       tracks: [
         { track: "production", releases: [{ versionCodes: ["99"] }] },
         { track: "internal", releases: [{ versionCodes: ["4", "7"] }, { versionCodes: ["6"] }] },
       ],
     }),
-    7,
+    99,
   );
-  assert.equal(highestTrackVersionCode({ tracks: [] }), 0);
+  assert.equal(highestPublishedVersionCode({ tracks: [] }), 0);
 });
 
 test("keeps a valid Google connection when the public Play application is not initialized", async () => {

@@ -91,6 +91,10 @@ function VersionAssistant() {
 
   const requiredBuild = requiredGooglePlayVersionCode(project.id);
   const preview = choice ? VersionService.preview(project, choice, requiredBuild) : null;
+  const minimumUpdate =
+    requiredBuild && project.currentBuild < requiredBuild
+      ? VersionService.preview(project, "bugfix", requiredBuild)
+      : null;
   const nextStep = nextStepAfterVersion(
     project,
     ProfilesStore.list().map((profile) => profile.id),
@@ -288,6 +292,18 @@ function VersionAssistant() {
             le minimum demandé par Google Play. Vous n’aurez pas à augmenter le numéro plusieurs
             fois.
           </p>
+          {minimumUpdate && (
+            <Button
+              className="mt-4"
+              onClick={() => {
+                setChoice("bugfix");
+                setConfirmOpen(true);
+              }}
+            >
+              Appliquer la mise à jour minimale ({minimumUpdate.to} · numéro {requiredBuild})
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       )}
 
