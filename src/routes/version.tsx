@@ -112,11 +112,9 @@ function VersionAssistant() {
             remoteUrl: project.source.remoteUrl,
             branch: project.source.branch,
           });
-          if (git.workingTree === "dirty") {
-            throw new Error(
-              "Enregistrez d’abord vos modifications Git : AppPublisher doit partir d’un projet propre pour pouvoir annuler uniquement ses propres changements.",
-            );
-          }
+          // Les builds précédents d’AppPublisher peuvent légitimement avoir
+          // modifié Gradle dans la copie locale. On mémorise ces fichiers pour
+          // ne déclarer ensuite que les changements créés par cette opération.
           gitFilesBefore = new Set(git.changedFiles);
         }
         const backup = await BackupService.create(project, "version");

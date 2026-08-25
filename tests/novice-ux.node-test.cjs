@@ -102,6 +102,13 @@ test("la préparation locale et l'envoi Google Play sont deux états distincts",
   assert.match(publishRule, /storeRelease/);
 });
 
+test("la préparation de version conserve les modifications locales déjà présentes", () => {
+  const version = read("src/routes/version.tsx");
+  assert.match(version, /gitFilesBefore = new Set\(git\.changedFiles\)/);
+  assert.match(version, /!gitFilesBefore\.has\(file\)/);
+  assert.doesNotMatch(version, /Enregistrez d’abord vos modifications Git/);
+});
+
 test("les vérifications interrompues proposent toujours de réessayer", () => {
   assert.match(read("src/routes/diagnostic.tsx"), /Vérification interrompue/);
   assert.match(read("src/components/build-center/preflight-card.tsx"), /Réessayez pour continuer/);
