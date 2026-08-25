@@ -55,7 +55,9 @@ type GooglePlayFailure = {
 export function GooglePlayCard({ project, release, onChanged }: Props) {
   const settings = useSettings();
   const [busy, setBusy] = useState<BusyAction>(null);
-  const [lastFailure, setLastFailure] = useState<GooglePlayFailure | null>(null);
+  const [lastFailure, setLastFailure] = useState<GooglePlayFailure | null>(() =>
+    restoreGooglePlayFailure(project.id),
+  );
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const android = project.publishing?.android ?? {};
   const packageName = android.applicationId ?? project.packageName ?? project.playStoreAppId ?? "";
@@ -104,13 +106,29 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    setLastFailure(restoreGooglePlayFailure(project.id));
+  }, [project.id]);
+
+  useEffect(() => {
+    if (
+      lastFailure?.errorCode === "version-too-low" &&
+      lastFailure.minimumVersionCode &&
+      release?.build &&
+      release.build >= lastFailure.minimumVersionCode
+    ) {
+      forgetGooglePlayFailure(project.id);
+      setLastFailure(null);
+    }
+  }, [lastFailure, project.id, release?.build]);
+
   async function connectWithGoogle() {
     if (!packageName) {
       toast.error("Identifiant Android manquant");
       return;
     }
     setBusy("oauth");
-    setLastFailure(null);
+    clearLastFailure();
     try {
       const result = await bridge().googlePlay.connectOAuth({
         projectPath: project.localPath,
@@ -161,7 +179,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       return;
     }
     setBusy("import");
-    setLastFailure(null);
+    clearLastFailure();
     try {
       const result = await bridge().googlePlay.importServiceAccount({
         projectPath: project.localPath,
@@ -203,7 +221,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     if (!connectionArgs) return;
     const confirmsFirstManualRelease = initializationRequired;
     setBusy("test");
-    setLastFailure(null);
+    clearLastFailure();
     try {
       const result = await bridge().googlePlay.testConnection(connectionArgs);
       if (!result.ok) {
@@ -268,7 +286,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         }),
       );
       AppStore.refreshProjects();
-      setLastFailure(null);
+      clearLastFailure();
       toast.success("Google Play déconnecté");
       onChanged();
     } catch {
@@ -287,7 +305,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       return;
     }
     setBusy("publish");
-    setLastFailure(null);
+    clearLastFailure();
     const started = performance.now();
     try {
       const result = await bridge().googlePlay.publishInternal({
@@ -392,8 +410,14 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   }
 
   function reportGooglePlayError(result: GooglePlayFailure) {
+    rememberGooglePlayFailure(project.id, result);
     setLastFailure(result);
     showGooglePlayError(result);
+  }
+
+  function clearLastFailure() {
+    forgetGooglePlayFailure(project.id);
+    setLastFailure(null);
   }
 
   const unavailableReason = !packageName
@@ -512,6 +536,8 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       {lastFailure && (
         <GooglePlayRecovery
           failure={lastFailure}
+          currentBuild={project.currentBuild}
+          preparedBuild={release?.build}
           onRetry={lastFailure.phase === "upload-bundle" ? publish : testConnection}
         />
       )}
@@ -638,12 +664,16 @@ function showGooglePlayError(result: {
 
 function GooglePlayRecovery({
   failure,
+  currentBuild,
+  preparedBuild,
   onRetry,
 }: {
   failure: GooglePlayFailure;
+  currentBuild: number;
+  preparedBuild?: number;
   onRetry: () => void;
 }) {
-  const recovery = googlePlayRecoveryFor(failure);
+  const recovery = googlePlayRecoveryFor(failure, currentBuild, preparedBuild);
 
   async function openPlayConsole() {
     try {
@@ -655,14 +685,18 @@ function GooglePlayRecovery({
   }
 
   return (
-    <div role="alert" className="mt-4 rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm">
+    <div
+      role="alert"
+      aria-live="polite"
+      className="mt-4 rounded-xl border-2 border-danger bg-danger/10 p-4 text-sm shadow-sm"
+    >
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <p className="font-medium">{recovery.title}</p>
-          <p className="mt-1 leading-relaxed text-muted-foreground">{recovery.explanation}</p>
-          <p className="mt-2 font-medium">Ce qu’il faut faire</p>
-          <p className="mt-1 leading-relaxed text-muted-foreground">{recovery.solution}</p>
+          <p className="font-semibold text-danger">{recovery.title}</p>
+          <p className="mt-1 leading-relaxed">{recovery.explanation}</p>
+          <p className="mt-3 font-semibold text-danger">Ce qu’il faut faire maintenant</p>
+          <p className="mt-1 leading-relaxed">{recovery.solution}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {recovery.action === "version" && (
               <Button asChild size="sm">
@@ -714,7 +748,11 @@ function GooglePlayRecovery({
   );
 }
 
-function googlePlayRecoveryFor(failure: GooglePlayFailure): {
+function googlePlayRecoveryFor(
+  failure: GooglePlayFailure,
+  currentBuild?: number,
+  preparedBuild?: number,
+): {
   title: string;
   explanation: string;
   solution: string;
@@ -749,6 +787,20 @@ function googlePlayRecoveryFor(failure: GooglePlayFailure): {
         action: "version",
       };
     case "version-too-low":
+      if (
+        failure.minimumVersionCode &&
+        currentBuild &&
+        currentBuild >= failure.minimumVersionCode &&
+        (!preparedBuild || preparedBuild < failure.minimumVersionCode)
+      ) {
+        return {
+          title: "Le numéro est corrigé, mais le fichier Android est encore ancien",
+          explanation: `Le projet utilise maintenant le numéro ${currentBuild}, mais le fichier préparé contient toujours le numéro ${preparedBuild ?? failure.attemptedVersionCode}.`,
+          solution:
+            "Recréez le fichier Android pour appliquer le nouveau numéro, puis revenez l’envoyer à Google Play.",
+          action: "build",
+        };
+      }
       return {
         title: "Le numéro interne est trop faible",
         explanation:
@@ -817,6 +869,37 @@ function googlePlayRecoveryFor(failure: GooglePlayFailure): {
           "Consultez le détail ci-dessus, vérifiez Play Console, puis réessayez uniquement après avoir identifié le point bloquant.",
         action: "console",
       };
+  }
+}
+
+function googlePlayFailureStorageKey(projectId: string) {
+  return `apppublisher:google-play-failure:${projectId}`;
+}
+
+function restoreGooglePlayFailure(projectId: string): GooglePlayFailure | null {
+  try {
+    const saved = sessionStorage.getItem(googlePlayFailureStorageKey(projectId));
+    if (!saved) return null;
+    const failure = JSON.parse(saved) as GooglePlayFailure;
+    return typeof failure.errorCode === "string" ? failure : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberGooglePlayFailure(projectId: string, failure: GooglePlayFailure) {
+  try {
+    sessionStorage.setItem(googlePlayFailureStorageKey(projectId), JSON.stringify(failure));
+  } catch {
+    // L’alerte reste tout de même visible tant que le composant reste monté.
+  }
+}
+
+function forgetGooglePlayFailure(projectId: string) {
+  try {
+    sessionStorage.removeItem(googlePlayFailureStorageKey(projectId));
+  } catch {
+    // Aucun stockage à nettoyer dans cet environnement.
   }
 }
 
