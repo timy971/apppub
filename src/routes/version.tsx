@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { StepPurpose } from "@/components/step-purpose";
 import { ProfilesStore } from "@/features/android-signing";
 import { nextStepAfterVersion } from "@/core/navigation/publication-next-step";
+import { requiredGooglePlayVersionCode } from "@/core/google-play/failure-store";
 
 export const Route = createFileRoute("/version")({
   component: VersionAssistant,
@@ -88,7 +89,8 @@ function VersionAssistant() {
 
   if (!project) return <NoProject />;
 
-  const preview = choice ? VersionService.preview(project, choice) : null;
+  const requiredBuild = requiredGooglePlayVersionCode(project.id);
+  const preview = choice ? VersionService.preview(project, choice, requiredBuild) : null;
   const nextStep = nextStepAfterVersion(
     project,
     ProfilesStore.list().map((profile) => profile.id),
@@ -140,7 +142,12 @@ function VersionAssistant() {
             title: "Application de la nouvelle version",
             run: async () => {
               try {
-                appliedRef.current = await VersionService.apply(project, choice!);
+                appliedRef.current = await VersionService.apply(
+                  project,
+                  choice!,
+                  undefined,
+                  requiredBuild,
+                );
                 return { status: "success" };
               } catch (e) {
                 return {
@@ -275,6 +282,17 @@ function VersionAssistant() {
         result="Google Play reconnaît cette version comme nouvelle."
       />
 
+      {requiredBuild && project.currentBuild < requiredBuild && (
+        <div role="alert" className="mb-6 rounded-xl border-2 border-danger bg-danger/10 p-4">
+          <p className="font-semibold text-danger">Google Play exige un numéro plus élevé</p>
+          <p className="mt-1 text-sm leading-relaxed">
+            Le prochain numéro interne sera directement réglé sur <strong>{requiredBuild}</strong>,
+            le minimum demandé par Google Play. Vous n’aurez pas à augmenter le numéro plusieurs
+            fois.
+          </p>
+        </div>
+      )}
+
       <div className="mb-6 rounded-xl border bg-muted/40 p-4 text-sm flex items-center justify-between">
         <span>
           Version actuelle · <strong className="tabular-nums">{project.currentVersion}</strong> ·
@@ -291,7 +309,7 @@ function VersionAssistant() {
       {!workflow && (
         <div className="grid gap-3 sm:grid-cols-2">
           {CHOICES.map((c) => {
-            const p = VersionService.preview(project, c.type);
+            const p = VersionService.preview(project, c.type, requiredBuild);
             const Icon = c.icon;
             return (
               <div

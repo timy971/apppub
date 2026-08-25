@@ -27,12 +27,20 @@ interface VersionJson {
 }
 
 export const VersionService = {
-  preview(project: Project, type: VersionChangeType): VersionBumpPreview {
+  preview(
+    project: Project,
+    type: VersionChangeType,
+    minimumBuild?: number,
+  ): VersionBumpPreview {
+    const nextBuild = project.currentBuild + 1;
     return {
       from: project.currentVersion,
       to: bump(project.currentVersion, type),
       fromBuild: project.currentBuild,
-      newBuild: type === "readonly" ? project.currentBuild : project.currentBuild + 1,
+      newBuild:
+        type === "readonly"
+          ? project.currentBuild
+          : Math.max(nextBuild, minimumBuild ?? nextBuild),
     };
   },
 
@@ -58,13 +66,14 @@ export const VersionService = {
   },
 
   /**
-   * Phase 2 — applique une nouvelle version en exécutant le script officiel
-   * du projet. En Web, on simule (le workflow engine gère l'affichage).
+   * Applique la version directement dans la configuration Android. Les projets
+   * importés depuis Lovable ou Capacitor n'ont pas à fournir un script maison.
    */
   async apply(
     project: Project,
     type: VersionChangeType,
     onLine?: (line: string) => void,
+    minimumBuild?: number,
   ): Promise<{ version: string; build: number }> {
     const b = bridge();
     if (type === "readonly") {
@@ -76,28 +85,38 @@ export const VersionService = {
         "La modification réelle de la version nécessite l’application AppPublisher installée.",
       );
     }
-    const scriptArg = type === "bugfix" ? "patch" : type === "feature" ? "minor" : "major";
-    const result = await b.exec.run(
-      {
-        cmd: "node",
-        args: ["scripts/version.mjs", scriptArg],
-        cwd: project.localPath,
-        timeoutMs: 60_000,
-      },
-      onLine ? (l) => onLine(l.line) : undefined,
-    );
+    const preview = this.preview(project, type, minimumBuild);
+    const desired = {
+      versionName: preview.to,
+      versionCode: preview.newBuild,
+    };
+    onLine?.(`Préparation de la version ${desired.versionName} (${desired.versionCode})`);
+    const plan = await b.androidCorrections.preview(project.localPath, desired);
+    if (plan.blocked.length > 0) {
+      throw new Error(plan.blocked[0]);
+    }
+    if (!plan.canApply) {
+      onLine?.("La configuration Android utilise déjà ces numéros.");
+      return { version: desired.versionName, build: desired.versionCode };
+    }
+    const result = await b.androidCorrections.apply(project.localPath, desired, plan.token);
     JournalService.logCommand({
-      command: `node scripts/version.mjs ${scriptArg}`,
+      command: "Mise à jour sécurisée de la configuration Android",
       cwd: project.localPath,
-      durationMs: result.durationMs,
-      exitCode: result.exitCode,
-      stdout: result.stdout,
-      stderr: result.stderr,
+      durationMs: 0,
+      exitCode: result.applied ? 0 : 1,
+      stdout: result.applied ? `Version ${desired.versionName} (${desired.versionCode})` : "",
+      stderr: result.applied ? "" : "Mise à jour annulée",
       message: "Mise à jour de version",
     });
-    if (result.exitCode !== 0) {
-      throw new Error(result.stderr || result.stdout || "Échec du script de version");
+    if (!result.applied) {
+      throw new Error(
+        result.cancelled
+          ? "La mise à jour de la version a été annulée."
+          : "La version Android n'a pas pu être modifiée.",
+      );
     }
-    return this.readCurrent(project);
+    onLine?.(`Version Android mise à jour : ${desired.versionName} (${desired.versionCode})`);
+    return { version: desired.versionName, build: desired.versionCode };
   },
 };

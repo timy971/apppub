@@ -270,9 +270,11 @@ test("la première publication manuelle n'est jamais renvoyée avec le même num
 
 test("les refus Google Play restent visibles avec une action compréhensible", () => {
   const card = read("src/components/publish-center/google-play-card.tsx");
+  const version = read("src/routes/version.tsx");
+  const failureStore = read("src/core/google-play/failure-store.ts");
   assert.match(card, /<GooglePlayRecovery/);
-  assert.match(card, /sessionStorage\.setItem/);
-  assert.match(card, /sessionStorage\.getItem/);
+  assert.match(failureStore, /sessionStorage\.setItem/);
+  assert.match(failureStore, /sessionStorage\.getItem/);
   assert.match(card, /border-2 border-danger bg-danger\/10/);
   assert.match(card, /version-too-low/);
   assert.match(card, /Choisissez au minimum/);
@@ -280,6 +282,8 @@ test("les refus Google Play restent visibles avec une action compréhensible", (
   assert.match(card, /Ce qu’il faut faire maintenant/);
   assert.match(card, /Augmenter le numéro interne/);
   assert.match(card, /Le numéro est corrigé, mais le fichier Android est encore ancien/);
+  assert.match(version, /Google Play exige un numéro plus élevé/);
+  assert.match(version, /requiredGooglePlayVersionCode/);
   assert.match(card, /Recréer le fichier Android/);
   assert.match(card, /Ouvrir Play Console/);
   assert.match(card, /Les quatre blocages les plus fréquents/);

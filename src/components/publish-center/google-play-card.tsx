@@ -29,6 +29,12 @@ import { ProjectsService } from "@/core/projects/service";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import { JourneyProgress } from "@/core/navigation/journey-progress";
 import { googlePlayLaunchProgress } from "@/core/google-play/launch-plan";
+import {
+  forgetGooglePlayFailure,
+  rememberGooglePlayFailure,
+  restoreGooglePlayFailure,
+  type StoredGooglePlayFailure,
+} from "@/core/google-play/failure-store";
 import type { Project, PublishRecord } from "@/core/types";
 import { GooglePlaySetupGuide } from "./google-play-setup-guide";
 import { GooglePlayJourney } from "./google-play-journey";
@@ -42,15 +48,7 @@ interface Props {
 }
 
 type BusyAction = "oauth" | "import" | "test" | "publish" | "disconnect" | null;
-type GooglePlayFailure = {
-  errorCode: string;
-  errorHint?: string;
-  phase?: string;
-  causeCode?: string;
-  attemptedVersionCode?: number;
-  existingVersionCode?: number;
-  minimumVersionCode?: number;
-};
+type GooglePlayFailure = StoredGooglePlayFailure;
 
 export function GooglePlayCard({ project, release, onChanged }: Props) {
   const settings = useSettings();
@@ -869,37 +867,6 @@ function googlePlayRecoveryFor(
           "Consultez le détail ci-dessus, vérifiez Play Console, puis réessayez uniquement après avoir identifié le point bloquant.",
         action: "console",
       };
-  }
-}
-
-function googlePlayFailureStorageKey(projectId: string) {
-  return `apppublisher:google-play-failure:${projectId}`;
-}
-
-function restoreGooglePlayFailure(projectId: string): GooglePlayFailure | null {
-  try {
-    const saved = sessionStorage.getItem(googlePlayFailureStorageKey(projectId));
-    if (!saved) return null;
-    const failure = JSON.parse(saved) as GooglePlayFailure;
-    return typeof failure.errorCode === "string" ? failure : null;
-  } catch {
-    return null;
-  }
-}
-
-function rememberGooglePlayFailure(projectId: string, failure: GooglePlayFailure) {
-  try {
-    sessionStorage.setItem(googlePlayFailureStorageKey(projectId), JSON.stringify(failure));
-  } catch {
-    // L’alerte reste tout de même visible tant que le composant reste monté.
-  }
-}
-
-function forgetGooglePlayFailure(projectId: string) {
-  try {
-    sessionStorage.removeItem(googlePlayFailureStorageKey(projectId));
-  } catch {
-    // Aucun stockage à nettoyer dans cet environnement.
   }
 }
 
