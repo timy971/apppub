@@ -76,6 +76,10 @@ const {
 const { GooglePlayOAuth, loadGooglePlayOAuthConfig } = require("./google-play-oauth.cjs");
 const { DesktopUpdateManager } = require("./update-manager.cjs");
 const { WindowsSecretStore } = require("./windows-secret-store.cjs");
+const {
+  configureAndroidSdkEnvironment,
+  resolveAndroidSdkPath,
+} = require("./android-sdk-environment.cjs");
 const { autoUpdater } = require("electron-updater");
 
 const isDev = !!process.env.APPPUBLISHER_DEV_URL;
@@ -171,6 +175,7 @@ function bootstrapPath() {
   }
 }
 bootstrapPath();
+configureAndroidSdkEnvironment();
 
 /* ---------- Diagnostic : journal fichier + watchdog + wrap IPC ---------- */
 /**
@@ -1038,7 +1043,7 @@ async function detectSystem() {
     runCapture("java", ["-version"]),
   ]);
 
-  const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || guessAndroidSdk();
+  const androidHome = resolveAndroidSdkPath();
   const androidStudio = guessAndroidStudio();
   const internet = await pingInternet();
 
@@ -1058,17 +1063,6 @@ async function detectSystem() {
     javaHome: process.env.JAVA_HOME,
     internet,
   };
-}
-
-function guessAndroidSdk() {
-  const home = os.homedir();
-  const candidates =
-    process.platform === "darwin"
-      ? [path.join(home, "Library/Android/sdk")]
-      : process.platform === "win32"
-        ? [path.join(process.env.LOCALAPPDATA || "", "Android/Sdk")]
-        : [path.join(home, "Android/Sdk")];
-  return candidates.find((p) => p && fs.existsSync(p));
 }
 
 function guessAndroidStudio() {
@@ -2618,6 +2612,9 @@ function publicGooglePlayError(error) {
       status: error.status,
       phase: error.phase,
       causeCode: error.causeCode,
+      attemptedVersionCode: error.attemptedVersionCode,
+      existingVersionCode: error.existingVersionCode,
+      minimumVersionCode: error.minimumVersionCode,
     };
   }
   return {

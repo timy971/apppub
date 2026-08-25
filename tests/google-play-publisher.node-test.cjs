@@ -5,6 +5,7 @@ const path = require("node:path");
 const test = require("node:test");
 const {
   GooglePlayPublisher,
+  highestPublishedVersionCode,
   normalizeLocale,
   normalizeNotes,
   validateOAuthCredentials,
@@ -112,6 +113,19 @@ test("normalizes Play locales and enforces the 500-character release-note limit"
   assert.throws(() => normalizeNotes("x".repeat(501)), /500/);
 });
 
+test("finds the highest versionCode across every Google Play track", () => {
+  assert.equal(
+    highestPublishedVersionCode({
+      tracks: [
+        { track: "production", releases: [{ versionCodes: ["99"] }] },
+        { track: "internal", releases: [{ versionCodes: ["4", "7"] }, { versionCodes: ["6"] }] },
+      ],
+    }),
+    99,
+  );
+  assert.equal(highestPublishedVersionCode({ tracks: [] }), 0);
+});
+
 test("keeps a valid Google connection when the public Play application is not initialized", async () => {
   const api = publisherWith(async (url) => {
     assert.match(url, /applications\/app\.cranioscan\.android\/edits$/);
@@ -150,6 +164,7 @@ test("publishes one AAB only to internal, validates it, then commits without can
     async (url, options) => {
       calls.push({ url, options });
       if (url.endsWith("/edits")) return response(200, { id: "edit-123" });
+      if (url.endsWith("/tracks")) return response(200, { tracks: [] });
       if (url.includes("uploadType=media")) return response(200, { versionCode: 42 });
       if (url.endsWith("/tracks/internal")) return response(200, { track: "internal" });
       if (url.endsWith("edit-123:validate")) return response(200, { id: "edit-123" });
@@ -176,20 +191,20 @@ test("publishes one AAB only to internal, validates it, then commits without can
   assert.equal(result.ok, true);
   assert.equal(result.track, "internal");
   assert.equal(result.versionCode, 42);
-  assert.equal(calls.length, 5);
-  assert.match(calls[1].url, /\/upload\/androidpublisher\/v3\//);
-  assert.equal(calls[1].options.headers["Content-Length"], String(fs.statSync(aabPath).size));
-  assert.ok(Buffer.isBuffer(calls[1].options.body));
-  assert.equal("duplex" in calls[1].options, false);
-  assert.equal("timeoutMs" in calls[1].options, false);
-  assert.equal("phase" in calls[1].options, false);
-  assert.equal(timeouts[1], 10 * 60_000);
-  assert.match(calls[2].url, /\/tracks\/internal$/);
-  const trackBody = JSON.parse(calls[2].options.body);
+  assert.equal(calls.length, 6);
+  assert.match(calls[2].url, /\/upload\/androidpublisher\/v3\//);
+  assert.equal(calls[2].options.headers["Content-Length"], String(fs.statSync(aabPath).size));
+  assert.ok(Buffer.isBuffer(calls[2].options.body));
+  assert.equal("duplex" in calls[2].options, false);
+  assert.equal("timeoutMs" in calls[2].options, false);
+  assert.equal("phase" in calls[2].options, false);
+  assert.equal(timeouts[2], 10 * 60_000);
+  assert.match(calls[3].url, /\/tracks\/internal$/);
+  const trackBody = JSON.parse(calls[3].options.body);
   assert.deepEqual(trackBody.releases[0].versionCodes, ["42"]);
   assert.equal(trackBody.releases[0].status, "completed");
   assert.equal(trackBody.releases[0].releaseNotes[0].language, "fr-FR");
-  assert.match(calls[4].url, /changesInReviewBehavior=ERROR_IF_IN_REVIEW$/);
+  assert.match(calls[5].url, /changesInReviewBehavior=ERROR_IF_IN_REVIEW$/);
   assert.equal(
     calls.some((call) => /tracks\/(alpha|beta|production)/.test(call.url)),
     false,
@@ -205,6 +220,7 @@ test("deletes the uncommitted edit when Google rejects the track update", async 
   const api = publisherWith(async (url, options) => {
     calls.push({ url, options });
     if (url.endsWith("/edits")) return response(200, { id: "edit-cleanup" });
+    if (url.endsWith("/tracks")) return response(200, { tracks: [] });
     if (url.includes("uploadType=media")) return response(200, { versionCode: 7 });
     if (url.endsWith("/tracks/internal")) {
       return response(403, {
@@ -257,6 +273,7 @@ test("classifies Google's message-only reused versionCode before the generic 403
   fs.writeFileSync(aabPath, "signed-aab-fixture");
   const api = publisherWith(async (url, options) => {
     if (url.endsWith("/edits")) return response(200, { id: "edit-version" });
+    if (url.endsWith("/tracks")) return response(200, { tracks: [] });
     if (url.includes("uploadType=media")) {
       return response(403, {
         error: {
@@ -282,6 +299,86 @@ test("classifies Google's message-only reused versionCode before the generic 403
   );
 });
 
+test("blocks a version below the current internal release and returns the exact minimum", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-too-low-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const aabPath = path.join(root, "release.aab");
+  fs.writeFileSync(aabPath, "signed-aab-fixture");
+  const calls = [];
+  const api = publisherWith(async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith("/edits")) return response(200, { id: "edit-too-low" });
+    if (url.endsWith("/tracks")) {
+      return response(200, {
+        tracks: [{ track: "internal", releases: [{ versionCodes: ["8", "12"] }] }],
+      });
+    }
+    if (url.includes("uploadType=media")) return response(200, { versionCode: 10 });
+    if (url.endsWith("/edits/edit-too-low") && options.method === "DELETE") {
+      return response(204);
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+
+  await assert.rejects(
+    api.publishInternal({
+      credentials,
+      packageName: "app.cranioscan.android",
+      aabPath,
+      notes: "Version trop basse.",
+      language: "fr-FR",
+      releaseName: "CranioScan 1.0.1 (10)",
+    }),
+    (error) =>
+      error.code === "version-too-low" &&
+      error.attemptedVersionCode === 10 &&
+      error.existingVersionCode === 12 &&
+      error.minimumVersionCode === 13 &&
+      /Choisissez au minimum 13/.test(error.message),
+  );
+  assert.equal(
+    calls.some((call) => call.url.endsWith("/tracks/internal")),
+    false,
+  );
+  assert.equal(calls.at(-1).options.method, "DELETE");
+});
+
+test("translates Google's upgrade-only rejection when no version number is returned", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-upgrade-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const aabPath = path.join(root, "release.aab");
+  fs.writeFileSync(aabPath, "signed-aab-fixture");
+  const api = publisherWith(async (url, options) => {
+    if (url.endsWith("/edits")) return response(200, { id: "edit-upgrade" });
+    if (url.endsWith("/tracks")) return response(200, { tracks: [] });
+    if (url.includes("uploadType=media")) return response(200, { versionCode: 3 });
+    if (url.endsWith("/tracks/internal")) {
+      return response(400, {
+        error: {
+          message:
+            "You cannot rollout this release because it does not allow any existing users to upgrade to the newly added APKs.",
+        },
+      });
+    }
+    if (url.endsWith("/edits/edit-upgrade") && options.method === "DELETE") {
+      return response(204);
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+
+  await assert.rejects(
+    api.publishInternal({
+      credentials,
+      packageName: "app.cranioscan.android",
+      aabPath,
+      notes: "Mise à jour.",
+      language: "fr-FR",
+      releaseName: "CranioScan 1.0.1 (3)",
+    }),
+    (error) => error.code === "version-too-low",
+  );
+});
+
 test("classifies a wrong upload key before the generic permission error", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-key-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -289,6 +386,7 @@ test("classifies a wrong upload key before the generic permission error", async 
   fs.writeFileSync(aabPath, "signed-aab-fixture");
   const api = publisherWith(async (url, options) => {
     if (url.endsWith("/edits")) return response(200, { id: "edit-key" });
+    if (url.endsWith("/tracks")) return response(200, { tracks: [] });
     if (url.includes("uploadType=media")) {
       return response(403, {
         error: { message: "The Android App Bundle was signed with the wrong key." },
@@ -320,6 +418,7 @@ test("marks a network interruption during commit as an unknown outcome", async (
   const api = publisherWith(async (url, options) => {
     calls.push({ url, options });
     if (url.endsWith("/edits")) return response(200, { id: "edit-commit" });
+    if (url.endsWith("/tracks")) return response(200, { tracks: [] });
     if (url.includes("uploadType=media")) return response(200, { versionCode: 99 });
     if (url.endsWith("/tracks/internal")) return response(200, { track: "internal" });
     if (url.endsWith("edit-commit:validate")) return response(200, { id: "edit-commit" });
@@ -348,6 +447,7 @@ test("reports an AAB upload interruption without blaming the user's Internet acc
   fs.writeFileSync(aabPath, "signed-aab-fixture");
   const api = publisherWith(async (url, options) => {
     if (url.endsWith("/edits")) return response(200, { id: "edit-upload" });
+    if (url.endsWith("/tracks")) return response(200, { tracks: [] });
     if (url.includes("uploadType=media")) {
       const failure = new TypeError("fetch failed");
       failure.cause = { code: "ECONNRESET" };

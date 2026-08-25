@@ -28,9 +28,17 @@ import { patchAndroidConfig } from "@/core/projects/android-config";
 import { ProjectsService } from "@/core/projects/service";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import { JourneyProgress } from "@/core/navigation/journey-progress";
+import { googlePlayLaunchProgress } from "@/core/google-play/launch-plan";
+import {
+  forgetGooglePlayFailure,
+  rememberGooglePlayFailure,
+  restoreGooglePlayFailure,
+  type StoredGooglePlayFailure,
+} from "@/core/google-play/failure-store";
 import type { Project, PublishRecord } from "@/core/types";
 import { GooglePlaySetupGuide } from "./google-play-setup-guide";
 import { GooglePlayJourney } from "./google-play-journey";
+import { GooglePlayLaunchAssistant } from "./google-play-launch-assistant";
 import { HelpRequestButton } from "@/components/help-request-button";
 
 interface Props {
@@ -40,17 +48,14 @@ interface Props {
 }
 
 type BusyAction = "oauth" | "import" | "test" | "publish" | "disconnect" | null;
-type GooglePlayFailure = {
-  errorCode: string;
-  errorHint?: string;
-  phase?: string;
-  causeCode?: string;
-};
+type GooglePlayFailure = StoredGooglePlayFailure;
 
 export function GooglePlayCard({ project, release, onChanged }: Props) {
   const settings = useSettings();
   const [busy, setBusy] = useState<BusyAction>(null);
-  const [lastFailure, setLastFailure] = useState<GooglePlayFailure | null>(null);
+  const [lastFailure, setLastFailure] = useState<GooglePlayFailure | null>(() =>
+    restoreGooglePlayFailure(project.id),
+  );
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const android = project.publishing?.android ?? {};
   const packageName = android.applicationId ?? project.packageName ?? project.playStoreAppId ?? "";
@@ -78,6 +83,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         record.build === project.currentBuild &&
         record.storeRelease?.track === "internal",
     );
+  const publicLaunch = googlePlayLaunchProgress(android.googlePlayLaunchPlan);
 
   const connectionArgs = connectionId
     ? { projectPath: project.localPath, packageName, connectionId }
@@ -98,13 +104,29 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    setLastFailure(restoreGooglePlayFailure(project.id));
+  }, [project.id]);
+
+  useEffect(() => {
+    if (
+      lastFailure?.errorCode === "version-too-low" &&
+      lastFailure.minimumVersionCode &&
+      release?.build &&
+      release.build >= lastFailure.minimumVersionCode
+    ) {
+      forgetGooglePlayFailure(project.id);
+      setLastFailure(null);
+    }
+  }, [lastFailure, project.id, release?.build]);
+
   async function connectWithGoogle() {
     if (!packageName) {
       toast.error("Identifiant Android manquant");
       return;
     }
     setBusy("oauth");
-    setLastFailure(null);
+    clearLastFailure();
     try {
       const result = await bridge().googlePlay.connectOAuth({
         projectPath: project.localPath,
@@ -155,7 +177,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       return;
     }
     setBusy("import");
-    setLastFailure(null);
+    clearLastFailure();
     try {
       const result = await bridge().googlePlay.importServiceAccount({
         projectPath: project.localPath,
@@ -197,7 +219,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     if (!connectionArgs) return;
     const confirmsFirstManualRelease = initializationRequired;
     setBusy("test");
-    setLastFailure(null);
+    clearLastFailure();
     try {
       const result = await bridge().googlePlay.testConnection(connectionArgs);
       if (!result.ok) {
@@ -262,7 +284,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         }),
       );
       AppStore.refreshProjects();
-      setLastFailure(null);
+      clearLastFailure();
       toast.success("Google Play déconnecté");
       onChanged();
     } catch {
@@ -281,7 +303,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       return;
     }
     setBusy("publish");
-    setLastFailure(null);
+    clearLastFailure();
     const started = performance.now();
     try {
       const result = await bridge().googlePlay.publishInternal({
@@ -386,8 +408,14 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   }
 
   function reportGooglePlayError(result: GooglePlayFailure) {
+    rememberGooglePlayFailure(project.id, result);
     setLastFailure(result);
     showGooglePlayError(result);
+  }
+
+  function clearLastFailure() {
+    forgetGooglePlayFailure(project.id);
+    setLastFailure(null);
   }
 
   const unavailableReason = !packageName
@@ -412,7 +440,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-semibold">Publication Google Play</h2>
-              <Badge variant="outline">Test interne uniquement</Badge>
+              <Badge variant="outline">Test interne : étape automatique</Badge>
               {verified && (
                 <Badge className="bg-success/15 text-success hover:bg-success/15">
                   Connexion vérifiée
@@ -432,7 +460,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
             <p className="mt-2 text-xs text-muted-foreground">
               {initializationRequired
                 ? "Google demande une première création dans Play Console avant d’autoriser AppPublisher à publier."
-                : "L'application doit déjà exister dans Play Console. AppPublisher ne peut ni créer la fiche, ni compléter les déclarations réglementaires à votre place."}
+                : "AppPublisher envoie d’abord une version de test sûre, puis vous accompagne jusqu’à la demande de publication publique."}
             </p>
             {alreadyPublished && (
               <div className="mt-3 flex items-center gap-2 text-sm text-success">
@@ -499,10 +527,15 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         sent={alreadyPublished}
         initializationRequired={initializationRequired}
         hasPreviousRelease={hasPreviousGooglePlayRelease}
+        publicTasksDone={publicLaunch.completed}
+        publicTasksTotal={publicLaunch.total}
+        publicLaunchComplete={publicLaunch.complete}
       />
       {lastFailure && (
         <GooglePlayRecovery
           failure={lastFailure}
+          currentBuild={project.currentBuild}
+          preparedBuild={release?.build}
           onRetry={lastFailure.phase === "upload-bundle" ? publish : testConnection}
         />
       )}
@@ -522,6 +555,14 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           aabPath={release?.artifactPath}
           verifying={busy === "test"}
           onVerify={testConnection}
+        />
+      )}
+      {connected && (
+        <GooglePlayLaunchAssistant
+          project={project}
+          packageName={packageName}
+          internalReleaseReady={alreadyPublished}
+          onChanged={onChanged}
         />
       )}
       {!connected && (
@@ -572,6 +613,9 @@ function showGooglePlayError(result: {
   errorHint?: string;
   phase?: string;
   causeCode?: string;
+  attemptedVersionCode?: number;
+  existingVersionCode?: number;
+  minimumVersionCode?: number;
 }) {
   const title =
     result.errorCode === "app-not-found"
@@ -580,44 +624,54 @@ function showGooglePlayError(result: {
         ? "Droits Google Play insuffisants"
         : result.errorCode === "version-already-used"
           ? "Numéro interne déjà utilisé"
-          : result.errorCode === "upload-key-mismatch"
-            ? "Clé de signature non reconnue"
-            : result.errorCode === "changes-in-review"
-              ? "Une modification est déjà en cours de revue"
-              : result.errorCode === "commit-outcome-unknown"
-                ? "Résultat de publication à vérifier"
-                : result.errorCode === "oauth-not-configured"
-                  ? "Connexion Google à activer"
-                  : result.errorCode === "credentials-missing"
-                    ? "Autorisation Google Play introuvable"
-                    : result.errorCode === "network-timeout"
-                      ? result.phase === "upload-bundle"
-                        ? "Envoi du fichier Android trop long"
-                        : "Google Play ne répond pas"
-                      : result.errorCode === "network-error"
+          : result.errorCode === "version-too-low"
+            ? "Numéro interne trop faible"
+            : result.errorCode === "upload-key-mismatch"
+              ? "Clé de signature non reconnue"
+              : result.errorCode === "changes-in-review"
+                ? "Une modification est déjà en cours de revue"
+                : result.errorCode === "commit-outcome-unknown"
+                  ? "Résultat de publication à vérifier"
+                  : result.errorCode === "oauth-not-configured"
+                    ? "Connexion Google à activer"
+                    : result.errorCode === "credentials-missing"
+                      ? "Autorisation Google Play introuvable"
+                      : result.errorCode === "network-timeout"
                         ? result.phase === "upload-bundle"
-                          ? "Envoi du fichier Android interrompu"
-                          : "Communication Google Play interrompue"
-                        : result.errorCode === "aab-read-failed"
-                          ? "Fichier Android impossible à lire"
-                          : "Google Play a refusé l'opération";
+                          ? "Envoi du fichier Android trop long"
+                          : "Google Play ne répond pas"
+                        : result.errorCode === "network-error"
+                          ? result.phase === "upload-bundle"
+                            ? "Envoi du fichier Android interrompu"
+                            : "Communication Google Play interrompue"
+                          : result.errorCode === "aab-read-failed"
+                            ? "Fichier Android impossible à lire"
+                            : "Google Play a refusé l'opération";
   const description =
     result.errorCode === "app-not-found"
       ? "Créez la fiche, ajoutez et enregistrez le premier fichier Android dans le test interne, puis recommencez la vérification."
       : result.errorCode === "version-already-used"
         ? "Google Play n'accepte jamais deux fichiers avec le même numéro interne. Ouvrez « Préparer la version », augmentez ce numéro, recréez le fichier Android, puis republiez."
-        : result.errorHint;
+        : result.errorCode === "version-too-low"
+          ? result.minimumVersionCode
+            ? `Google Play utilise déjà le numéro ${result.existingVersionCode}. Choisissez au minimum ${result.minimumVersionCode} dans « Préparer la version », puis recréez le fichier Android.`
+            : "Cette version ne peut remplacer aucune version existante. Choisissez un numéro interne supérieur au plus grand numéro présent dans Google Play, puis recréez le fichier Android."
+          : result.errorHint;
   toast.error(title, { description, duration: 12_000 });
 }
 
 function GooglePlayRecovery({
   failure,
+  currentBuild,
+  preparedBuild,
   onRetry,
 }: {
   failure: GooglePlayFailure;
+  currentBuild: number;
+  preparedBuild?: number;
   onRetry: () => void;
 }) {
-  const recovery = googlePlayRecoveryFor(failure);
+  const recovery = googlePlayRecoveryFor(failure, currentBuild, preparedBuild);
 
   async function openPlayConsole() {
     try {
@@ -629,14 +683,18 @@ function GooglePlayRecovery({
   }
 
   return (
-    <div role="alert" className="mt-4 rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm">
+    <div
+      role="alert"
+      aria-live="polite"
+      className="mt-4 rounded-xl border-2 border-danger bg-danger/10 p-4 text-sm shadow-sm"
+    >
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <p className="font-medium">{recovery.title}</p>
-          <p className="mt-1 leading-relaxed text-muted-foreground">{recovery.explanation}</p>
-          <p className="mt-2 font-medium">Ce qu’il faut faire</p>
-          <p className="mt-1 leading-relaxed text-muted-foreground">{recovery.solution}</p>
+          <p className="font-semibold text-danger">{recovery.title}</p>
+          <p className="mt-1 leading-relaxed">{recovery.explanation}</p>
+          <p className="mt-3 font-semibold text-danger">Ce qu’il faut faire maintenant</p>
+          <p className="mt-1 leading-relaxed">{recovery.solution}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {recovery.action === "version" && (
               <Button asChild size="sm">
@@ -688,7 +746,11 @@ function GooglePlayRecovery({
   );
 }
 
-function googlePlayRecoveryFor(failure: GooglePlayFailure): {
+function googlePlayRecoveryFor(
+  failure: GooglePlayFailure,
+  currentBuild?: number,
+  preparedBuild?: number,
+): {
   title: string;
   explanation: string;
   solution: string;
@@ -720,6 +782,32 @@ function googlePlayRecoveryFor(failure: GooglePlayFailure): {
           "Un versionCode ne peut être utilisé qu’une seule fois, même si l’ancienne version a été supprimée ou refusée.",
         solution:
           "Augmentez le numéro interne, recréez le fichier Android, puis revenez l’envoyer. Ne changez pas seulement le nom visible de la version.",
+        action: "version",
+      };
+    case "version-too-low":
+      if (
+        failure.minimumVersionCode &&
+        currentBuild &&
+        currentBuild >= failure.minimumVersionCode &&
+        (!preparedBuild || preparedBuild < failure.minimumVersionCode)
+      ) {
+        return {
+          title: "Le numéro est corrigé, mais le fichier Android est encore ancien",
+          explanation: `Le projet utilise maintenant le numéro ${currentBuild}, mais le fichier préparé contient toujours le numéro ${preparedBuild ?? failure.attemptedVersionCode}.`,
+          solution:
+            "Recréez le fichier Android pour appliquer le nouveau numéro, puis revenez l’envoyer à Google Play.",
+          action: "build",
+        };
+      }
+      return {
+        title: "Le numéro interne est trop faible",
+        explanation:
+          failure.attemptedVersionCode && failure.existingVersionCode
+            ? `Votre fichier utilise le numéro ${failure.attemptedVersionCode}, tandis que Google Play possède déjà la version ${failure.existingVersionCode}.`
+            : "Google Play possède déjà une version plus récente que le fichier Android préparé.",
+        solution: failure.minimumVersionCode
+          ? `Ouvrez « Préparer la version », choisissez au minimum ${failure.minimumVersionCode}, puis recréez le fichier Android avant de le renvoyer.`
+          : "Ouvrez « Préparer la version », choisissez un numéro interne supérieur au plus grand numéro de Play Console, puis recréez le fichier Android.",
         action: "version",
       };
     case "aab-invalid":

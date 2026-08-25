@@ -276,7 +276,7 @@ function SigningPage() {
           fallbackTo="/build"
           fallbackLabel="Créer le fichier Android"
           title="Signature prête"
-          description={`« ${associatedProfile.name} » protège maintenant « ${activeProject.name} ». Vous pouvez reprendre le parcours.`}
+          description={`La signature « ${associatedProfile.name} » est maintenant associée à « ${activeProject.name} ». L'étape suivante consiste à créer le fichier Android.`}
         />
       )}
 

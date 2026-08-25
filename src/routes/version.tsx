@@ -28,6 +28,9 @@ import { ErrorCard } from "@/components/error-card";
 import { translateError } from "@/core/errors/translator";
 import { toast } from "sonner";
 import { StepPurpose } from "@/components/step-purpose";
+import { ProfilesStore } from "@/features/android-signing";
+import { nextStepAfterVersion } from "@/core/navigation/publication-next-step";
+import { requiredGooglePlayVersionCode } from "@/core/google-play/failure-store";
 
 export const Route = createFileRoute("/version")({
   component: VersionAssistant,
@@ -86,7 +89,16 @@ function VersionAssistant() {
 
   if (!project) return <NoProject />;
 
-  const preview = choice ? VersionService.preview(project, choice) : null;
+  const requiredBuild = requiredGooglePlayVersionCode(project.id);
+  const preview = choice ? VersionService.preview(project, choice, requiredBuild) : null;
+  const minimumUpdate =
+    requiredBuild && project.currentBuild < requiredBuild
+      ? VersionService.preview(project, "bugfix", requiredBuild)
+      : null;
+  const nextStep = nextStepAfterVersion(
+    project,
+    ProfilesStore.list().map((profile) => profile.id),
+  );
 
   async function apply() {
     if (!choice || !preview || !project) return;
@@ -104,11 +116,9 @@ function VersionAssistant() {
             remoteUrl: project.source.remoteUrl,
             branch: project.source.branch,
           });
-          if (git.workingTree === "dirty") {
-            throw new Error(
-              "Enregistrez d’abord vos modifications Git : AppPublisher doit partir d’un projet propre pour pouvoir annuler uniquement ses propres changements.",
-            );
-          }
+          // Les builds précédents d’AppPublisher peuvent légitimement avoir
+          // modifié Gradle dans la copie locale. On mémorise ces fichiers pour
+          // ne déclarer ensuite que les changements créés par cette opération.
           gitFilesBefore = new Set(git.changedFiles);
         }
         const backup = await BackupService.create(project, "version");
@@ -134,7 +144,12 @@ function VersionAssistant() {
             title: "Application de la nouvelle version",
             run: async () => {
               try {
-                appliedRef.current = await VersionService.apply(project, choice!);
+                appliedRef.current = await VersionService.apply(
+                  project,
+                  choice!,
+                  undefined,
+                  requiredBuild,
+                );
                 return { status: "success" };
               } catch (e) {
                 return {
@@ -233,8 +248,8 @@ function VersionAssistant() {
           <div className="mt-1 text-sm text-muted-foreground">Numéro interne {done.build}</div>
           <div className="mt-6 flex justify-center gap-2">
             <Button asChild>
-              <Link to="/build">
-                Créer le fichier Android
+              <Link to={nextStep.to}>
+                {nextStep.label}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -269,6 +284,29 @@ function VersionAssistant() {
         result="Google Play reconnaît cette version comme nouvelle."
       />
 
+      {requiredBuild && project.currentBuild < requiredBuild && (
+        <div role="alert" className="mb-6 rounded-xl border-2 border-danger bg-danger/10 p-4">
+          <p className="font-semibold text-danger">Google Play exige un numéro plus élevé</p>
+          <p className="mt-1 text-sm leading-relaxed">
+            Le prochain numéro interne sera directement réglé sur <strong>{requiredBuild}</strong>,
+            le minimum demandé par Google Play. Vous n’aurez pas à augmenter le numéro plusieurs
+            fois.
+          </p>
+          {minimumUpdate && (
+            <Button
+              className="mt-4"
+              onClick={() => {
+                setChoice("bugfix");
+                setConfirmOpen(true);
+              }}
+            >
+              Appliquer la mise à jour minimale ({minimumUpdate.to} · numéro {requiredBuild})
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="mb-6 rounded-xl border bg-muted/40 p-4 text-sm flex items-center justify-between">
         <span>
           Version actuelle · <strong className="tabular-nums">{project.currentVersion}</strong> ·
@@ -285,7 +323,7 @@ function VersionAssistant() {
       {!workflow && (
         <div className="grid gap-3 sm:grid-cols-2">
           {CHOICES.map((c) => {
-            const p = VersionService.preview(project, c.type);
+            const p = VersionService.preview(project, c.type, requiredBuild);
             const Icon = c.icon;
             return (
               <div

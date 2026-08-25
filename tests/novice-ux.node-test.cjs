@@ -102,6 +102,13 @@ test("la préparation locale et l'envoi Google Play sont deux états distincts",
   assert.match(publishRule, /storeRelease/);
 });
 
+test("la préparation de version conserve les modifications locales déjà présentes", () => {
+  const version = read("src/routes/version.tsx");
+  assert.match(version, /gitFilesBefore = new Set\(git\.changedFiles\)/);
+  assert.match(version, /!gitFilesBefore\.has\(file\)/);
+  assert.doesNotMatch(version, /Enregistrez d’abord vos modifications Git/);
+});
+
 test("les vérifications interrompues proposent toujours de réessayer", () => {
   assert.match(read("src/routes/diagnostic.tsx"), /Vérification interrompue/);
   assert.match(read("src/components/build-center/preflight-card.tsx"), /Réessayez pour continuer/);
@@ -177,17 +184,21 @@ test("une correction ramène à l'étape qui l'a demandée", () => {
   const preflight = read("src/components/build-center/preflight-card.tsx");
   const publish = read("src/components/publish-center/header.tsx");
   assert.match(progress, /returnToJourneyPath/);
-  assert.match(continuation, /Revenir à « \$\{JOURNEY_LABELS\[returnTo\]\} »/);
+  assert.match(continuation, /Continuer vers « \$\{JOURNEY_LABELS\[returnTo\]\} »/);
   assert.match(preflight, /rememberReturnTo\("\/build"\)/);
   assert.match(publish, /rememberReturnTo\("\/publish"\)/);
 });
 
 test("la signature se choisit et la suite reste visible dans le même flux", () => {
   const signing = read("src/routes/signing.tsx");
+  const continuation = read("src/components/journey-continuation.tsx");
   assert.match(signing, /Utiliser pour \{applicationName\}/);
   assert.match(signing, /selected=\{p\.id === associatedProfileId\}/);
   assert.match(signing, /fallbackTo="\/build"/);
   assert.match(signing, /Signature prête/);
+  assert.match(signing, /L'étape suivante consiste à créer le fichier Android/);
+  assert.match(continuation, /Continuer vers «/);
+  assert.doesNotMatch(continuation, /Revenir à «/);
 });
 
 test("le changement d'écran place le focus sur un titre explicite", () => {
@@ -247,6 +258,7 @@ test("Google Play présente un parcours novice en quatre états", () => {
     "Application Play Console",
     "Fichier Android",
     "Test interne",
+    "Mise en ligne publique",
   ]) {
     assert.match(journey, new RegExp(step));
   }
@@ -265,11 +277,51 @@ test("la première publication manuelle n'est jamais renvoyée avec le même num
 
 test("les refus Google Play restent visibles avec une action compréhensible", () => {
   const card = read("src/components/publish-center/google-play-card.tsx");
+  const version = read("src/routes/version.tsx");
+  const failureStore = read("src/core/google-play/failure-store.ts");
   assert.match(card, /<GooglePlayRecovery/);
-  assert.match(card, /Ce qu’il faut faire/);
+  assert.match(failureStore, /sessionStorage\.setItem/);
+  assert.match(failureStore, /sessionStorage\.getItem/);
+  assert.match(card, /border-2 border-danger bg-danger\/10/);
+  assert.match(card, /version-too-low/);
+  assert.match(card, /Choisissez au minimum/);
+  assert.match(card, /to="\/version"/);
+  assert.match(card, /Ce qu’il faut faire maintenant/);
   assert.match(card, /Augmenter le numéro interne/);
+  assert.match(card, /Le numéro est corrigé, mais le fichier Android est encore ancien/);
+  assert.match(version, /Google Play exige un numéro plus élevé/);
+  assert.match(version, /requiredGooglePlayVersionCode/);
+  assert.match(version, /Appliquer la mise à jour minimale/);
   assert.match(card, /Recréer le fichier Android/);
   assert.match(card, /Ouvrir Play Console/);
   assert.match(card, /Les quatre blocages les plus fréquents/);
   assert.match(card, /Mauvaise clé/);
+});
+
+test("le test interne continue vers une vraie checklist de publication publique", () => {
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  const assistant = read("src/components/publish-center/google-play-launch-assistant.tsx");
+  const plan = read("src/core/google-play/launch-plan.ts");
+  assert.match(card, /<GooglePlayLaunchAssistant/);
+  assert.match(card, /Test interne : étape automatique/);
+  assert.match(assistant, /Mise en ligne publique/);
+  assert.match(assistant, /Prochaine action/);
+  assert.match(assistant, /Dossier envoyé à Google/);
+  assert.match(assistant, /Il n’est public qu’après l’acceptation/);
+  for (const requirement of [
+    "politique de confidentialité",
+    "sécurité des données",
+    "public cible",
+    "questionnaire de classification",
+    "tests exigés par Google",
+    "version de production",
+  ]) {
+    assert.match(plan, new RegExp(requirement, "i"));
+  }
+});
+
+test("les instructions de fichier sont compatibles macOS et Windows", () => {
+  const guide = read("src/components/publish-center/google-play-setup-guide.tsx");
+  assert.match(guide, /Afficher le fichier dans son dossier/);
+  assert.doesNotMatch(guide, /Afficher le fichier dans le Finder/);
 });

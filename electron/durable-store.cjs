@@ -132,9 +132,11 @@ function validateStoredValue(key, value) {
       "autoBackupEnabled",
       "contextualHelpEnabled",
       "language",
+      "lastJourneyPath",
       "mode",
       "onboardingCompleted",
       "projectsRootPath",
+      "returnToJourneyPath",
       "theme",
       "userName",
     ]);
@@ -143,6 +145,10 @@ function validateStoredValue(key, value) {
     if (value.mode != null && !["discovery", "assistant", "expert"].includes(value.mode))
       return false;
     if (value.language != null && !["fr", "en"].includes(value.language)) return false;
+    const journeyPaths = ["/projects", "/diagnostic", "/version", "/signing", "/build", "/publish"];
+    for (const field of ["lastJourneyPath", "returnToJourneyPath"]) {
+      if (value[field] != null && !journeyPaths.includes(value[field])) return false;
+    }
     for (const field of ["userName", "projectsRootPath", "activeProjectId"]) {
       if (value[field] != null && typeof value[field] !== "string") return false;
     }
