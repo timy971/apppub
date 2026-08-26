@@ -1,0 +1,91 @@
+name: Release candidate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-certification:
+    name: Certify V1 release sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run complete automated tests
+        run: bun run test
+
+      - name: Certify novice journeys
+        run: bun run certify:ux
+
+      - name: Check TypeScript
+        run: bun run typecheck
+
+      - name: Run semantic lint gate
+        run: bun run lint:ci
+
+      - name: Build Electron renderer
+        run: bun run build:electron
+
+      - name: Certify release wiring
+        run: node scripts/certify-release-candidate.cjs
+
+      - name: Keep RC certification report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-candidate-certification
+          path: .artifacts/release-candidate-certification.json
+          if-no-files-found: error
+          retention-days: 30
+
+  desktop-smoke-package:
+    name: Unsigned package smoke — ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label: macOS
+            command: bun run pack:mac
+            artifact: dist-app/mac-arm64/AppPublisher.app
+          - os: windows-2025
+            label: Windows
+            command: bun run pack:win
+            artifact: dist-app/win-unpacked/AppPublisher.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Package application
+        run: ${{ matrix.command }}
+
+      - name: Verify packaged executable exists
+        shell: bash
+        run: test -e "${{ matrix.artifact }}"

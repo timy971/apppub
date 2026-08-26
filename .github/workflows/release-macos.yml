@@ -23,19 +23,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
-      - name: Install dependencies
-        run: npm install --no-package-lock --no-audit --no-fund
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
 
-      - name: Verify source
+      - name: Verify release candidate sources
         run: |
-          npm test
-          npm run typecheck
-          npm run lint:ci
+          bun run test
+          bun run certify:ux
+          bun run typecheck
+          bun run lint:ci
+          bun run build:electron
+          node scripts/certify-release-candidate.cjs
 
       - name: Prepare private release files
         env:
@@ -57,7 +58,7 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run release:mac
+        run: bun run release:mac
 
       - name: Build, verify and publish the notarized release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -69,10 +70,10 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release:mac:publish
+        run: bun run release:mac:publish
 
       - name: Keep artifacts for verification
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-macOS
           path: |
@@ -80,4 +81,5 @@ jobs:
             dist-app/*.zip
             dist-app/latest-mac.yml
             .artifacts/macos-release-verification.json
+            .artifacts/release-candidate-certification.json
           if-no-files-found: error
