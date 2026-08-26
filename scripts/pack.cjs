@@ -32,7 +32,6 @@ const dist = path.join(root, "dist");
 const start = Date.now();
 const info = (m) => console.log(`\x1b[36m•\x1b[0m ${m}`);
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
-const warn = (m) => console.log(`\x1b[33m!\x1b[0m ${m}`);
 const fail = (m) => {
   console.error(`\x1b[31m✗\x1b[0m ${m}`);
   process.exit(1);
@@ -40,7 +39,16 @@ const fail = (m) => {
 
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { stdio: "inherit", cwd: root, ...opts });
+  if (r.error) fail(`Impossible de lancer ${cmd} : ${r.error.message}`);
   if (r.status !== 0) fail(`Commande échouée : ${cmd} ${args.join(" ")}`);
+}
+
+function runLocalNodeTool(relativeCliPath, args) {
+  const cliPath = path.join(root, "node_modules", ...relativeCliPath.split("/"));
+  if (!fs.existsSync(cliPath)) {
+    fail(`Outil de build local absent : ${relativeCliPath}. Réinstallez les dépendances verrouillées.`);
+  }
+  run(process.execPath, [cliPath, ...args]);
 }
 
 /**
@@ -116,7 +124,7 @@ ok(`dist/ et dist-app/ nettoyés.`);
 
 /* ---------- 4. Build Vite ---------- */
 info("Compilation de l'interface (vite build — config Electron SPA)…");
-run("npx", ["vite", "build", "--config", "vite.electron.config.ts"]);
+runLocalNodeTool("vite/bin/vite.js", ["build", "--config", "vite.electron.config.ts"]);
 if (!fs.existsSync(path.join(root, "dist", "index.html"))) {
   dumpDistStructure();
   fail("dist/index.html non produit — la compilation a échoué.");
@@ -125,13 +133,13 @@ ok("Interface compilée.");
 
 /* ---------- 5. electron-builder ---------- */
 info(`Packaging Electron (${target})…`);
-const ebArgs = ["electron-builder", "--config", "electron-builder.config.cjs"];
+const ebArgs = ["--config", "electron-builder.config.cjs"];
 if (target === "mac") ebArgs.push("--mac");
 if (target === "win") ebArgs.push("--win");
 // La publication est volontairement séparée du packaging : un binaire ne
 // peut atteindre GitHub Releases qu'après la certification complète du lot 9.
 ebArgs.push("--publish", "never");
-run("npx", ebArgs);
+runLocalNodeTool("electron-builder/cli.js", ebArgs);
 
 if (
   target === "mac" &&
