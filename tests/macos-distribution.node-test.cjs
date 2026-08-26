@@ -41,16 +41,18 @@ test("la distribution macOS est universelle, signée, notarisée et publiable", 
   assert.match(config.mac.entitlementsInherit, /inherit\.plist$/);
 });
 
-test("la release npm certifie les artefacts avant de les publier", () => {
+test("la release macOS utilise les dépendances certifiées avant de publier", () => {
   const fs = require("node:fs");
   const root = path.resolve(__dirname, "..");
   const workflow = fs.readFileSync(path.join(root, ".github/workflows/release-macos.yml"), "utf8");
   const releaseScript = fs.readFileSync(path.join(root, "scripts/release-mac.cjs"), "utf8");
   const packScript = fs.readFileSync(path.join(root, "scripts/pack.cjs"), "utf8");
 
-  assert.match(workflow, /actions\/setup-node@v4/);
-  assert.match(workflow, /npm run release:mac:publish/);
-  assert.doesNotMatch(workflow, /setup-bun|bun install|bun run/);
+  assert.match(workflow, /oven-sh\/setup-bun@/);
+  assert.match(workflow, /bun install --frozen-lockfile/);
+  assert.match(workflow, /node scripts\/certify-release-candidate\.cjs/);
+  assert.match(workflow, /bun run release:mac:publish/);
+  assert.doesNotMatch(workflow, /npm install --no-package-lock/);
   assert.ok(
     releaseScript.indexOf("verify-mac-release.cjs") <
       releaseScript.indexOf("publish-mac-release.cjs"),

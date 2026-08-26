@@ -63,7 +63,7 @@ test("Microsoft Trusted Signing peut remplacer un certificat PFX", () => {
   delete process.env.APPPUBLISHER_WIN_DISTRIBUTION;
 });
 
-test("le workflow Windows certifie avant de publier et n'utilise pas Bun", () => {
+test("le workflow Windows utilise les dépendances certifiées avant de publier", () => {
   const root = path.resolve(__dirname, "..");
   const workflow = fs.readFileSync(
     path.join(root, ".github/workflows/release-windows.yml"),
@@ -71,7 +71,10 @@ test("le workflow Windows certifie avant de publier et n'utilise pas Bun", () =>
   );
   const release = fs.readFileSync(path.join(root, "scripts/release-win.cjs"), "utf8");
   assert.match(workflow, /runs-on: windows-2025/);
-  assert.match(workflow, /npm run release:win:publish/);
-  assert.doesNotMatch(workflow, /setup-bun|bun install|bun run/);
+  assert.match(workflow, /oven-sh\/setup-bun@/);
+  assert.match(workflow, /bun install --frozen-lockfile/);
+  assert.match(workflow, /node scripts\/certify-release-candidate\.cjs/);
+  assert.match(workflow, /bun run release:win:publish/);
+  assert.doesNotMatch(workflow, /npm install --no-package-lock/);
   assert.ok(release.indexOf("verify-win-release.cjs") < release.indexOf("publish-win-release.cjs"));
 });
