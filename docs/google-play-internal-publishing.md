@@ -17,18 +17,23 @@ l'application et le `client_secret` n'est pas requis par le flux utilisé ici.
 
 ### Configuration du produit AppPublisher
 
-Cette configuration appartient au **build AppPublisher**, pas à chaque utilisateur :
+Cette configuration appartient au **build AppPublisher**, pas à chaque utilisateur.
 
-1. créer une fois le client OAuth Desktop AppPublisher dans Google Cloud ;
-2. placer uniquement son Client ID public dans `build/google-play-oauth-client.json` avec le format
-   de `build/google-play-oauth.example.json`, ou définir la variable
-   `APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID` au packaging ;
-3. lancer le packaging. `scripts/pack.cjs` refuse désormais toute bêta/distribution qui n'embarque
-   pas une identité OAuth AppPublisher valide ;
-4. `electron-builder` copie la configuration normalisée dans les ressources de l'application.
+Le Client ID Desktop public officiel d'AppPublisher est versionné dans
+`build/google-play-oauth-client.json`. Aucun `client_secret` n'est versionné.
 
-`GOOGLE_PLAY_OAUTH_JSON_BASE64` reste accepté uniquement pour compatibilité avec les anciens
-workflows. Il n'est plus nécessaire pour une nouvelle installation.
+Au packaging :
+
+1. `scripts/google-oauth-build-config.cjs` lit ce Client ID public et génère la ressource normalisée
+   `build/google-play-oauth.json` ;
+2. `scripts/pack.cjs` refuse toute bêta/distribution si aucune identité OAuth valide n'est disponible ;
+3. `electron-builder` copie cette configuration dans les ressources de l'application ;
+4. la Release Candidate compare l'identité empaquetée avec le Client ID versionné et, sur macOS,
+   monte les DMG pour vérifier la ressource directement dans `AppPublisher.app`.
+
+`APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID` peut toujours surcharger le Client ID au packaging pour un cas
+contrôlé. `GOOGLE_PLAY_OAUTH_JSON_BASE64` reste accepté uniquement pour compatibilité avec les anciens
+workflows.
 
 Le sélecteur manuel de fichier OAuth n'est **pas** un parcours utilisateur. Il n'est activable que
 pour le développement ou le dépannage avec `APPPUBLISHER_ALLOW_OAUTH_FILE_PICKER=1`.
