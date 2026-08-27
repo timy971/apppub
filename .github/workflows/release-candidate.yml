@@ -83,12 +83,28 @@ jobs:
       - name: Install locked dependencies
         run: bun install --frozen-lockfile
 
+      - name: Require real OAuth secret for manual beta
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          OAUTH_SECRET: ${{ secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
+        run: |
+          if [ -z "$OAUTH_SECRET" ]; then
+            echo "Le secret GitHub GOOGLE_PLAY_OAUTH_CLIENT_SECRET est absent."
+            echo "Une bêta utilisateur ne doit pas être construite avec une identité OAuth incomplète."
+            exit 1
+          fi
+
       - name: Package application
+        env:
+          # Les PR utilisent seulement une valeur synthétique afin de tester le
+          # câblage et le montage. Elle n'est jamais publiée comme bêta utilisateur.
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: ${{ github.event_name == 'pull_request' && 'ci-placeholder-secret-not-for-users' || secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
         run: ${{ matrix.command }}
 
-      - name: Verify packaged OAuth identity is the AppPublisher client
+      - name: Verify packaged OAuth identity is complete
         shell: bash
-        run: node -e "const expected=require('./build/google-play-oauth-client.json').installed.client_id; const generated=require('./build/google-play-oauth.json'); const actual=(generated.installed||generated).client_id; if(!expected?.endsWith('.apps.googleusercontent.com')) throw new Error('Client ID AppPublisher invalide'); if(actual!==expected) throw new Error('Le build n’embarque pas le Client ID AppPublisher attendu');"
+        run: node -e "const expected=require('./build/google-play-oauth-client.json').installed.client_id; const generated=require('./build/google-play-oauth.json'); const actual=(generated.installed||generated); if(!expected?.endsWith('.apps.googleusercontent.com')) throw new Error('Client ID AppPublisher invalide'); if(actual.client_id!==expected) throw new Error('Le build n’embarque pas le Client ID AppPublisher attendu'); if(!actual.client_secret) throw new Error('Le build distribuable n’embarque pas le Client secret OAuth requis par Google');"
 
       - name: Verify packaged artifact exists
         shell: bash
@@ -108,12 +124,14 @@ jobs:
             embedded="$mountpoint/AppPublisher.app/Contents/Resources/google-play-oauth.json"
             test -f "$embedded"
             actual="$(node -p "const c=require(process.argv[1]); (c.installed||c).client_id" "$embedded")"
+            has_secret="$(node -p "const c=require(process.argv[1]); Boolean((c.installed||c).client_secret)" "$embedded")"
             test "$actual" = "$expected"
+            test "$has_secret" = "true"
             hdiutil detach "$mountpoint"
           done
 
       - name: Keep private macOS DMGs
-        if: matrix.os == 'macos-14' && !cancelled()
+        if: matrix.os == 'macos-14' && github.event_name == 'workflow_dispatch' && !cancelled()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-macOS-private-beta
@@ -129,7 +147,7 @@ jobs:
         run: ./scripts/smoke-win-clean-install.ps1 -Installer "dist-app/AppPublisher-Setup.exe"
 
       - name: Keep private Windows installer and recipe report
-        if: matrix.os == 'windows-2025' && !cancelled()
+        if: matrix.os == 'windows-2025' && github.event_name == 'workflow_dispatch' && !cancelled()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-Windows-private-beta
