@@ -1,8 +1,9 @@
 /**
  * Orchestrateur de packaging AppPublisher.
  *
- *   node scripts/pack.cjs mac    → application locale ou DMG/ZIP de distribution
- *   node scripts/pack.cjs win    → build/nsis/zip Windows (x64)
+ *   node scripts/pack.cjs mac       → application locale ou DMG/ZIP de distribution
+ *   node scripts/pack.cjs win       → application Windows locale (x64)
+ *   node scripts/pack.cjs win-beta  → installateur NSIS privé non signé (x64)
  *
  * Étapes :
  *   1. Vérifications préalables (ressources, icônes, version).
@@ -16,13 +17,18 @@ const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
-const target = process.argv[2] || "mac";
-const macDistribution = target === "mac" && process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
-const windowsDistribution = target === "win" && process.env.APPPUBLISHER_WIN_DISTRIBUTION === "1";
-if (!["mac", "win"].includes(target)) {
-  console.error(`Cible inconnue : ${target}. Utilisez "mac" ou "win".`);
+const requestedTarget = process.argv[2] || "mac";
+if (!["mac", "win", "win-beta"].includes(requestedTarget)) {
+  console.error(`Cible inconnue : ${requestedTarget}. Utilisez "mac", "win" ou "win-beta".`);
   process.exit(1);
 }
+const target = requestedTarget === "win-beta" ? "win" : requestedTarget;
+const windowsPrivateBeta = requestedTarget === "win-beta";
+if (windowsPrivateBeta) process.env.APPPUBLISHER_WIN_PRIVATE_BETA = "1";
+
+const macDistribution = target === "mac" && process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
+const windowsDistribution = target === "win" && process.env.APPPUBLISHER_WIN_DISTRIBUTION === "1";
+const windowsInstaller = windowsDistribution || windowsPrivateBeta;
 
 const root = path.resolve(__dirname, "..");
 const distApp = path.join(root, "dist-app");
@@ -132,12 +138,12 @@ if (!fs.existsSync(path.join(root, "dist", "index.html"))) {
 ok("Interface compilée.");
 
 /* ---------- 5. electron-builder ---------- */
-info(`Packaging Electron (${target})…`);
+info(`Packaging Electron (${requestedTarget})…`);
 const ebArgs = ["--config", "electron-builder.config.cjs"];
 if (target === "mac") ebArgs.push("--mac");
 if (target === "win") ebArgs.push("--win");
 // La publication est volontairement séparée du packaging : un binaire ne
-// peut atteindre GitHub Releases qu'après la certification complète du lot 9.
+// peut atteindre GitHub Releases qu'après la certification complète du lot 11.
 ebArgs.push("--publish", "never");
 runLocalNodeTool("electron-builder/cli.js", ebArgs);
 
@@ -162,23 +168,26 @@ if (macDistribution) {
 }
 if (
   target === "win" &&
-  !windowsDistribution &&
+  !windowsInstaller &&
   !fs.existsSync(path.join(distApp, "win-unpacked", "AppPublisher.exe"))
 ) {
   fail("AppPublisher.exe non produit — le packaging Windows local n'est pas valide.");
 }
-if (windowsDistribution) {
+if (windowsInstaller) {
   const artifacts = fs.existsSync(distApp) ? fs.readdirSync(distApp) : [];
-  for (const required of [
-    "AppPublisher-Setup.exe",
-    "AppPublisher-Setup.exe.blockmap",
-    "latest.yml",
-  ]) {
-    if (!artifacts.includes(required)) {
-      fail(`Artefact ${required} non produit — la distribution Windows n'est pas valide.`);
-    }
+  if (!artifacts.includes("AppPublisher-Setup.exe")) {
+    fail("AppPublisher-Setup.exe non produit — l'installateur Windows n'est pas valide.");
   }
-  ok("Installateur EXE, blockmap et manifeste de mise à jour produits.");
+  if (windowsDistribution) {
+    for (const required of ["AppPublisher-Setup.exe.blockmap", "latest.yml"]) {
+      if (!artifacts.includes(required)) {
+        fail(`Artefact ${required} non produit — la distribution Windows publique n'est pas valide.`);
+      }
+    }
+    ok("Installateur signé, blockmap et manifeste de mise à jour produits.");
+  } else {
+    ok("Installateur NSIS de bêta privée produit sans exiger de certificat.");
+  }
 }
 
 /* ---------- 6. Rapport ---------- */
@@ -203,8 +212,10 @@ console.log(
         ? "macOS universel — signé et notarisé"
         : "macOS (arm64) — développement local"
       : windowsDistribution
-        ? "Windows 10/11 (x64) — signé"
-        : "Windows (x64) — développement local"
+        ? "Windows 10/11 (x64) — distribution publique signée"
+        : windowsPrivateBeta
+          ? "Windows 10/11 (x64) — installateur bêta privée non signé"
+          : "Windows (x64) — développement local"
   }`,
 );
 console.log(` Durée     : ${seconds} s`);
