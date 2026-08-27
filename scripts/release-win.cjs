@@ -31,7 +31,10 @@ try {
 }
 ok("Client OAuth Google Play prêt à être intégré.");
 
-const pfxReady = present("CSC_LINK") && present("CSC_KEY_PASSWORD");
+const pfxReady =
+  present("CSC_LINK") &&
+  present("CSC_KEY_PASSWORD") &&
+  fs.existsSync(process.env.CSC_LINK);
 const azureReady = [
   "WINDOWS_AZURE_PUBLISHER_NAME",
   "WINDOWS_AZURE_ENDPOINT",
@@ -42,11 +45,9 @@ const azureReady = [
   "AZURE_CLIENT_SECRET",
 ].every(present);
 if (!pfxReady && !azureReady) {
-  fail("Signature Windows absente. Configurez un certificat PFX ou Microsoft Trusted Signing.");
+  fail("Signature Windows absente. Configurez un certificat PFX ou Azure Artifact Signing.");
 }
-ok(
-  `Signature Windows disponible (${azureReady ? "Microsoft Trusted Signing" : "certificat PFX"}).`,
-);
+ok(`Signature Windows disponible (${azureReady ? "Azure Artifact Signing" : "certificat PFX"}).`);
 
 if (publish && !present("GH_TOKEN") && !present("GITHUB_TOKEN")) {
   fail("GH_TOKEN ou GITHUB_TOKEN est requis pour publier la release GitHub.");
