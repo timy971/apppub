@@ -106,10 +106,8 @@ ok("Fichiers Electron présents.");
 if (distributableBuild) {
   info("Préparation de la connexion Google intégrée…");
   try {
-    const oauth = ensureGoogleOAuthBuildConfig({ required: true });
-    ok(
-      `Client OAuth AppPublisher intégré (${oauth.hasClientSecret ? "Client ID + secret optionnel" : "Client ID public uniquement"}).`,
-    );
+    const oauth = ensureGoogleOAuthBuildConfig({ required: true, requireClientSecret: true });
+    ok(`Client OAuth AppPublisher intégré (Client ID + secret injecté, source : ${oauth.source}).`);
   } catch (error) {
     fail(error?.message ?? String(error));
   }
