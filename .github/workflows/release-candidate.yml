@@ -66,11 +66,11 @@ jobs:
             command: bun run pack:mac
             artifact: dist-app/mac-arm64/AppPublisher.app
           - os: windows-2025
-            label: Private installer smoke — Windows
+            label: Clean-machine private beta — Windows
             command: bun run pack:win-beta
             artifact: dist-app/AppPublisher-Setup.exe
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -90,11 +90,18 @@ jobs:
         shell: bash
         run: test -e "${{ matrix.artifact }}"
 
-      - name: Keep private Windows installer
+      - name: Run clean-machine installation recipe
         if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: ./scripts/smoke-win-clean-install.ps1 -Installer "dist-app/AppPublisher-Setup.exe"
+
+      - name: Keep private Windows installer and recipe report
+        if: matrix.os == 'windows-2025' && always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-Windows-private-beta
-          path: dist-app/AppPublisher-Setup.exe
+          path: |
+            dist-app/AppPublisher-Setup.exe
+            .artifacts/windows-clean-machine-smoke.json
           if-no-files-found: error
           retention-days: 30
