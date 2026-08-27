@@ -16,6 +16,7 @@ test("a distributed build needs only the public desktop Client ID", () => {
     const result = ensureGoogleOAuthBuildConfig({
       required: true,
       outputPath,
+      publicClientPath: path.join(dir, "missing-public-client.json"),
       env: {
         APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: "apppublisher.apps.googleusercontent.com",
       },
@@ -45,6 +46,39 @@ test("a distributed build needs only the public desktop Client ID", () => {
   }
 });
 
+test("uses the versioned public AppPublisher Client ID without copying a secret", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-oauth-versioned-"));
+  try {
+    const outputPath = path.join(dir, "generated", "google-play-oauth.json");
+    const publicClientPath = path.join(dir, "google-play-oauth-client.json");
+    fs.writeFileSync(
+      publicClientPath,
+      JSON.stringify({
+        installed: {
+          client_id: "versioned.apps.googleusercontent.com",
+          client_secret: "must-never-be-copied",
+        },
+      }),
+      "utf8",
+    );
+
+    const result = ensureGoogleOAuthBuildConfig({
+      required: true,
+      outputPath,
+      publicClientPath,
+      env: {},
+    });
+
+    assert.equal(result.source, "versioned-public-client-id");
+    assert.equal(result.hasClientSecret, false);
+    assert.deepEqual(JSON.parse(fs.readFileSync(outputPath, "utf8")), {
+      installed: { client_id: "versioned.apps.googleusercontent.com" },
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("legacy base64 OAuth JSON remains supported for release compatibility", () => {
   const encoded = Buffer.from(
     JSON.stringify({
@@ -68,6 +102,7 @@ test("a private beta cannot be packaged without AppPublisher OAuth identity", ()
         ensureGoogleOAuthBuildConfig({
           required: true,
           outputPath: path.join(dir, "google-play-oauth.json"),
+          publicClientPath: path.join(dir, "missing-public-client.json"),
           env: {},
         }),
       /Client OAuth Google AppPublisher absent/,
