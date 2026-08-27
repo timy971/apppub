@@ -2,7 +2,9 @@
 
 ## Objectif
 
-Le lot 11 ne cherche pas à ajouter de nouvelles fonctions. Il transforme la version actuellement validée d'AppPublisher en candidate de sortie reproductible, testable sur une machine propre et distribuable sans divergence entre le code certifié et les binaires livrés.
+Le lot 11 ne cherche pas à ajouter de nouvelles fonctions. Il transforme la version actuellement validée d'AppPublisher en candidate reproductible et testable sur une machine propre.
+
+À ce stade, AppPublisher est destiné à une **bêta privée** : la signature commerciale macOS/Windows n'est donc pas un prérequis. Les garde-fous de distribution publique restent cependant présents dans le code afin qu'une future diffusion ne puisse pas produire accidentellement un binaire non signé.
 
 Référence de départ : branche `agent/lot-10-premiere-publication-google-play`, après les correctifs de parcours, de versionCode Google Play et de détection/configuration automatique du SDK Android.
 
@@ -11,69 +13,93 @@ Référence de départ : branche `agent/lot-10-premiere-publication-google-play`
 Une candidate est acceptable seulement si :
 
 - `package.json` et `version.json` portent la même version ;
-- les ressources Electron, macOS et Windows nécessaires à la distribution sont présentes ;
-- macOS reste distribué en DMG + ZIP universels, signé et notarisé ;
-- Windows reste distribué en NSIS x64 avec signature obligatoire ;
+- les ressources Electron, macOS et Windows nécessaires sont présentes ;
+- la future distribution publique macOS reste configurée en DMG + ZIP universels, signée et notarisée ;
+- la future distribution publique Windows reste configurée en NSIS x64 avec signature obligatoire ;
+- la bêta privée Windows peut produire le même installateur NSIS x64 sans certificat payant ;
 - la Quality gate conserve la construction de deux AAB signés consécutifs ;
 - les workflows officiels macOS et Windows installent les dépendances depuis `bun.lock` avec `bun install --frozen-lockfile` ;
 - tests, certification UX, TypeScript, lint et build Electron passent ;
-- un packaging non signé de smoke test réussit réellement sur un runner macOS et un runner Windows.
+- un packaging macOS local non signé réussit réellement ;
+- le vrai installateur `AppPublisher-Setup.exe` de bêta privée réussit réellement sur Windows.
 
 Le workflow `.github/workflows/release-candidate.yml` exécute ces contrôles sur chaque PR du lot 11 et peut aussi être déclenché manuellement.
 
-## 11.2 — Distribution native signée
+## 11.2 — Bêta privée installable
 
-Après le vert du lot 11.1 :
+La bêta privée ne nécessite ni abonnement Apple Developer, ni Azure Artifact Signing, ni certificat de signature Windows.
 
-1. lancer manuellement **Release macOS** ;
-2. vérifier que le DMG et le ZIP sont signés, notarisés et que `latest-mac.yml` est produit ;
-3. lancer manuellement **Release Windows** ;
-4. vérifier l'Authenticode de `AppPublisher-Setup.exe`, son installation/désinstallation silencieuse et `latest.yml` ;
-5. ne créer aucun tag public tant que ces deux workflows natifs ne sont pas verts.
+### Windows
 
-Ces workflows nécessitent les secrets de signature Apple/Windows et le client OAuth Google Play. Leur absence doit bloquer la distribution plutôt que produire un binaire dégradé.
+Le mode `bun run pack:win-beta` produit un véritable installateur NSIS x64 `AppPublisher-Setup.exe` sans exiger de certificat. Windows peut afficher « Éditeur inconnu » ou un avertissement SmartScreen : c'est attendu pour cette phase privée.
+
+Le mode de distribution publique reste distinct : `bun run release:win` exige toujours une signature valide et refuse de produire une release publique dégradée.
+
+### macOS
+
+Le packaging local non signé reste suffisant pour les tests privés sur la machine de développement. Une distribution publique en DMG/ZIP restera conditionnée à un certificat Developer ID et à la notarisation Apple.
+
+### Ce qui est volontairement reporté
+
+Tant qu'AppPublisher n'est pas destiné à être diffusé publiquement :
+
+- Release macOS signée/notarisée ;
+- Release Windows Authenticode / Artifact Signing ;
+- publication d'un tag GitHub `v*` ;
+- validation de la réputation SmartScreen d'un binaire public.
 
 ## 11.3 — Recette « machine neuve »
 
 La recette finale doit être faite sans environnement de développement AppPublisher préexistant.
 
-### macOS
+### Windows 10/11 — priorité de la bêta privée
 
-- installer AppPublisher depuis le DMG ;
-- lancer l'application depuis `/Applications` ;
-- vérifier qu'aucun terminal n'est nécessaire ;
+Installer `AppPublisher-Setup.exe`, puis :
+
+- accepter l'avertissement éventuel lié à l'éditeur inconnu ;
+- vérifier l'installation sans droits administrateur dans le cas normal ;
+- vérifier le raccourci du menu Démarrer ;
+- lancer AppPublisher sans terminal ;
 - importer un dépôt GitHub/Lovable de test ;
 - lancer le diagnostic système ;
 - vérifier la détection du JDK et du SDK Android ;
 - si Android Studio a installé le SDK sans `ANDROID_HOME`, vérifier qu'AppPublisher le configure automatiquement ;
-- préparer une version, créer/associer la signature, générer l'AAB ;
+- préparer une version, créer/associer la signature Android, générer l'AAB ;
 - connecter Google Play ;
 - publier sur la piste interne ;
 - provoquer volontairement un versionCode trop faible et vérifier la proposition d'un minimum valide ;
-- quitter, relancer et vérifier la conservation du projet, des réglages et de la signature.
+- quitter et relancer pour vérifier la conservation du projet et des réglages ;
+- vérifier le stockage sécurisé des secrets ;
+- désinstaller puis réinstaller sans perte involontaire des données utilisateur.
 
-### Windows 10/11
+### macOS — test local privé
 
-Rejouer exactement le même parcours depuis `AppPublisher-Setup.exe`, avec en plus :
+Le même parcours peut être rejoué depuis l'application locale non signée. La recette DMG « machine neuve » devient obligatoire uniquement avant une diffusion publique macOS.
 
-- installation sans droits administrateur dans le cas normal ;
-- raccourci du menu Démarrer fonctionnel ;
-- stockage sécurisé des secrets ;
-- désinstallation puis réinstallation sans perte involontaire des données utilisateur.
+## 11.4 — Critères de sortie bêta privée V1
 
-## 11.4 — Critères de sortie bêta V1
-
-La bêta V1 est autorisée quand :
+La bêta privée V1 est autorisée quand :
 
 - Quality gate : verte ;
 - Release candidate : verte sur Linux, macOS et Windows ;
-- Release macOS signée/notarisée : verte ;
-- Release Windows signée : verte ;
-- au moins un parcours complet réel sur machine propre macOS ;
-- au moins un parcours complet réel sur machine propre Windows ;
-- publication Google Play interne réussie depuis chaque OS testé ;
-- aucun défaut bloquant ou critique ouvert ;
+- `AppPublisher-Setup.exe` de bêta privée est réellement produit sur Windows ;
+- au moins un parcours complet réel AppPublisher → AAB → Google Play interne est réussi ;
+- installation, relance et désinstallation Windows ne présentent aucun défaut bloquant ;
+- aucun défaut bloquant ou critique n'est ouvert ;
 - les journaux de support ne contiennent ni mot de passe, ni clé privée, ni jeton OAuth.
+
+La signature/notarisation n'est **pas** un critère de sortie de bêta privée.
+
+## 11.5 — Critères supplémentaires avant diffusion publique
+
+Avant de proposer AppPublisher à des utilisateurs externes, il faudra en plus :
+
+- Release macOS signée et notarisée, si macOS est distribué ;
+- Release Windows signée Authenticode / Artifact Signing ;
+- recette machine neuve sur chaque OS distribué ;
+- vérification des manifests d'auto-update ;
+- publication contrôlée via tag/release GitHub ;
+- aucun avertissement de sécurité inattendu lié au packaging lui-même.
 
 ## Règle pendant le lot 11
 
