@@ -96,7 +96,7 @@ jobs:
         run: ./scripts/smoke-win-clean-install.ps1 -Installer "dist-app/AppPublisher-Setup.exe"
 
       - name: Keep private Windows installer and recipe report
-        if: matrix.os == 'windows-2025' && always()
+        if: matrix.os == 'windows-2025' && !cancelled()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-Windows-private-beta
