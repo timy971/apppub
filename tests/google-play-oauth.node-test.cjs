@@ -151,7 +151,10 @@ test("imports and persists a desktop OAuth client on first launch", async () => 
       selectConfigFile: async () => source,
     });
 
-    assert.equal(oauth.available(), false);
+    // La connexion doit être présentée comme disponible puisque le sélecteur
+    // natif permet de terminer la configuration au premier clic.
+    assert.equal(oauth.available(), true);
+    assert.equal(oauth.loadPersistedConfig(), false);
     assert.equal(await oauth.ensureConfigured(), true);
     assert.equal(oauth.available(), true);
     assert.deepEqual(JSON.parse(fs.readFileSync(persisted, "utf8")), {
@@ -174,6 +177,15 @@ test("imports and persists a desktop OAuth client on first launch", async () => 
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("reports OAuth unavailable only when neither config nor interactive picker exists", () => {
+  const oauth = new GooglePlayOAuth(null, {
+    persistentConfigPath: null,
+    selectConfigFile: async () => undefined,
+    interactiveConfigurationAvailable: false,
+  });
+  assert.equal(oauth.available(), false);
 });
 
 test("rejects a runtime JSON that is not a Google desktop OAuth client", async () => {
