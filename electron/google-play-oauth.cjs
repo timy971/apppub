@@ -8,6 +8,7 @@ const { GooglePlayError } = require("./google-play-publisher.cjs");
 const ANDROID_PUBLISHER_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
 const CALLBACK_PATH = "/oauth2/callback";
 const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
+const LOCAL_CONFIG_FILENAME = "google-play-oauth.json";
 
 function cleanOAuthConfig(value) {
   const source = value?.installed ?? value;
@@ -17,6 +18,15 @@ function cleanOAuthConfig(value) {
   const clientSecret = typeof rawClientSecret === "string" ? rawClientSecret.trim() : "";
   if (!clientId.endsWith(".apps.googleusercontent.com")) return null;
   return { clientId, clientSecret };
+}
+
+function readOAuthConfigFile(filePath, fsModule = fs) {
+  if (!filePath) return null;
+  try {
+    return cleanOAuthConfig(JSON.parse(fsModule.readFileSync(filePath, "utf8")));
+  } catch {
+    return null;
+  }
 }
 
 function loadGooglePlayOAuthConfig(options = {}) {
@@ -29,18 +39,61 @@ function loadGooglePlayOAuthConfig(options = {}) {
 
   const fsModule = options.fsModule ?? fs;
   const candidates = [
-    options.resourcesPath && path.join(options.resourcesPath, "google-play-oauth.json"),
-    options.appPath && path.join(options.appPath, "build", "google-play-oauth.json"),
+    options.resourcesPath && path.join(options.resourcesPath, LOCAL_CONFIG_FILENAME),
+    options.appPath && path.join(options.appPath, "build", LOCAL_CONFIG_FILENAME),
+    options.userDataPath && path.join(options.userDataPath, LOCAL_CONFIG_FILENAME),
   ].filter(Boolean);
   for (const candidate of candidates) {
-    try {
-      const config = cleanOAuthConfig(JSON.parse(fsModule.readFileSync(candidate, "utf8")));
-      if (config) return config;
-    } catch {
-      // Le bouton expliquera comment activer OAuth ; aucun secret n'est journalisé.
-    }
+    const config = readOAuthConfigFile(candidate, fsModule);
+    if (config) return config;
   }
   return null;
+}
+
+function defaultPersistentConfigPath() {
+  try {
+    const electron = require("electron");
+    if (electron?.app?.getPath) {
+      return path.join(electron.app.getPath("userData"), LOCAL_CONFIG_FILENAME);
+    }
+  } catch {
+    // Node tests and non-Electron callers do not have an Electron app context.
+  }
+  return null;
+}
+
+async function defaultSelectConfigFile() {
+  try {
+    const electron = require("electron");
+    if (!electron?.dialog?.showOpenDialog) return undefined;
+    const result = await electron.dialog.showOpenDialog({
+      title: "Choisir la configuration Google OAuth",
+      buttonLabel: "Utiliser ce fichier",
+      properties: ["openFile"],
+      filters: [{ name: "Configuration Google OAuth", extensions: ["json"] }],
+    });
+    if (result.canceled) return null;
+    return result.filePaths?.[0] ?? null;
+  } catch {
+    return undefined;
+  }
+}
+
+function persistOAuthConfig(filePath, config, fsModule = fs) {
+  if (!filePath || !config) return false;
+  const installed = { client_id: config.clientId };
+  if (config.clientSecret) installed.client_secret = config.clientSecret;
+  try {
+    fsModule.mkdirSync(path.dirname(filePath), { recursive: true });
+    fsModule.writeFileSync(
+      filePath,
+      `${JSON.stringify({ installed }, null, 2)}\n`,
+      { encoding: "utf8", mode: 0o600 },
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function base64Url(buffer) {
@@ -65,18 +118,70 @@ class GooglePlayOAuth {
       ((clientId, clientSecret, redirectUri) =>
         new OAuth2Client({ clientId, clientSecret: clientSecret || undefined, redirectUri }));
     this.timeoutMs = options.timeoutMs ?? 5 * 60_000;
+    this.fs = options.fsModule ?? fs;
+    this.persistentConfigPath =
+      options.persistentConfigPath === undefined
+        ? defaultPersistentConfigPath()
+        : options.persistentConfigPath;
+    this.selectConfigFile = options.selectConfigFile ?? defaultSelectConfigFile;
+  }
+
+  loadPersistedConfig() {
+    if (this.config) return true;
+    const persisted = readOAuthConfigFile(this.persistentConfigPath, this.fs);
+    if (!persisted) return false;
+    this.config = persisted;
+    return true;
   }
 
   available() {
-    return !!this.config;
+    return this.loadPersistedConfig();
   }
 
-  async authorize(openExternal) {
-    if (!this.config) {
+  async ensureConfigured() {
+    if (this.loadPersistedConfig()) return true;
+    const selectedPath = await this.selectConfigFile();
+    if (selectedPath === undefined) {
       throw new GooglePlayError(
         "oauth-not-configured",
         "La connexion Google n'est pas encore configurée dans cette version d'AppPublisher.",
       );
+    }
+    if (!selectedPath) return false;
+
+    let raw;
+    try {
+      raw = JSON.parse(this.fs.readFileSync(selectedPath, "utf8"));
+    } catch {
+      throw new GooglePlayError(
+        "oauth-config-invalid",
+        "Le fichier choisi n'est pas un fichier JSON Google OAuth valide.",
+      );
+    }
+    // Le sélecteur de premier lancement accepte uniquement le JSON officiel
+    // d'un client OAuth de type « Application de bureau » téléchargé depuis
+    // Google Cloud. Les formats normalisés top-level restent réservés aux
+    // variables d'environnement et aux tests internes.
+    const selectedConfig = raw?.installed ? cleanOAuthConfig(raw) : null;
+    if (!selectedConfig) {
+      throw new GooglePlayError(
+        "oauth-config-invalid",
+        "Choisissez le fichier JSON d'un client OAuth Google de type Application de bureau.",
+      );
+    }
+
+    this.config = selectedConfig;
+    // Le client OAuth Desktop n'est pas un secret confidentiel au sens OAuth :
+    // il est distribué dans l'application installée. On le conserve néanmoins
+    // uniquement dans userData, avec mode 0600 quand le système le supporte.
+    // Un défaut de persistance ne bloque pas la session Google en cours.
+    persistOAuthConfig(this.persistentConfigPath, selectedConfig, this.fs);
+    return true;
+  }
+
+  async authorize(openExternal) {
+    if (!(await this.ensureConfigured())) {
+      throw new GooglePlayError("cancelled", "La configuration Google a été annulée.");
     }
     if (typeof openExternal !== "function" || typeof this.fetch !== "function") {
       throw new GooglePlayError("oauth-unavailable", "La connexion Google est indisponible.");
@@ -209,4 +314,6 @@ module.exports = {
   GooglePlayOAuth,
   cleanOAuthConfig,
   loadGooglePlayOAuthConfig,
+  persistOAuthConfig,
+  readOAuthConfigFile,
 };
