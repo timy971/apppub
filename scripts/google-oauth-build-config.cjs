@@ -3,6 +3,7 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const defaultOutputPath = path.join(root, "build", "google-play-oauth.json");
+const defaultPublicClientPath = path.join(root, "build", "google-play-oauth-client.json");
 
 function normalizeGoogleOAuthClient(value) {
   const source = value?.installed ?? value;
@@ -60,6 +61,7 @@ function ensureGoogleOAuthBuildConfig(options = {}) {
   const fsModule = options.fsModule ?? fs;
   const env = options.env ?? process.env;
   const outputPath = options.outputPath ?? defaultOutputPath;
+  const publicClientPath = options.publicClientPath ?? defaultPublicClientPath;
   const required = options.required === true;
 
   const existing = readExistingConfig(outputPath, fsModule);
@@ -73,20 +75,34 @@ function ensureGoogleOAuthBuildConfig(options = {}) {
   }
 
   const resolved = resolveGoogleOAuthBuildConfig(env);
-  if (!resolved) {
-    if (!required) return null;
-    throw new Error(
-      "Client OAuth Google AppPublisher absent. Configurez APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID (recommandé) ou GOOGLE_PLAY_OAUTH_JSON_BASE64 avant de produire une bêta distribuable.",
-    );
+  if (resolved) {
+    writeConfig(outputPath, resolved.config, fsModule);
+    return {
+      path: outputPath,
+      source: resolved.source,
+      hasClientSecret: Boolean(resolved.config.installed.client_secret),
+      clientId: resolved.config.installed.client_id,
+    };
   }
 
-  writeConfig(outputPath, resolved.config, fsModule);
-  return {
-    path: outputPath,
-    source: resolved.source,
-    hasClientSecret: Boolean(resolved.config.installed.client_secret),
-    clientId: resolved.config.installed.client_id,
-  };
+  const publicClient = readExistingConfig(publicClientPath, fsModule);
+  if (publicClient) {
+    // Le fichier versionné ne doit contenir que l'identifiant public. Même si
+    // un secret était ajouté par erreur, on ne le recopie pas dans la build.
+    const config = { installed: { client_id: publicClient.installed.client_id } };
+    writeConfig(outputPath, config, fsModule);
+    return {
+      path: outputPath,
+      source: "versioned-public-client-id",
+      hasClientSecret: false,
+      clientId: config.installed.client_id,
+    };
+  }
+
+  if (!required) return null;
+  throw new Error(
+    "Client OAuth Google AppPublisher absent. Ajoutez build/google-play-oauth-client.json avec le Client ID public, ou configurez APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID.",
+  );
 }
 
 if (require.main === module) {
@@ -108,6 +124,7 @@ if (require.main === module) {
 
 module.exports = {
   defaultOutputPath,
+  defaultPublicClientPath,
   ensureGoogleOAuthBuildConfig,
   normalizeGoogleOAuthClient,
   parseBase64Json,
