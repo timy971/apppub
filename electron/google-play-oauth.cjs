@@ -62,6 +62,15 @@ function defaultPersistentConfigPath() {
   return null;
 }
 
+function defaultInteractiveConfigurationAvailable() {
+  try {
+    const electron = require("electron");
+    return typeof electron?.dialog?.showOpenDialog === "function";
+  } catch {
+    return false;
+  }
+}
+
 async function defaultSelectConfigFile() {
   try {
     const electron = require("electron");
@@ -119,23 +128,33 @@ class GooglePlayOAuth {
         new OAuth2Client({ clientId, clientSecret: clientSecret || undefined, redirectUri }));
     this.timeoutMs = options.timeoutMs ?? 5 * 60_000;
     this.fs = options.fsModule ?? fs;
-    this.persistentConfigPath =
-      options.persistentConfigPath === undefined
-        ? defaultPersistentConfigPath()
-        : options.persistentConfigPath;
+    this.persistentConfigPath = options.persistentConfigPath;
+    this.useDefaultPersistentConfigPath = options.persistentConfigPath === undefined;
     this.selectConfigFile = options.selectConfigFile ?? defaultSelectConfigFile;
+    this.interactiveConfigurationAvailable =
+      options.interactiveConfigurationAvailable ??
+      (options.selectConfigFile !== undefined ? true : defaultInteractiveConfigurationAvailable());
+  }
+
+  resolvePersistentConfigPath() {
+    if (!this.useDefaultPersistentConfigPath) return this.persistentConfigPath;
+    return defaultPersistentConfigPath();
   }
 
   loadPersistedConfig() {
     if (this.config) return true;
-    const persisted = readOAuthConfigFile(this.persistentConfigPath, this.fs);
+    const persisted = readOAuthConfigFile(this.resolvePersistentConfigPath(), this.fs);
     if (!persisted) return false;
     this.config = persisted;
     return true;
   }
 
   available() {
-    return this.loadPersistedConfig();
+    // Pour l'interface, « disponible » signifie désormais que la connexion peut
+    // être réalisée : soit la configuration existe déjà, soit AppPublisher peut
+    // demander le fichier Desktop au premier clic. Cela évite le faux message
+    // « cette compilation n'est pas configurée » dans les bêta privées.
+    return this.loadPersistedConfig() || this.interactiveConfigurationAvailable;
   }
 
   async ensureConfigured() {
@@ -175,7 +194,7 @@ class GooglePlayOAuth {
     // il est distribué dans l'application installée. On le conserve néanmoins
     // uniquement dans userData, avec mode 0600 quand le système le supporte.
     // Un défaut de persistance ne bloque pas la session Google en cours.
-    persistOAuthConfig(this.persistentConfigPath, selectedConfig, this.fs);
+    persistOAuthConfig(this.resolvePersistentConfigPath(), selectedConfig, this.fs);
     return true;
   }
 
