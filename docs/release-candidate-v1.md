@@ -21,9 +21,8 @@ Une candidate est acceptable seulement si :
 - les workflows officiels macOS et Windows installent les dépendances depuis `bun.lock` avec `bun install --frozen-lockfile` ;
 - tests, certification UX, TypeScript, lint et build Electron passent ;
 - les DMG privés macOS arm64/x64 sont réellement créés et montables ;
-- le vrai installateur `AppPublisher-Setup.exe` de bêta privée réussit réellement sur Windows.
-
-Le workflow `.github/workflows/release-candidate.yml` exécute ces contrôles sur chaque PR du lot 11 et peut aussi être déclenché manuellement.
+- le vrai installateur `AppPublisher-Setup.exe` de bêta privée réussit réellement sur Windows ;
+- bundletool 1.18.2 est préparé avec son SHA-256 certifié puis réellement embarqué dans les applications distribuées.
 
 ## 11.2 — Bêta privée installable
 
@@ -41,83 +40,87 @@ Le mode `bun run pack:mac-beta` produit deux DMG privés : `AppPublisher-arm64.d
 
 Une distribution publique en DMG/ZIP restera conditionnée à un certificat Developer ID et à la notarisation Apple.
 
-### Ce qui est volontairement reporté
-
-Tant qu'AppPublisher n'est pas destiné à être diffusé publiquement :
-
-- Release macOS signée/notarisée ;
-- Release Windows Authenticode / Artifact Signing ;
-- publication d'un tag GitHub `v*` ;
-- validation de la réputation SmartScreen d'un binaire public.
-
 ## 11.3 — Recette « machine neuve »
 
 Le lot 11.3 ne se contente plus d'une checklist. Le workflow `Release candidate` utilise un runner `windows-2025` neuf et exécute réellement `scripts/smoke-win-clean-install.ps1` sur l'installateur produit. Sur macOS, il construit puis monte réellement les deux DMG privés via `hdiutil`.
 
 ### OAuth Google Play — parcours utilisateur obligatoire
 
-Le test réel du DMG a révélé une friction bloquante : une build dépourvue de configuration OAuth demandait à l'utilisateur de sélectionner un fichier `client_secret.json`. Ce comportement est désormais interdit pour une build distribuable.
-
-Le fonctionnement cible est :
+Les tests réels ont montré successivement qu'une build sans configuration OAuth demandait un fichier technique, puis que le serveur Google du client Desktop AppPublisher refusait l'échange du code sans son `client_secret`. Le parcours utilisateur normal reste néanmoins totalement transparent :
 
 **Se connecter avec Google → navigateur Google → choix du compte → autorisation → retour dans AppPublisher.**
 
 Pour garantir ce comportement :
 
-- le Client ID OAuth Desktop public d'AppPublisher est versionné dans `build/google-play-oauth-client.json` ;
-- aucun `client_secret` n'est versionné ni requis pour le flux Desktop PKCE utilisé par AppPublisher ;
-- `scripts/pack.cjs` refuse de produire une build distribuable si l'identité OAuth manque ;
-- `GOOGLE_PLAY_OAUTH_JSON_BASE64` reste uniquement pour compatibilité avec les anciens workflows ;
+- le Client ID OAuth Desktop public d'AppPublisher est versionné seul dans `build/google-play-oauth-client.json` ;
+- le Client secret n'est jamais versionné ; il est injecté uniquement au packaging depuis `GOOGLE_PLAY_OAUTH_CLIENT_SECRET` ;
+- `scripts/pack.cjs` refuse de produire une build distribuable si le Client secret requis par le client Google réel manque ;
 - le sélecteur manuel OAuth est désactivé pour les utilisateurs normaux et n'est activable qu'en dépannage avec `APPPUBLISHER_ALLOW_OAUTH_FILE_PICKER=1` ;
-- la CI vérifie que le Client ID généré est exactement celui d'AppPublisher ;
-- sur macOS, la CI monte chaque DMG et vérifie aussi le Client ID dans `Contents/Resources/google-play-oauth.json` ;
-- les DMG et l'EXE construits par la Release Candidate sont désormais conservés comme vrais artefacts de bêta privée testables.
+- la CI de PR utilise une valeur synthétique uniquement pour vérifier le câblage ;
+- une bêta utilisateur réelle utilise le secret GitHub et vérifie la présence de la paire OAuth dans le binaire ;
+- sur macOS, la CI monte chaque DMG et vérifie la configuration dans `Contents/Resources/google-play-oauth.json`.
+
+### Identité Android Google Play
+
+Le parcours réel a aussi révélé qu'un ancien projet pouvait transmettre un nom npm tel que `vite_react_shadcn_ts` au lieu du package Android réel. Le résolveur Google Play utilise désormais en priorité l'identité validée de l'AAB/Capacitor et refuse les noms non conformes. Pour CrânioScan, l'identité attendue est `app.cranioscan.android`.
+
+### bundletool — validation AAB officielle intégrée
+
+Le rapport réel CrânioScan du 27 août 2026 était correct sur l'identité, la version et la signature, mais restait en verdict `warnings` car bundletool n'était pas disponible sur le Mac utilisateur.
+
+Le correctif permanent est le suivant :
+
+- AppPublisher utilise **bundletool 1.18.2** ;
+- `scripts/ensure-bundletool.cjs` télécharge l'artefact officiel uniquement au moment du build et vérifie obligatoirement son SHA-256 `378b5434cd1378bef6b2bc527b8c7f0ff2584b273830335bce54d6d0813c8584` ;
+- le JAR téléchargé n'est pas versionné dans Git ;
+- `electron-builder` l'embarque dans `Resources/tools/bundletool.jar` ;
+- le moteur de validation AAB recherche déjà automatiquement cet emplacement et lance `java -jar bundletool.jar validate --bundle=...` ;
+- la Quality gate Android utilise exactement le même script et le même JAR que la build utilisateur ;
+- la RC monte les DMG et compare le checksum du JAR réellement empaqueté ;
+- la recette Windows vérifie le JAR et son checksum après installation puis après réinstallation.
+
+Ainsi, un utilisateur normal n'a plus à installer bundletool lui-même. Si l'AAB est conforme, le rapport AppPublisher doit présenter `bundletool.status: "passed"` et le verdict `ready`, et non plus l'avertissement `bundletool-unavailable`.
 
 ### Partie automatisée — Windows
 
-La gate vérifie :
+La gate vérifie notamment :
 
 - que `AppPublisher-Setup.exe` est présent et non vide ;
 - qu'il est bien non signé en mode bêta privée ;
 - qu'il s'installe silencieusement en mode utilisateur ;
 - qu'une entrée de désinstallation Windows est créée ;
 - que `AppPublisher.exe` et ses métadonnées produit sont valides ;
+- que `resources/tools/bundletool.jar` est présent avec le SHA-256 certifié ;
 - qu'un raccourci du menu Démarrer existe ;
-- qu'une donnée utilisateur témoin est conservée après désinstallation ;
-- que le programme et son entrée de registre disparaissent correctement ;
-- qu'une réinstallation réussit ;
-- que les données utilisateur sont toujours présentes après réinstallation.
-
-Le rapport `.artifacts/windows-clean-machine-smoke.json` porte le verdict attendu `ready-for-manual-product-journey` et est conservé avec l'installateur de bêta.
+- que les données utilisateur sont conservées après désinstallation ;
+- qu'une réinstallation réussit et conserve à nouveau bundletool et les données utilisateur.
 
 ### Partie automatisée — macOS
 
-La gate vérifie :
+La gate vérifie notamment :
 
 - la création des DMG arm64 et x64 ;
 - le montage de chaque DMG ;
 - la présence de `AppPublisher.app` et de son exécutable ;
-- la présence de `Contents/Resources/google-play-oauth.json` dans l'application empaquetée ;
-- que ce fichier contient exactement le Client ID public AppPublisher versionné.
+- la configuration OAuth embarquée ;
+- `Contents/Resources/tools/bundletool.jar` ;
+- le SHA-256 exact de bundletool dans chacun des deux DMG.
 
 ### Partie manuelle — parcours produit réel
 
-Après la gate automatisée, il reste une recette réelle à effectuer une fois avec le binaire certifié :
+La recette réelle doit confirmer :
 
-- lancer AppPublisher sans terminal ;
-- importer un dépôt GitHub/Lovable de test ;
-- lancer le diagnostic système ;
-- vérifier la détection du JDK et du SDK Android ;
-- si Android Studio a installé le SDK sans `ANDROID_HOME`, vérifier qu'AppPublisher le configure automatiquement ;
-- préparer une version, créer/associer la signature Android, générer puis valider l'AAB ;
-- cliquer sur **Se connecter avec Google** et vérifier que le navigateur s'ouvre directement, sans sélecteur de fichier ;
-- publier sur la piste interne ;
-- provoquer volontairement un versionCode trop faible et vérifier la proposition d'un minimum valide ;
-- quitter et relancer pour vérifier la conservation du projet et des réglages ;
-- vérifier le stockage sécurisé des secrets ;
-- générer un journal de support et confirmer l'absence de secrets sensibles.
-
-La procédure détaillée est dans `docs/clean-machine-recipe-v1.md`.
+- lancement d'AppPublisher sans terminal ;
+- import GitHub/Lovable ;
+- détection du JDK et du SDK Android ;
+- génération et signature de l'AAB ;
+- validation AAB avec bundletool intégré et verdict `ready` ;
+- connexion Google sans sélection de fichier ;
+- identité Google Play correcte ;
+- publication sur la piste interne ;
+- comportement versionCode trop faible ;
+- persistance après relance ;
+- journal de support sans secret sensible.
 
 ## 11.4 — Critères de sortie bêta privée V1
 
@@ -125,10 +128,11 @@ La bêta privée V1 est autorisée quand :
 
 - Quality gate : verte ;
 - Release candidate : verte sur Linux, macOS et Windows ;
-- les installateurs réellement distribués embarquent le Client ID OAuth AppPublisher ;
-- aucun utilisateur normal n'a besoin de sélectionner un fichier OAuth ;
-- la recette Windows machine neuve automatisée est verte avec le verdict `ready-for-manual-product-journey` ;
+- les installateurs réellement distribués embarquent la configuration OAuth requise et bundletool certifié ;
+- aucun utilisateur normal n'a besoin de sélectionner un fichier OAuth ni d'installer bundletool ;
+- la recette Windows machine neuve automatisée est verte ;
 - au moins un parcours complet réel AppPublisher → AAB → Google Play interne est réussi ;
+- le rapport AAB réel ne contient plus `bundletool-unavailable` ;
 - aucun défaut bloquant ou critique n'est ouvert ;
 - les journaux de support ne contiennent ni mot de passe, ni clé privée, ni jeton OAuth.
 
