@@ -64,14 +64,14 @@ Le fonctionnement cible est :
 
 Pour garantir ce comportement :
 
-- une bêta/distribution doit embarquer le Client ID OAuth Desktop public d'AppPublisher ;
-- `scripts/pack.cjs` refuse de produire la build si cette identité manque ;
-- le `client_secret` n'est pas requis pour le flux Desktop PKCE utilisé par AppPublisher ;
-- le Client ID peut être fourni par `build/google-play-oauth-client.json` ou par `APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID` ;
+- le Client ID OAuth Desktop public d'AppPublisher est versionné dans `build/google-play-oauth-client.json` ;
+- aucun `client_secret` n'est versionné ni requis pour le flux Desktop PKCE utilisé par AppPublisher ;
+- `scripts/pack.cjs` refuse de produire une build distribuable si l'identité OAuth manque ;
 - `GOOGLE_PLAY_OAUTH_JSON_BASE64` reste uniquement pour compatibilité avec les anciens workflows ;
 - le sélecteur manuel OAuth est désactivé pour les utilisateurs normaux et n'est activable qu'en dépannage avec `APPPUBLISHER_ALLOW_OAUTH_FILE_PICKER=1` ;
-- une PR CI utilise un Client ID synthétique uniquement pour tester la mécanique de packaging ;
-- seuls les lancements manuels avec une vraie identité OAuth peuvent conserver des DMG/EXE destinés à des tests utilisateurs.
+- la CI vérifie que le Client ID généré est exactement celui d'AppPublisher ;
+- sur macOS, la CI monte chaque DMG et vérifie aussi le Client ID dans `Contents/Resources/google-play-oauth.json` ;
+- les DMG et l'EXE construits par la Release Candidate sont désormais conservés comme vrais artefacts de bêta privée testables.
 
 ### Partie automatisée — Windows
 
@@ -88,7 +88,7 @@ La gate vérifie :
 - qu'une réinstallation réussit ;
 - que les données utilisateur sont toujours présentes après réinstallation.
 
-Le rapport `.artifacts/windows-clean-machine-smoke.json` porte le verdict attendu `ready-for-manual-product-journey`. L'installateur de bêta destiné à un utilisateur n'est conservé que lors d'un lancement manuel disposant de la vraie identité OAuth AppPublisher.
+Le rapport `.artifacts/windows-clean-machine-smoke.json` porte le verdict attendu `ready-for-manual-product-journey` et est conservé avec l'installateur de bêta.
 
 ### Partie automatisée — macOS
 
@@ -97,9 +97,8 @@ La gate vérifie :
 - la création des DMG arm64 et x64 ;
 - le montage de chaque DMG ;
 - la présence de `AppPublisher.app` et de son exécutable ;
-- la présence de `Contents/Resources/google-play-oauth.json` dans l'application empaquetée.
-
-Les DMG destinés à un utilisateur ne sont conservés que lors d'un lancement manuel disposant de la vraie identité OAuth AppPublisher.
+- la présence de `Contents/Resources/google-play-oauth.json` dans l'application empaquetée ;
+- que ce fichier contient exactement le Client ID public AppPublisher versionné.
 
 ### Partie manuelle — parcours produit réel
 
