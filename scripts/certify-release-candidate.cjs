@@ -22,6 +22,7 @@ const pkg = JSON.parse(read("package.json"));
 const version = JSON.parse(read("version.json"));
 const builder = read("electron-builder.config.cjs");
 const quality = read(".github/workflows/quality.yml");
+const candidate = read(".github/workflows/release-candidate.yml");
 const macRelease = read(".github/workflows/release-macos.yml");
 const winRelease = read(".github/workflows/release-windows.yml");
 
@@ -52,25 +53,34 @@ for (const rel of [
 }
 
 check(
-  "macOS universel",
+  "macOS public universel",
   /target:\s*"dmg",\s*arch:\s*\["universal"\]/m.test(builder) &&
     /target:\s*"zip",\s*arch:\s*\["universal"\]/m.test(builder),
-  "La distribution macOS doit produire un DMG et un ZIP universels.",
+  "La future distribution publique macOS doit produire un DMG et un ZIP universels.",
 );
 check(
   "Windows NSIS x64",
   /target:\s*"nsis",\s*arch:\s*\["x64"\]/m.test(builder),
-  "La distribution Windows doit produire un installateur NSIS x64.",
+  "La bêta privée et la distribution publique Windows doivent utiliser un installateur NSIS x64.",
 );
 check(
-  "Signature Windows obligatoire",
+  "Signature Windows publique obligatoire",
   /forceCodeSigning:\s*windowsDistribution/.test(builder),
-  "Une distribution Windows officielle ne doit jamais être publiée sans signature.",
+  "Une distribution Windows publique ne doit jamais être publiée sans signature.",
 );
 check(
-  "Notarisation macOS obligatoire",
+  "Bêta Windows privée sans certificat obligatoire",
+  builder.includes("APPPUBLISHER_WIN_PRIVATE_BETA") &&
+    builder.includes("windowsInstaller") &&
+    pkg.scripts?.["pack:win-beta"] === "node scripts/pack.cjs win-beta" &&
+    candidate.includes("bun run pack:win-beta") &&
+    candidate.includes("dist-app/AppPublisher-Setup.exe"),
+  "La bêta privée doit produire le vrai installateur Windows sans dépendre d'un certificat payant.",
+);
+check(
+  "Notarisation macOS publique obligatoire",
   /notarize:\s*macDistribution/.test(builder) && /hardenedRuntime:\s*macDistribution/.test(builder),
-  "Une distribution macOS officielle doit être signée avec hardened runtime et notarisée.",
+  "Une distribution macOS publique doit être signée avec hardened runtime et notarisée.",
 );
 check(
   "Certification Android réelle",
@@ -99,7 +109,9 @@ fs.mkdirSync(reportDir, { recursive: true });
 const report = {
   generatedAt: new Date().toISOString(),
   version: version.version,
-  verdict: failures.length === 0 ? "ready-for-native-smoke-tests" : "blocked",
+  channel: "private-beta",
+  verdict: failures.length === 0 ? "ready-for-private-beta-smoke-tests" : "blocked",
+  publicDistributionRequiresSigning: true,
   checks,
   failures,
 };
@@ -118,4 +130,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`\n✓ AppPublisher ${version.version} est prêt pour les smoke tests natifs macOS/Windows.`);
+console.log(`\n✓ AppPublisher ${version.version} est prêt pour les smoke tests de bêta privée macOS/Windows.`);
