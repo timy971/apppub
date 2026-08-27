@@ -111,6 +111,10 @@ jobs:
         shell: bash
         run: node -e "const expected=require('./build/google-play-oauth-client.json').installed.client_id; const generated=require('./build/google-play-oauth.json'); const actual=(generated.installed||generated); if(!expected?.endsWith('.apps.googleusercontent.com')) throw new Error('Client ID AppPublisher invalide'); if(actual.client_id!==expected) throw new Error('Le build n’embarque pas le Client ID AppPublisher attendu'); if(!actual.client_secret) throw new Error('Le build distribuable n’embarque pas le Client secret OAuth requis par Google');"
 
+      - name: Verify pinned bundletool prepared for packaging
+        shell: bash
+        run: node -e "const b=require('./scripts/ensure-bundletool.cjs'); if(!b.verifyBundletoolFile(b.DEFAULT_OUTPUT_PATH)) throw new Error('bundletool embarqué absent ou checksum invalide'); console.log('bundletool '+b.BUNDLETOOL_VERSION+' vérifié');"
+
       - name: Verify packaged artifact exists
         shell: bash
         run: test -e "${{ matrix.artifact }}"
@@ -120,6 +124,7 @@ jobs:
         shell: bash
         run: |
           expected="$(node -p "require('./build/google-play-oauth-client.json').installed.client_id")"
+          expected_bundletool_sha="$(node -p "require('./scripts/ensure-bundletool.cjs').BUNDLETOOL_SHA256")"
           for arch in arm64 x64; do
             mountpoint="$RUNNER_TEMP/apppublisher-$arch"
             mkdir -p "$mountpoint"
@@ -132,6 +137,10 @@ jobs:
             has_secret="$(node -p "const c=require(process.argv[1]); Boolean((c.installed||c).client_secret)" "$embedded")"
             test "$actual" = "$expected"
             test "$has_secret" = "true"
+            bundletool="$mountpoint/AppPublisher.app/Contents/Resources/tools/bundletool.jar"
+            test -f "$bundletool"
+            actual_bundletool_sha="$(shasum -a 256 "$bundletool" | awk '{print $1}')"
+            test "$actual_bundletool_sha" = "$expected_bundletool_sha"
             hdiutil detach "$mountpoint"
           done
 
