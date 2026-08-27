@@ -22,6 +22,8 @@ const pkg = JSON.parse(read("package.json"));
 const version = JSON.parse(read("version.json"));
 const builder = read("electron-builder.config.cjs");
 const pack = read("scripts/pack.cjs");
+const bundletoolBuild = read("scripts/ensure-bundletool.cjs");
+const windowsSmoke = read("scripts/smoke-win-clean-install.ps1");
 const oauthRuntime = read("electron/google-play-oauth.cjs");
 const oauthBuild = read("scripts/google-oauth-build-config.cjs");
 const oauthPublicClient = JSON.parse(read("build/google-play-oauth-client.json"));
@@ -51,6 +53,7 @@ for (const rel of [
   "build/icon.icns",
   "build/icon.ico",
   "scripts/pack.cjs",
+  "scripts/ensure-bundletool.cjs",
   "scripts/google-oauth-build-config.cjs",
   "scripts/release-mac.cjs",
   "scripts/release-win.cjs",
@@ -85,6 +88,21 @@ check(
     winRelease.includes("secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET") &&
     !JSON.stringify(oauthPublicClient).includes("client_secret"),
   "Le Client secret Google ne doit jamais être versionné : les bêta/releases doivent le recevoir depuis le stockage de secrets du pipeline.",
+);
+
+check(
+  "bundletool officiel embarqué dans chaque build distribuable",
+  bundletoolBuild.includes('const BUNDLETOOL_VERSION = "1.18.2"') &&
+    bundletoolBuild.includes("378b5434cd1378bef6b2bc527b8c7f0ff2584b273830335bce54d6d0813c8584") &&
+    pack.includes("ensure-bundletool.cjs") &&
+    builder.includes('from: "build/tools/bundletool.jar"') &&
+    builder.includes('to: "tools/bundletool.jar"') &&
+    quality.includes("Prepare pinned bundletool used by AppPublisher") &&
+    quality.includes("${{ github.workspace }}/build/tools/bundletool.jar") &&
+    candidate.includes("Verify pinned bundletool prepared for packaging") &&
+    candidate.includes("Contents/Resources/tools/bundletool.jar") &&
+    windowsSmoke.includes("bundletool checksum certifié"),
+  "Les bêta/releases doivent embarquer bundletool 1.18.2 vérifié par SHA-256 afin que la validation AAB officielle fonctionne sans installation manuelle.",
 );
 
 check(
@@ -161,6 +179,8 @@ const report = {
   googleOAuthRequiresEmbeddedClientId: true,
   googleOAuthRequiresBuildInjectedClientSecret: true,
   googleOAuthFilePickerForNormalUsers: false,
+  bundletoolEmbeddedInDistribution: true,
+  bundletoolVersion: "1.18.2",
   checks,
   failures,
 };
