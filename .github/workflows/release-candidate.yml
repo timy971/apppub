@@ -2,6 +2,11 @@ name: Release candidate
 
 on:
   pull_request:
+  push:
+    branches:
+      - agent/lot-11-release-candidate
+    paths:
+      - .github/private-beta-trigger
   workflow_dispatch:
 
 permissions:
@@ -83,8 +88,8 @@ jobs:
       - name: Install locked dependencies
         run: bun install --frozen-lockfile
 
-      - name: Require real OAuth secret for manual beta
-        if: github.event_name == 'workflow_dispatch'
+      - name: Require real OAuth secret for user beta
+        if: github.event_name != 'pull_request'
         shell: bash
         env:
           OAUTH_SECRET: ${{ secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
@@ -98,7 +103,7 @@ jobs:
       - name: Package application
         env:
           # Les PR utilisent seulement une valeur synthétique afin de tester le
-          # câblage et le montage. Elle n'est jamais publiée comme bêta utilisateur.
+          # câblage et le montage. Les builds push/dispatch utilisent le vrai secret.
           APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: ${{ github.event_name == 'pull_request' && 'ci-placeholder-secret-not-for-users' || secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
         run: ${{ matrix.command }}
 
@@ -131,7 +136,7 @@ jobs:
           done
 
       - name: Keep private macOS DMGs
-        if: matrix.os == 'macos-14' && github.event_name == 'workflow_dispatch' && !cancelled()
+        if: matrix.os == 'macos-14' && github.event_name != 'pull_request' && !cancelled()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-macOS-private-beta
@@ -147,7 +152,7 @@ jobs:
         run: ./scripts/smoke-win-clean-install.ps1 -Installer "dist-app/AppPublisher-Setup.exe"
 
       - name: Keep private Windows installer and recipe report
-        if: matrix.os == 'windows-2025' && github.event_name == 'workflow_dispatch' && !cancelled()
+        if: matrix.os == 'windows-2025' && github.event_name != 'pull_request' && !cancelled()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-Windows-private-beta
