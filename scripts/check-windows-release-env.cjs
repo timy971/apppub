@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { resolveGoogleOAuthBuildConfig } = require("./google-oauth-build-config.cjs");
 
-const requiredGoogle = ["GOOGLE_PLAY_OAUTH_JSON_BASE64"];
 const azureNames = [
   "WINDOWS_AZURE_PUBLISHER_NAME",
   "WINDOWS_AZURE_ENDPOINT",
@@ -21,7 +21,7 @@ function missing(names) {
   return names.filter((name) => !present(name));
 }
 
-const missingGoogle = missing(requiredGoogle);
+const googleReady = Boolean(resolveGoogleOAuthBuildConfig(process.env));
 const hasAnyAzure = azureNames.some(present);
 const hasAnyPfx = pfxNames.some(present);
 
@@ -41,12 +41,17 @@ if (hasAnyAzure) {
   ];
 }
 
-const failures = [...missingGoogle, ...missingSigning];
+const failures = [
+  ...(!googleReady
+    ? ["APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID (ou GOOGLE_PLAY_OAUTH_JSON_BASE64 pour compatibilité)"]
+    : []),
+  ...missingSigning,
+];
 if (failures.length > 0) {
   console.error("\n✗ AppPublisher ne peut pas produire un installateur Windows signé.");
   console.error("  Configuration manquante :");
   for (const name of failures) console.error(`  - ${name}`);
-  console.error("\n  Aucun secret n'a été affiché, uniquement les noms des variables absentes.\n");
+  console.error("\n  Aucune valeur sensible n'a été affichée, uniquement les noms des paramètres absents.\n");
   process.exit(1);
 }
 
@@ -63,5 +68,5 @@ if (mode === "pfx") {
 }
 
 console.log(`✓ Préflight Windows : mode ${mode}.`);
-console.log("✓ Client OAuth Google Play présent.");
+console.log("✓ Identité OAuth Google Play AppPublisher présente.");
 console.log("✓ Les paramètres de signature requis sont présents.");
