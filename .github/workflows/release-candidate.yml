@@ -64,7 +64,7 @@ jobs:
           - os: macos-14
             label: Private DMG smoke — macOS
             command: bun run pack:mac-beta
-            artifact: dist-app/AppPublisher.dmg
+            artifact: dist-app/AppPublisher-arm64.dmg
           - os: windows-2025
             label: Clean-machine private beta — Windows
             command: bun run pack:win-beta
@@ -90,22 +90,27 @@ jobs:
         shell: bash
         run: test -e "${{ matrix.artifact }}"
 
-      - name: Mount and verify private DMG
+      - name: Mount and verify private DMGs
         if: matrix.os == 'macos-14'
         shell: bash
         run: |
-          mkdir -p "$RUNNER_TEMP/apppublisher-dmg"
-          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/apppublisher-dmg" "dist-app/AppPublisher.dmg"
-          test -d "$RUNNER_TEMP/apppublisher-dmg/AppPublisher.app"
-          test -x "$RUNNER_TEMP/apppublisher-dmg/AppPublisher.app/Contents/MacOS/AppPublisher"
-          hdiutil detach "$RUNNER_TEMP/apppublisher-dmg"
+          for arch in arm64 x64; do
+            mountpoint="$RUNNER_TEMP/apppublisher-$arch"
+            mkdir -p "$mountpoint"
+            hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" "dist-app/AppPublisher-$arch.dmg"
+            test -d "$mountpoint/AppPublisher.app"
+            test -x "$mountpoint/AppPublisher.app/Contents/MacOS/AppPublisher"
+            hdiutil detach "$mountpoint"
+          done
 
-      - name: Keep private macOS DMG
+      - name: Keep private macOS DMGs
         if: matrix.os == 'macos-14' && !cancelled()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-macOS-private-beta
-          path: dist-app/AppPublisher.dmg
+          path: |
+            dist-app/AppPublisher-arm64.dmg
+            dist-app/AppPublisher-x64.dmg
           if-no-files-found: error
           retention-days: 30
 
