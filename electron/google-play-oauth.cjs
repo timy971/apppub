@@ -63,6 +63,10 @@ function defaultPersistentConfigPath() {
 }
 
 function defaultInteractiveConfigurationAvailable() {
+  // Le sélecteur de fichier OAuth est uniquement un outil de dépannage/dev.
+  // Une build destinée à un utilisateur doit embarquer le Client ID public
+  // AppPublisher et ouvrir directement le navigateur Google.
+  if (process.env.APPPUBLISHER_ALLOW_OAUTH_FILE_PICKER !== "1") return false;
   try {
     const electron = require("electron");
     return typeof electron?.dialog?.showOpenDialog === "function";
@@ -72,6 +76,7 @@ function defaultInteractiveConfigurationAvailable() {
 }
 
 async function defaultSelectConfigFile() {
+  if (process.env.APPPUBLISHER_ALLOW_OAUTH_FILE_PICKER !== "1") return undefined;
   try {
     const electron = require("electron");
     if (!electron?.dialog?.showOpenDialog) return undefined;
@@ -150,20 +155,23 @@ class GooglePlayOAuth {
   }
 
   available() {
-    // Pour l'interface, « disponible » signifie désormais que la connexion peut
-    // être réalisée : soit la configuration existe déjà, soit AppPublisher peut
-    // demander le fichier Desktop au premier clic. Cela évite le faux message
-    // « cette compilation n'est pas configurée » dans les bêta privées.
     return this.loadPersistedConfig() || this.interactiveConfigurationAvailable;
   }
 
   async ensureConfigured() {
     if (this.loadPersistedConfig()) return true;
+    if (!this.interactiveConfigurationAvailable) {
+      throw new GooglePlayError(
+        "oauth-not-configured",
+        "Cette installation d'AppPublisher ne contient pas sa configuration Google. Réinstallez une version certifiée d'AppPublisher.",
+      );
+    }
+
     const selectedPath = await this.selectConfigFile();
     if (selectedPath === undefined) {
       throw new GooglePlayError(
         "oauth-not-configured",
-        "La connexion Google n'est pas encore configurée dans cette version d'AppPublisher.",
+        "La configuration Google d'AppPublisher est indisponible.",
       );
     }
     if (!selectedPath) return false;
@@ -177,10 +185,6 @@ class GooglePlayOAuth {
         "Le fichier choisi n'est pas un fichier JSON Google OAuth valide.",
       );
     }
-    // Le sélecteur de premier lancement accepte uniquement le JSON officiel
-    // d'un client OAuth de type « Application de bureau » téléchargé depuis
-    // Google Cloud. Les formats normalisés top-level restent réservés aux
-    // variables d'environnement et aux tests internes.
     const selectedConfig = raw?.installed ? cleanOAuthConfig(raw) : null;
     if (!selectedConfig) {
       throw new GooglePlayError(
@@ -190,10 +194,6 @@ class GooglePlayOAuth {
     }
 
     this.config = selectedConfig;
-    // Le client OAuth Desktop n'est pas un secret confidentiel au sens OAuth :
-    // il est distribué dans l'application installée. On le conserve néanmoins
-    // uniquement dans userData, avec mode 0600 quand le système le supporte.
-    // Un défaut de persistance ne bloque pas la session Google en cours.
     persistOAuthConfig(this.resolvePersistentConfigPath(), selectedConfig, this.fs);
     return true;
   }
@@ -282,8 +282,6 @@ class GooglePlayOAuth {
         code_challenge_method: "S256",
       });
       const opened = await openExternal(authUrl);
-      // Electron's shell.openExternal() resolves with void on success. Only an
-      // explicit false from an adapter means that the browser did not open.
       if (opened === false) {
         throw new GooglePlayError(
           "oauth-browser-failed",
