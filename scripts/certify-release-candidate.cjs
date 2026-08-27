@@ -21,6 +21,8 @@ function exists(rel) {
 const pkg = JSON.parse(read("package.json"));
 const version = JSON.parse(read("version.json"));
 const builder = read("electron-builder.config.cjs");
+const pack = read("scripts/pack.cjs");
+const oauthRuntime = read("electron/google-play-oauth.cjs");
 const quality = read(".github/workflows/quality.yml");
 const candidate = read(".github/workflows/release-candidate.yml");
 const macRelease = read(".github/workflows/release-macos.yml");
@@ -40,10 +42,12 @@ check(
 for (const rel of [
   "electron/main.cjs",
   "electron/preload.cjs",
+  "electron/google-play-oauth.cjs",
   "build/icon.png",
   "build/icon.icns",
   "build/icon.ico",
   "scripts/pack.cjs",
+  "scripts/google-oauth-build-config.cjs",
   "scripts/release-mac.cjs",
   "scripts/release-win.cjs",
   "scripts/verify-mac-release.cjs",
@@ -51,6 +55,26 @@ for (const rel of [
 ]) {
   check(`Ressource ${rel}`, exists(rel), `Ressource de release absente : ${rel}`);
 }
+
+check(
+  "OAuth Google transparent pour l'utilisateur",
+  pack.includes("ensureGoogleOAuthBuildConfig({ required: true })") &&
+    pack.includes("distributableBuild") &&
+    oauthRuntime.includes('APPPUBLISHER_ALLOW_OAUTH_FILE_PICKER !== "1"') &&
+    candidate.includes("vars.GOOGLE_PLAY_OAUTH_CLIENT_ID") &&
+    candidate.includes("ci-smoke.apps.googleusercontent.com") &&
+    candidate.includes("github.event_name == 'workflow_dispatch'") &&
+    candidate.includes("Contents/Resources/google-play-oauth.json"),
+  "Une build distribuable doit embarquer l'identité OAuth AppPublisher et ne jamais demander un fichier JSON à un utilisateur normal.",
+);
+check(
+  "Client secret OAuth Desktop optionnel",
+  macRelease.includes("vars.GOOGLE_PLAY_OAUTH_CLIENT_ID") &&
+    winRelease.includes("vars.GOOGLE_PLAY_OAUTH_CLIENT_ID") &&
+    !read("scripts/release-mac.cjs").includes("!client.client_secret") &&
+    !read("scripts/release-win.cjs").includes("!client.client_secret"),
+  "Les releases Desktop doivent accepter le Client ID public seul, conformément au flux PKCE des applications installées.",
+);
 
 check(
   "macOS public universel",
@@ -123,6 +147,8 @@ const report = {
   channel: "private-beta",
   verdict: failures.length === 0 ? "ready-for-private-beta-smoke-tests" : "blocked",
   publicDistributionRequiresSigning: true,
+  googleOAuthRequiresEmbeddedClientId: true,
+  googleOAuthFilePickerForNormalUsers: false,
   checks,
   failures,
 };
