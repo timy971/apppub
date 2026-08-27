@@ -38,20 +38,19 @@ jobs:
           bun run build:electron
           node scripts/certify-release-candidate.cjs
 
-      - name: Prepare private release files
+      - name: Prepare Apple release key
         env:
-          GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
         run: |
-          test -n "$GOOGLE_PLAY_OAUTH_JSON_BASE64"
           test -n "$APPLE_API_KEY_BASE64"
-          printf '%s' "$GOOGLE_PLAY_OAUTH_JSON_BASE64" | base64 -D > build/google-play-oauth.json
           printf '%s' "$APPLE_API_KEY_BASE64" | base64 -D > "$RUNNER_TEMP/AuthKey.p8"
-          chmod 600 build/google-play-oauth.json "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
 
       - name: Build and verify the notarized release
         if: github.event_name == 'workflow_dispatch'
         env:
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_PLAY_OAUTH_CLIENT_ID }}
+          GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY: ${{ runner.temp }}/AuthKey.p8
@@ -63,6 +62,8 @@ jobs:
       - name: Build, verify and publish the notarized release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_PLAY_OAUTH_CLIENT_ID }}
+          GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY: ${{ runner.temp }}/AuthKey.p8
