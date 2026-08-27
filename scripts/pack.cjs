@@ -2,7 +2,7 @@
  * Orchestrateur de packaging AppPublisher.
  *
  *   node scripts/pack.cjs mac       → application macOS locale
- *   node scripts/pack.cjs mac-beta  → DMG privé universel non signé
+ *   node scripts/pack.cjs mac-beta  → DMG privés arm64 + x64 non signés
  *   node scripts/pack.cjs win       → application Windows locale (x64)
  *   node scripts/pack.cjs win-beta  → installateur NSIS privé non signé (x64)
  */
@@ -134,10 +134,12 @@ if (
 }
 if (macPrivateBeta) {
   const artifacts = fs.existsSync(distApp) ? fs.readdirSync(distApp) : [];
-  if (!artifacts.includes("AppPublisher.dmg")) {
-    fail("AppPublisher.dmg non produit — le DMG de bêta privée n'est pas valide.");
+  for (const required of ["AppPublisher-arm64.dmg", "AppPublisher-x64.dmg"]) {
+    if (!artifacts.includes(required)) {
+      fail(`${required} non produit — la bêta privée macOS n'est pas complète.`);
+    }
   }
-  ok("DMG universel de bêta privée produit sans certificat Apple.");
+  ok("DMG arm64 et x64 de bêta privée produits sans certificat Apple.");
 }
 if (macDistribution) {
   const artifacts = fs.existsSync(distApp) ? fs.readdirSync(distApp) : [];
@@ -193,7 +195,7 @@ console.log(
       ? macDistribution
         ? "macOS universel — signé et notarisé"
         : macPrivateBeta
-          ? "macOS universel — DMG bêta privée non signé"
+          ? "macOS — DMG arm64 + x64 de bêta privée non signés"
           : "macOS (arm64) — développement local"
       : windowsDistribution
         ? "Windows 10/11 (x64) — distribution publique signée"
