@@ -59,13 +59,15 @@ check(
   "La future distribution publique macOS doit produire un DMG et un ZIP universels.",
 );
 check(
-  "Bêta macOS privée en DMG universel",
+  "Bêta macOS privée en DMG natifs arm64 + x64",
   builder.includes("APPPUBLISHER_MAC_PRIVATE_BETA") &&
+    builder.includes('{ target: "dmg", arch: ["arm64", "x64"] }') &&
     pkg.scripts?.["pack:mac-beta"] === "node scripts/pack.cjs mac-beta" &&
     candidate.includes("bun run pack:mac-beta") &&
-    candidate.includes("dist-app/AppPublisher.dmg") &&
+    candidate.includes("dist-app/AppPublisher-arm64.dmg") &&
+    candidate.includes("dist-app/AppPublisher-x64.dmg") &&
     candidate.includes("hdiutil attach"),
-  "La bêta privée macOS doit produire, monter et vérifier un DMG universel sans certificat Apple.",
+  "La bêta privée macOS doit produire, monter et vérifier deux DMG natifs arm64 et x64 sans certificat Apple.",
 );
 check(
   "Windows NSIS x64",
