@@ -23,6 +23,7 @@ const version = JSON.parse(read("version.json"));
 const builder = read("electron-builder.config.cjs");
 const pack = read("scripts/pack.cjs");
 const oauthRuntime = read("electron/google-play-oauth.cjs");
+const oauthBuild = read("scripts/google-oauth-build-config.cjs");
 const oauthPublicClient = JSON.parse(read("build/google-play-oauth-client.json"));
 const oauthPublicClientId = oauthPublicClient?.installed?.client_id ?? "";
 const quality = read(".github/workflows/quality.yml");
@@ -60,28 +61,30 @@ for (const rel of [
 }
 
 check(
-  "Client ID OAuth AppPublisher valide",
+  "Client ID OAuth AppPublisher public uniquement dans le dépôt",
   oauthPublicClientId.endsWith(".apps.googleusercontent.com") && !oauthPublicClient?.installed?.client_secret,
-  "build/google-play-oauth-client.json doit contenir uniquement le Client ID public OAuth Desktop AppPublisher.",
+  "build/google-play-oauth-client.json doit contenir uniquement le Client ID public OAuth Desktop AppPublisher, jamais le Client secret.",
 );
 check(
   "OAuth Google transparent pour l'utilisateur",
-  pack.includes("ensureGoogleOAuthBuildConfig({ required: true })") &&
+  pack.includes("ensureGoogleOAuthBuildConfig({ required: true, requireClientSecret: true })") &&
     pack.includes("distributableBuild") &&
     oauthRuntime.includes('APPPUBLISHER_ALLOW_OAUTH_FILE_PICKER !== "1"') &&
-    candidate.includes("build/google-play-oauth-client.json") &&
-    candidate.includes("Le build n’embarque pas le Client ID AppPublisher attendu") &&
+    candidate.includes("GOOGLE_PLAY_OAUTH_CLIENT_SECRET") &&
+    candidate.includes("Verify packaged OAuth identity is complete") &&
     candidate.includes("Contents/Resources/google-play-oauth.json") &&
+    candidate.includes("client_secret") &&
     !candidate.includes("ci-smoke.apps.googleusercontent.com"),
-  "Une build distribuable doit embarquer le vrai Client ID OAuth AppPublisher et ne jamais demander un fichier JSON à un utilisateur normal.",
+  "Une build distribuable doit embarquer le vrai Client ID OAuth AppPublisher, recevoir le Client secret au packaging et ne jamais demander un fichier JSON à un utilisateur normal.",
 );
 check(
-  "Client secret OAuth Desktop optionnel",
-  macRelease.includes("vars.GOOGLE_PLAY_OAUTH_CLIENT_ID") &&
-    winRelease.includes("vars.GOOGLE_PLAY_OAUTH_CLIENT_ID") &&
-    !read("scripts/release-mac.cjs").includes("!client.client_secret") &&
-    !read("scripts/release-win.cjs").includes("!client.client_secret"),
-  "Les releases Desktop doivent accepter le Client ID public seul, conformément au flux PKCE des applications installées.",
+  "Client secret OAuth injecté uniquement au packaging",
+  oauthBuild.includes("APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET") &&
+    oauthBuild.includes("requireClientSecret") &&
+    macRelease.includes("secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET") &&
+    winRelease.includes("secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET") &&
+    !JSON.stringify(oauthPublicClient).includes("client_secret"),
+  "Le Client secret Google ne doit jamais être versionné : les bêta/releases doivent le recevoir depuis le stockage de secrets du pipeline.",
 );
 
 check(
@@ -156,6 +159,7 @@ const report = {
   verdict: failures.length === 0 ? "ready-for-private-beta-smoke-tests" : "blocked",
   publicDistributionRequiresSigning: true,
   googleOAuthRequiresEmbeddedClientId: true,
+  googleOAuthRequiresBuildInjectedClientSecret: true,
   googleOAuthFilePickerForNormalUsers: false,
   checks,
   failures,
