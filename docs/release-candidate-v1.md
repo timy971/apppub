@@ -50,27 +50,43 @@ Tant qu'AppPublisher n'est pas destiné à être diffusé publiquement :
 
 ## 11.3 — Recette « machine neuve »
 
-La recette finale doit être faite sans environnement de développement AppPublisher préexistant.
+Le lot 11.3 ne se contente plus d'une checklist. Le workflow `Release candidate` utilise un runner `windows-2025` neuf et exécute réellement `scripts/smoke-win-clean-install.ps1` sur l'installateur produit.
 
-### Windows 10/11 — priorité de la bêta privée
+### Partie automatisée — Windows
 
-Installer `AppPublisher-Setup.exe`, puis :
+La gate vérifie :
 
-- accepter l'avertissement éventuel lié à l'éditeur inconnu ;
-- vérifier l'installation sans droits administrateur dans le cas normal ;
-- vérifier le raccourci du menu Démarrer ;
+- que `AppPublisher-Setup.exe` est présent et non vide ;
+- qu'il est bien non signé en mode bêta privée ;
+- qu'il s'installe silencieusement en mode utilisateur ;
+- qu'une entrée de désinstallation Windows est créée ;
+- que `AppPublisher.exe` et ses métadonnées produit sont valides ;
+- qu'un raccourci du menu Démarrer existe ;
+- qu'une donnée utilisateur témoin est conservée après désinstallation ;
+- que le programme et son entrée de registre disparaissent correctement ;
+- qu'une réinstallation réussit ;
+- que les données utilisateur sont toujours présentes après réinstallation.
+
+Le rapport `.artifacts/windows-clean-machine-smoke.json` est conservé avec l'installateur dans l'artefact `AppPublisher-Windows-private-beta`. Le verdict attendu est `ready-for-manual-product-journey`.
+
+### Partie manuelle — parcours produit réel
+
+Après la gate automatisée, il reste une recette réelle à effectuer une fois avec le binaire certifié :
+
 - lancer AppPublisher sans terminal ;
 - importer un dépôt GitHub/Lovable de test ;
 - lancer le diagnostic système ;
 - vérifier la détection du JDK et du SDK Android ;
 - si Android Studio a installé le SDK sans `ANDROID_HOME`, vérifier qu'AppPublisher le configure automatiquement ;
-- préparer une version, créer/associer la signature Android, générer l'AAB ;
+- préparer une version, créer/associer la signature Android, générer puis valider l'AAB ;
 - connecter Google Play ;
 - publier sur la piste interne ;
 - provoquer volontairement un versionCode trop faible et vérifier la proposition d'un minimum valide ;
 - quitter et relancer pour vérifier la conservation du projet et des réglages ;
 - vérifier le stockage sécurisé des secrets ;
-- désinstaller puis réinstaller sans perte involontaire des données utilisateur.
+- générer un journal de support et confirmer l'absence de secrets sensibles.
+
+La procédure détaillée est dans `docs/clean-machine-recipe-v1.md`.
 
 ### macOS — test local privé
 
@@ -83,8 +99,8 @@ La bêta privée V1 est autorisée quand :
 - Quality gate : verte ;
 - Release candidate : verte sur Linux, macOS et Windows ;
 - `AppPublisher-Setup.exe` de bêta privée est réellement produit sur Windows ;
+- la recette Windows machine neuve automatisée est verte avec le verdict `ready-for-manual-product-journey` ;
 - au moins un parcours complet réel AppPublisher → AAB → Google Play interne est réussi ;
-- installation, relance et désinstallation Windows ne présentent aucun défaut bloquant ;
 - aucun défaut bloquant ou critique n'est ouvert ;
 - les journaux de support ne contiennent ni mot de passe, ni clé privée, ni jeton OAuth.
 
