@@ -23,6 +23,8 @@ const version = JSON.parse(read("version.json"));
 const builder = read("electron-builder.config.cjs");
 const pack = read("scripts/pack.cjs");
 const oauthRuntime = read("electron/google-play-oauth.cjs");
+const oauthPublicClient = JSON.parse(read("build/google-play-oauth-client.json"));
+const oauthPublicClientId = oauthPublicClient?.installed?.client_id ?? "";
 const quality = read(".github/workflows/quality.yml");
 const candidate = read(".github/workflows/release-candidate.yml");
 const macRelease = read(".github/workflows/release-macos.yml");
@@ -43,6 +45,7 @@ for (const rel of [
   "electron/main.cjs",
   "electron/preload.cjs",
   "electron/google-play-oauth.cjs",
+  "build/google-play-oauth-client.json",
   "build/icon.png",
   "build/icon.icns",
   "build/icon.ico",
@@ -57,15 +60,20 @@ for (const rel of [
 }
 
 check(
+  "Client ID OAuth AppPublisher valide",
+  oauthPublicClientId.endsWith(".apps.googleusercontent.com") && !oauthPublicClient?.installed?.client_secret,
+  "build/google-play-oauth-client.json doit contenir uniquement le Client ID public OAuth Desktop AppPublisher.",
+);
+check(
   "OAuth Google transparent pour l'utilisateur",
   pack.includes("ensureGoogleOAuthBuildConfig({ required: true })") &&
     pack.includes("distributableBuild") &&
     oauthRuntime.includes('APPPUBLISHER_ALLOW_OAUTH_FILE_PICKER !== "1"') &&
-    candidate.includes("vars.GOOGLE_PLAY_OAUTH_CLIENT_ID") &&
-    candidate.includes("ci-smoke.apps.googleusercontent.com") &&
-    candidate.includes("github.event_name == 'workflow_dispatch'") &&
-    candidate.includes("Contents/Resources/google-play-oauth.json"),
-  "Une build distribuable doit embarquer l'identité OAuth AppPublisher et ne jamais demander un fichier JSON à un utilisateur normal.",
+    candidate.includes("build/google-play-oauth-client.json") &&
+    candidate.includes("Le build n’embarque pas le Client ID AppPublisher attendu") &&
+    candidate.includes("Contents/Resources/google-play-oauth.json") &&
+    !candidate.includes("ci-smoke.apps.googleusercontent.com"),
+  "Une build distribuable doit embarquer le vrai Client ID OAuth AppPublisher et ne jamais demander un fichier JSON à un utilisateur normal.",
 );
 check(
   "Client secret OAuth Desktop optionnel",
