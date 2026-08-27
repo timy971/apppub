@@ -93,3 +93,21 @@ test("le workflow Windows utilise les dépendances certifiées avant de publier"
   assert.doesNotMatch(workflow, /npm install --no-package-lock/);
   assert.ok(release.indexOf("verify-win-release.cjs") < release.indexOf("publish-win-release.cjs"));
 });
+
+test("la release candidate exécute une vraie recette Windows machine neuve", () => {
+  const root = path.resolve(__dirname, "..");
+  const workflow = fs.readFileSync(
+    path.join(root, ".github/workflows/release-candidate.yml"),
+    "utf8",
+  );
+  const recipe = fs.readFileSync(path.join(root, "scripts/smoke-win-clean-install.ps1"), "utf8");
+
+  assert.match(workflow, /Clean-machine private beta — Windows/);
+  assert.match(workflow, /smoke-win-clean-install\.ps1/);
+  assert.match(workflow, /windows-clean-machine-smoke\.json/);
+  assert.match(recipe, /Installation silencieuse sans élévation/);
+  assert.match(recipe, /Raccourci menu Démarrer créé/);
+  assert.match(recipe, /Données utilisateur conservées/);
+  assert.match(recipe, /Réinstallation enregistrée/);
+  assert.match(recipe, /Get-AuthenticodeSignature/);
+});
