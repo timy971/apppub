@@ -43,6 +43,7 @@ jobs:
         shell: pwsh
         env:
           APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_PLAY_OAUTH_CLIENT_ID }}
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
           GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
@@ -55,11 +56,14 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
           node scripts/check-windows-release-env.cjs
-          node scripts/google-oauth-build-config.cjs --required
+          node scripts/google-oauth-build-config.cjs --required --require-client-secret
 
       - name: Build and verify the signed installer
         if: github.event_name == 'workflow_dispatch'
         env:
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_PLAY_OAUTH_CLIENT_ID }}
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
+          GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           CSC_LINK: ${{ runner.temp }}/AppPublisher-signing.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           WINDOWS_AZURE_PUBLISHER_NAME: ${{ secrets.WINDOWS_AZURE_PUBLISHER_NAME }}
@@ -74,6 +78,9 @@ jobs:
       - name: Build, verify and publish the signed installer
         if: startsWith(github.ref, 'refs/tags/v')
         env:
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_PLAY_OAUTH_CLIENT_ID }}
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
+          GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           CSC_LINK: ${{ runner.temp }}/AppPublisher-signing.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           WINDOWS_AZURE_PUBLISHER_NAME: ${{ secrets.WINDOWS_AZURE_PUBLISHER_NAME }}
