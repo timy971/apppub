@@ -23,9 +23,7 @@ function Add-Check {
     [string]$Detail = ""
   )
   $checks.Add([ordered]@{ name = $Name; ok = $Ok; detail = $Detail })
-  if (-not $Ok) {
-    throw "${Name}: ${Detail}"
-  }
+  if (-not $Ok) { throw "${Name}: ${Detail}" }
   Write-Host "✓ $Name"
 }
 
@@ -42,6 +40,14 @@ function Wait-Until {
   return $false
 }
 
+function Get-PropertyValue {
+  param($Object, [string]$Name)
+  if ($null -eq $Object) { return $null }
+  $property = $Object.PSObject.Properties[$Name]
+  if ($null -eq $property) { return $null }
+  return $property.Value
+}
+
 function Get-AppUninstallEntry {
   $roots = @(
     "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
@@ -49,7 +55,10 @@ function Get-AppUninstallEntry {
   )
   foreach ($registryRoot in $roots) {
     $entry = Get-ItemProperty $registryRoot -ErrorAction SilentlyContinue |
-      Where-Object { $_.DisplayName -eq "AppPublisher" } |
+      Where-Object {
+        $nameProperty = $_.PSObject.Properties["DisplayName"]
+        $null -ne $nameProperty -and [string]$nameProperty.Value -like "AppPublisher*"
+      } |
       Select-Object -First 1
     if ($entry) { return $entry }
   }
@@ -62,11 +71,14 @@ function Resolve-InstalledExe {
   $candidates = [System.Collections.Generic.List[string]]::new()
   $candidates.Add((Join-Path $env:LOCALAPPDATA "Programs\AppPublisher\AppPublisher.exe"))
 
-  if ($Entry -and $Entry.InstallLocation) {
-    $candidates.Add((Join-Path ([Environment]::ExpandEnvironmentVariables([string]$Entry.InstallLocation)) "AppPublisher.exe"))
+  $installLocation = Get-PropertyValue $Entry "InstallLocation"
+  if ($installLocation) {
+    $candidates.Add((Join-Path ([Environment]::ExpandEnvironmentVariables([string]$installLocation)) "AppPublisher.exe"))
   }
-  if ($Entry -and $Entry.DisplayIcon) {
-    $iconPath = ([Environment]::ExpandEnvironmentVariables([string]$Entry.DisplayIcon)).Trim('"')
+
+  $displayIcon = Get-PropertyValue $Entry "DisplayIcon"
+  if ($displayIcon) {
+    $iconPath = ([Environment]::ExpandEnvironmentVariables([string]$displayIcon)).Trim('"')
     $iconPath = $iconPath -replace ',\d+$', ''
     $candidates.Add($iconPath)
   }
@@ -90,13 +102,19 @@ function Resolve-Uninstaller {
     if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
   }
 
-  if ($Entry -and $Entry.UninstallString) {
-    $raw = [Environment]::ExpandEnvironmentVariables([string]$Entry.UninstallString)
+  $uninstallString = Get-PropertyValue $Entry "UninstallString"
+  if ($uninstallString) {
+    $raw = [Environment]::ExpandEnvironmentVariables([string]$uninstallString)
     if ($raw -match '^\s*"([^"]+\.exe)"') {
       if (Test-Path -LiteralPath $Matches[1] -PathType Leaf) { return $Matches[1] }
     }
   }
   return $null
+}
+
+function Stop-AppPublisherProcesses {
+  Get-Process -Name "AppPublisher" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Milliseconds 500
 }
 
 function Invoke-SilentInstaller {
@@ -107,6 +125,7 @@ function Invoke-SilentInstaller {
 
 function Invoke-SilentUninstaller {
   param([string]$Path)
+  Stop-AppPublisherProcesses
   $process = Start-Process -FilePath $Path -ArgumentList "/S" -Wait -PassThru
   Add-Check "Désinstallation silencieuse" ($process.ExitCode -eq 0) "Code de sortie : $($process.ExitCode)"
 }
@@ -160,6 +179,7 @@ try {
   $reInstalledExe = Resolve-InstalledExe $reEntry
   Add-Check "Exécutable restauré après réinstallation" ($null -ne $reInstalledExe) "AppPublisher.exe introuvable après réinstallation"
   Add-Check "Données conservées après réinstallation" (Test-Path -LiteralPath $marker) "Le marqueur utilisateur a disparu"
+  Stop-AppPublisherProcesses
 
   $report = [ordered]@{
     generatedAt = (Get-Date).ToUniversalTime().ToString("o")
@@ -178,6 +198,7 @@ try {
 catch {
   $failure = $_.Exception.Message
   Write-Host "✗ $failure"
+  Stop-AppPublisherProcesses
 
   $installerReport = $null
   if (Test-Path -LiteralPath $installerPath -PathType Leaf) {
