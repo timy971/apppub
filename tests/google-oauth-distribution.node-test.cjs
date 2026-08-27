@@ -9,23 +9,28 @@ const {
   resolveGoogleOAuthBuildConfig,
 } = require("../scripts/google-oauth-build-config.cjs");
 
-test("a distributed build needs only the public desktop Client ID", () => {
+test("a distributable build requires the Desktop Client ID and injected Client secret", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-oauth-build-"));
   try {
     const outputPath = path.join(dir, "google-play-oauth.json");
     const result = ensureGoogleOAuthBuildConfig({
       required: true,
+      requireClientSecret: true,
       outputPath,
       publicClientPath: path.join(dir, "missing-public-client.json"),
       env: {
         APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: "apppublisher.apps.googleusercontent.com",
+        APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: "injected-at-build-time",
       },
     });
 
-    assert.equal(result.source, "client-id");
-    assert.equal(result.hasClientSecret, false);
+    assert.equal(result.source, "environment");
+    assert.equal(result.hasClientSecret, true);
     assert.deepEqual(JSON.parse(fs.readFileSync(outputPath, "utf8")), {
-      installed: { client_id: "apppublisher.apps.googleusercontent.com" },
+      installed: {
+        client_id: "apppublisher.apps.googleusercontent.com",
+        client_secret: "injected-at-build-time",
+      },
     });
 
     const runtimeConfig = loadGooglePlayOAuthConfig({
@@ -33,7 +38,7 @@ test("a distributed build needs only the public desktop Client ID", () => {
       resourcesPath: dir,
     });
     assert.equal(runtimeConfig.clientId, "apppublisher.apps.googleusercontent.com");
-    assert.equal(runtimeConfig.clientSecret, "");
+    assert.equal(runtimeConfig.clientSecret, "injected-at-build-time");
     assert.equal(
       new GooglePlayOAuth(runtimeConfig, {
         persistentConfigPath: null,
@@ -46,7 +51,7 @@ test("a distributed build needs only the public desktop Client ID", () => {
   }
 });
 
-test("uses the versioned public AppPublisher Client ID without copying a secret", () => {
+test("the versioned AppPublisher file remains Client-ID-only and receives the secret only at build time", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-oauth-versioned-"));
   try {
     const outputPath = path.join(dir, "generated", "google-play-oauth.json");
@@ -56,7 +61,6 @@ test("uses the versioned public AppPublisher Client ID without copying a secret"
       JSON.stringify({
         installed: {
           client_id: "versioned.apps.googleusercontent.com",
-          client_secret: "must-never-be-copied",
         },
       }),
       "utf8",
@@ -64,15 +68,22 @@ test("uses the versioned public AppPublisher Client ID without copying a secret"
 
     const result = ensureGoogleOAuthBuildConfig({
       required: true,
+      requireClientSecret: true,
       outputPath,
       publicClientPath,
-      env: {},
+      env: { APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: "injected-secret" },
     });
 
-    assert.equal(result.source, "versioned-public-client-id");
-    assert.equal(result.hasClientSecret, false);
-    assert.deepEqual(JSON.parse(fs.readFileSync(outputPath, "utf8")), {
+    assert.equal(result.source, "versioned-client-id+injected-secret");
+    assert.equal(result.hasClientSecret, true);
+    assert.deepEqual(JSON.parse(fs.readFileSync(publicClientPath, "utf8")), {
       installed: { client_id: "versioned.apps.googleusercontent.com" },
+    });
+    assert.deepEqual(JSON.parse(fs.readFileSync(outputPath, "utf8")), {
+      installed: {
+        client_id: "versioned.apps.googleusercontent.com",
+        client_secret: "injected-secret",
+      },
     });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -94,18 +105,25 @@ test("legacy base64 OAuth JSON remains supported for release compatibility", () 
   assert.equal(resolved.config.installed.client_secret, "legacy-secret");
 });
 
-test("a private beta cannot be packaged without AppPublisher OAuth identity", () => {
+test("a private beta cannot be packaged without the injected OAuth Client secret", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-oauth-missing-"));
   try {
+    const publicClientPath = path.join(dir, "google-play-oauth-client.json");
+    fs.writeFileSync(
+      publicClientPath,
+      JSON.stringify({ installed: { client_id: "apppublisher.apps.googleusercontent.com" } }),
+      "utf8",
+    );
     assert.throws(
       () =>
         ensureGoogleOAuthBuildConfig({
           required: true,
+          requireClientSecret: true,
           outputPath: path.join(dir, "google-play-oauth.json"),
-          publicClientPath: path.join(dir, "missing-public-client.json"),
+          publicClientPath,
           env: {},
         }),
-      /Client OAuth Google AppPublisher absent/,
+      /Client secret OAuth Google AppPublisher absent/,
     );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
