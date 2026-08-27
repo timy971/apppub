@@ -1,2 +1,2 @@
-private-beta-request: 2026-08-27T22:55:00+02:00
-reason: OAuth real-secret validation and Google Play package identity fix
+private-beta-request: 2026-08-27-bundletool-embedded
+reason: Bundletool 1.18.2 embedded validation with real OAuth beta
