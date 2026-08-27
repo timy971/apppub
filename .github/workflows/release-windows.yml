@@ -42,6 +42,7 @@ jobs:
       - name: Check Windows release credentials
         shell: pwsh
         env:
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_PLAY_OAUTH_CLIENT_ID }}
           GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
@@ -54,7 +55,7 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
           node scripts/check-windows-release-env.cjs
-          [IO.File]::WriteAllBytes("build/google-play-oauth.json", [Convert]::FromBase64String($env:GOOGLE_PLAY_OAUTH_JSON_BASE64))
+          node scripts/google-oauth-build-config.cjs --required
 
       - name: Build and verify the signed installer
         if: github.event_name == 'workflow_dispatch'
