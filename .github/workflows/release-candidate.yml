@@ -56,19 +56,19 @@ jobs:
           retention-days: 30
 
   desktop-smoke-package:
-    name: Unsigned package smoke — ${{ matrix.label }}
+    name: ${{ matrix.label }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: macos-14
-            label: macOS
+            label: Unsigned app smoke — macOS
             command: bun run pack:mac
             artifact: dist-app/mac-arm64/AppPublisher.app
           - os: windows-2025
-            label: Windows
-            command: bun run pack:win
-            artifact: dist-app/win-unpacked/AppPublisher.exe
+            label: Private installer smoke — Windows
+            command: bun run pack:win-beta
+            artifact: dist-app/AppPublisher-Setup.exe
     runs-on: ${{ matrix.os }}
     timeout-minutes: 35
     steps:
@@ -86,6 +86,6 @@ jobs:
       - name: Package application
         run: ${{ matrix.command }}
 
-      - name: Verify packaged executable exists
+      - name: Verify packaged artifact exists
         shell: bash
         run: test -e "${{ matrix.artifact }}"
