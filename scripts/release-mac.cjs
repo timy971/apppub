@@ -5,6 +5,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const { ensureGoogleOAuthBuildConfig } = require("./google-oauth-build-config.cjs");
 
 const root = path.resolve(__dirname, "..");
 const publish = process.argv.includes("--publish");
@@ -19,24 +20,14 @@ if (process.platform !== "darwin") {
   fail("La signature et la notarisation Developer ID doivent être lancées sur macOS.");
 }
 
-const oauthPath = path.join(root, "build", "google-play-oauth.json");
-if (!fs.existsSync(oauthPath)) {
-  fail(
-    "build/google-play-oauth.json est absent : la connexion Google Play manquerait dans l'application livrée.",
-  );
-}
 try {
-  const source = JSON.parse(fs.readFileSync(oauthPath, "utf8"));
-  const client = source.installed ?? source;
-  if (!client.client_id?.endsWith(".apps.googleusercontent.com") || !client.client_secret) {
-    fail(
-      "build/google-play-oauth.json n'est pas un client OAuth Google de type Application de bureau.",
-    );
-  }
-} catch {
-  fail("build/google-play-oauth.json est illisible ou invalide.");
+  const oauth = ensureGoogleOAuthBuildConfig({ required: true });
+  ok(
+    `Client OAuth Google Play prêt à être intégré (${oauth.hasClientSecret ? "secret optionnel présent" : "Client ID public"}).`,
+  );
+} catch (error) {
+  fail(error?.message ?? String(error));
 }
-ok("Client OAuth Google Play prêt à être intégré.");
 
 let signingReady = present("CSC_LINK");
 if (!signingReady) {
