@@ -12,6 +12,7 @@ $reportPath = Join-Path $reportDir "windows-clean-machine-smoke.json"
 $checks = [System.Collections.Generic.List[object]]::new()
 $failure = $null
 $installedExe = $null
+$report = $null
 
 New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
 
@@ -176,23 +177,38 @@ try {
 }
 catch {
   $failure = $_.Exception.Message
-  Write-Error $failure
+  Write-Host "✗ $failure"
+
+  $installerReport = $null
+  if (Test-Path -LiteralPath $installerPath -PathType Leaf) {
+    $installerReport = [ordered]@{
+      path = $installerPath
+      sizeBytes = (Get-Item -LiteralPath $installerPath).Length
+      sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $installerPath).Hash.ToLowerInvariant()
+    }
+  }
+
   $report = [ordered]@{
     generatedAt = (Get-Date).ToUniversalTime().ToString("o")
     verdict = "blocked"
-    installer = if (Test-Path -LiteralPath $installerPath) {
-      [ordered]@{
-        path = $installerPath
-        sizeBytes = (Get-Item -LiteralPath $installerPath).Length
-        sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $installerPath).Hash.ToLowerInvariant()
-      }
-    } else { $null }
+    installer = $installerReport
     installedExe = $installedExe
     checks = $checks
     failure = $failure
   }
 }
 finally {
+  if ($null -eq $report) {
+    $report = [ordered]@{
+      generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+      verdict = "blocked"
+      installer = $null
+      installedExe = $installedExe
+      checks = $checks
+      failure = "La recette s'est interrompue avant la création du rapport."
+    }
+    if (-not $failure) { $failure = [string]$report.failure }
+  }
   $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $reportPath -Encoding UTF8
   Write-Host "Rapport : $reportPath"
 }
