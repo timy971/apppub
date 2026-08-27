@@ -1,29 +1,26 @@
 /**
  * Orchestrateur de packaging AppPublisher.
  *
- *   node scripts/pack.cjs mac       → application locale ou DMG/ZIP de distribution
+ *   node scripts/pack.cjs mac       → application macOS locale
+ *   node scripts/pack.cjs mac-beta  → DMG privé universel non signé
  *   node scripts/pack.cjs win       → application Windows locale (x64)
  *   node scripts/pack.cjs win-beta  → installateur NSIS privé non signé (x64)
- *
- * Étapes :
- *   1. Vérifications préalables (ressources, icônes, version).
- *   2. Synchronisation package.json ← version.json.
- *   3. Nettoyage complet du dossier de sortie (dist-app/).
- *   4. Build Vite (dist/).
- *   5. Exécution d'electron-builder avec la config partagée.
- *   6. Rapport final (fichiers produits, durée, version).
  */
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
 const requestedTarget = process.argv[2] || "mac";
-if (!["mac", "win", "win-beta"].includes(requestedTarget)) {
-  console.error(`Cible inconnue : ${requestedTarget}. Utilisez "mac", "win" ou "win-beta".`);
+if (!["mac", "mac-beta", "win", "win-beta"].includes(requestedTarget)) {
+  console.error(
+    `Cible inconnue : ${requestedTarget}. Utilisez "mac", "mac-beta", "win" ou "win-beta".`,
+  );
   process.exit(1);
 }
-const target = requestedTarget === "win-beta" ? "win" : requestedTarget;
+const target = requestedTarget === "mac-beta" ? "mac" : requestedTarget === "win-beta" ? "win" : requestedTarget;
+const macPrivateBeta = requestedTarget === "mac-beta";
 const windowsPrivateBeta = requestedTarget === "win-beta";
+if (macPrivateBeta) process.env.APPPUBLISHER_MAC_PRIVATE_BETA = "1";
 if (windowsPrivateBeta) process.env.APPPUBLISHER_WIN_PRIVATE_BETA = "1";
 
 const macDistribution = target === "mac" && process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
@@ -57,10 +54,6 @@ function runLocalNodeTool(relativeCliPath, args) {
   run(process.execPath, [cliPath, ...args]);
 }
 
-/**
- * Diagnostic : affiche la structure complète de dist/ en cas d'erreur.
- * Aide à comprendre pourquoi dist/index.html manque.
- */
 function dumpDistStructure() {
   if (!fs.existsSync(dist)) {
     console.error(`\n  [DIAG] dist/ n'existe pas.`);
@@ -77,10 +70,7 @@ function dumpDistStructure() {
           walk(fullPath, prefix + "  ");
         } else {
           const st = fs.statSync(fullPath);
-          const size =
-            st.size > 1024 * 100
-              ? `${(st.size / 1024 / 1024).toFixed(1)}M`
-              : `${(st.size / 1024).toFixed(1)}K`;
+          const size = st.size > 1024 * 100 ? `${(st.size / 1024 / 1024).toFixed(1)}M` : `${(st.size / 1024).toFixed(1)}K`;
           console.error(`${prefix}📄 ${e.name} (${size})`);
         }
       }
@@ -89,7 +79,6 @@ function dumpDistStructure() {
   walk(dist);
 }
 
-/* ---------- 1. Vérifications ---------- */
 info("Vérification des ressources…");
 const version = JSON.parse(fs.readFileSync(path.join(root, "version.json"), "utf8"));
 if (!version.version) fail("version.json ne contient pas de champ 'version'.");
@@ -101,9 +90,7 @@ if (!fs.existsSync(path.join(buildDir, "icon.png"))) {
 ok("Icône source (icon.png) présente.");
 
 if (target === "mac" && !fs.existsSync(path.join(buildDir, "icon.icns"))) {
-  fail(
-    "build/icon.icns manquant. Lancez npm run make:icons ou ajoutez l'icône macOS avant pack:mac.",
-  );
+  fail("build/icon.icns manquant. Lancez npm run make:icons ou ajoutez l'icône macOS avant le packaging.");
 }
 if (target === "win" && !fs.existsSync(path.join(buildDir, "icon.ico"))) {
   fail("build/icon.ico manquant. Ajoutez l'icône Windows avant pack:win.");
@@ -114,21 +101,14 @@ for (const rel of ["electron/main.cjs", "electron/preload.cjs", "app.config.cjs"
 }
 ok("Fichiers Electron présents.");
 
-/* ---------- 2. Sync version ---------- */
 info("Synchronisation de la version…");
 run(process.execPath, [path.join(root, "scripts", "sync-version.cjs")]);
 
-/* ---------- 3. Nettoyage sortie ---------- */
 info("Nettoyage du dossier de sortie…");
-if (fs.existsSync(distApp)) {
-  fs.rmSync(distApp, { recursive: true, force: true });
-}
-if (fs.existsSync(dist)) {
-  fs.rmSync(dist, { recursive: true, force: true });
-}
+if (fs.existsSync(distApp)) fs.rmSync(distApp, { recursive: true, force: true });
+if (fs.existsSync(dist)) fs.rmSync(dist, { recursive: true, force: true });
 ok(`dist/ et dist-app/ nettoyés.`);
 
-/* ---------- 4. Build Vite ---------- */
 info("Compilation de l'interface (vite build — config Electron SPA)…");
 runLocalNodeTool("vite/bin/vite.js", ["build", "--config", "vite.electron.config.ts"]);
 if (!fs.existsSync(path.join(root, "dist", "index.html"))) {
@@ -137,22 +117,27 @@ if (!fs.existsSync(path.join(root, "dist", "index.html"))) {
 }
 ok("Interface compilée.");
 
-/* ---------- 5. electron-builder ---------- */
 info(`Packaging Electron (${requestedTarget})…`);
 const ebArgs = ["--config", "electron-builder.config.cjs"];
 if (target === "mac") ebArgs.push("--mac");
 if (target === "win") ebArgs.push("--win");
-// La publication est volontairement séparée du packaging : un binaire ne
-// peut atteindre GitHub Releases qu'après la certification complète du lot 11.
 ebArgs.push("--publish", "never");
 runLocalNodeTool("electron-builder/cli.js", ebArgs);
 
 if (
   target === "mac" &&
   !macDistribution &&
+  !macPrivateBeta &&
   !fs.existsSync(path.join(distApp, "mac-arm64", "AppPublisher.app"))
 ) {
   fail("AppPublisher.app non produit — le packaging macOS n'est pas valide.");
+}
+if (macPrivateBeta) {
+  const artifacts = fs.existsSync(distApp) ? fs.readdirSync(distApp) : [];
+  if (!artifacts.includes("AppPublisher.dmg")) {
+    fail("AppPublisher.dmg non produit — le DMG de bêta privée n'est pas valide.");
+  }
+  ok("DMG universel de bêta privée produit sans certificat Apple.");
 }
 if (macDistribution) {
   const artifacts = fs.existsSync(distApp) ? fs.readdirSync(distApp) : [];
@@ -190,7 +175,6 @@ if (windowsInstaller) {
   }
 }
 
-/* ---------- 6. Rapport ---------- */
 const produced = fs.existsSync(distApp)
   ? fs
       .readdirSync(distApp, { withFileTypes: true })
@@ -198,9 +182,7 @@ const produced = fs.existsSync(distApp)
       .map((d) => d.name)
   : [];
 
-const durationMs = Date.now() - start;
-const seconds = Math.round(durationMs / 1000);
-
+const seconds = Math.round((Date.now() - start) / 1000);
 console.log("\n──────────────────────────────────────────────");
 console.log(" Packaging terminé");
 console.log("──────────────────────────────────────────────");
@@ -210,7 +192,9 @@ console.log(
     target === "mac"
       ? macDistribution
         ? "macOS universel — signé et notarisé"
-        : "macOS (arm64) — développement local"
+        : macPrivateBeta
+          ? "macOS universel — DMG bêta privée non signé"
+          : "macOS (arm64) — développement local"
       : windowsDistribution
         ? "Windows 10/11 (x64) — distribution publique signée"
         : windowsPrivateBeta
@@ -220,7 +204,5 @@ console.log(
 );
 console.log(` Durée     : ${seconds} s`);
 console.log(` Sortie    : dist-app/`);
-for (const name of produced) {
-  console.log(`   • ${name}`);
-}
+for (const name of produced) console.log(`   • ${name}`);
 console.log("──────────────────────────────────────────────\n");
