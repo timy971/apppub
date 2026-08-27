@@ -59,6 +59,15 @@ check(
   "La future distribution publique macOS doit produire un DMG et un ZIP universels.",
 );
 check(
+  "Bêta macOS privée en DMG universel",
+  builder.includes("APPPUBLISHER_MAC_PRIVATE_BETA") &&
+    pkg.scripts?.["pack:mac-beta"] === "node scripts/pack.cjs mac-beta" &&
+    candidate.includes("bun run pack:mac-beta") &&
+    candidate.includes("dist-app/AppPublisher.dmg") &&
+    candidate.includes("hdiutil attach"),
+  "La bêta privée macOS doit produire, monter et vérifier un DMG universel sans certificat Apple.",
+);
+check(
   "Windows NSIS x64",
   /target:\s*"nsis",\s*arch:\s*\["x64"\]/m.test(builder),
   "La bêta privée et la distribution publique Windows doivent utiliser un installateur NSIS x64.",
