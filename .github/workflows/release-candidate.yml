@@ -84,18 +84,18 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Package application
-        env:
-          # Les PR vérifient uniquement la mécanique de packaging avec une identité
-          # synthétique. Un workflow_dispatch destiné à produire une vraie bêta
-          # exige le Client ID AppPublisher configuré côté dépôt.
-          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: ${{ github.event_name == 'pull_request' && 'ci-smoke.apps.googleusercontent.com' || vars.GOOGLE_PLAY_OAUTH_CLIENT_ID }}
-          GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ github.event_name == 'workflow_dispatch' && secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 || '' }}
         run: ${{ matrix.command }}
 
-      - name: Verify packaged OAuth identity exists
+      - name: Verify packaged OAuth identity is the AppPublisher client
         shell: bash
         run: |
-          node -e "const c=require('./build/google-play-oauth.json'); const x=c.installed||c; if(!x.client_id?.endsWith('.apps.googleusercontent.com')) process.exit(1)"
+          node - <<'NODE'
+          const expected = require('./build/google-play-oauth-client.json').installed.client_id;
+          const generated = require('./build/google-play-oauth.json');
+          const actual = (generated.installed || generated).client_id;
+          if (!expected?.endsWith('.apps.googleusercontent.com')) throw new Error('Client ID AppPublisher invalide');
+          if (actual !== expected) throw new Error('Le build n’embarque pas le Client ID AppPublisher attendu');
+          NODE
 
       - name: Verify packaged artifact exists
         shell: bash
@@ -112,11 +112,18 @@ jobs:
             test -d "$mountpoint/AppPublisher.app"
             test -x "$mountpoint/AppPublisher.app/Contents/MacOS/AppPublisher"
             test -f "$mountpoint/AppPublisher.app/Contents/Resources/google-play-oauth.json"
+            node - "$mountpoint/AppPublisher.app/Contents/Resources/google-play-oauth.json" <<'NODE'
+            const fs = require('node:fs');
+            const embedded = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+            const expected = require('./build/google-play-oauth-client.json').installed.client_id;
+            const actual = (embedded.installed || embedded).client_id;
+            if (actual !== expected) throw new Error('Le DMG n’embarque pas le Client ID AppPublisher attendu');
+            NODE
             hdiutil detach "$mountpoint"
           done
 
       - name: Keep private macOS DMGs
-        if: matrix.os == 'macos-14' && github.event_name == 'workflow_dispatch' && !cancelled()
+        if: matrix.os == 'macos-14' && !cancelled()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-macOS-private-beta
@@ -132,7 +139,7 @@ jobs:
         run: ./scripts/smoke-win-clean-install.ps1 -Installer "dist-app/AppPublisher-Setup.exe"
 
       - name: Keep private Windows installer and recipe report
-        if: matrix.os == 'windows-2025' && github.event_name == 'workflow_dispatch' && !cancelled()
+        if: matrix.os == 'windows-2025' && !cancelled()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-Windows-private-beta
