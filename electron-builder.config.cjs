@@ -33,6 +33,15 @@ const azureSigning = azureSigningKeys.every((name) => process.env[name])
     }
   : undefined;
 
+const extraResources = [
+  ...(fs.existsSync("build/google-play-oauth.json")
+    ? [{ from: "build/google-play-oauth.json", to: "google-play-oauth.json" }]
+    : []),
+  ...(fs.existsSync("build/tools/bundletool.jar")
+    ? [{ from: "build/tools/bundletool.jar", to: "tools/bundletool.jar" }]
+    : []),
+];
+
 module.exports = {
   appId: app.appId,
   productName: app.productName,
@@ -45,9 +54,7 @@ module.exports = {
 
   files: ["dist/**/*", "electron/**/*", "app.config.cjs", "version.json", "package.json"],
 
-  extraResources: fs.existsSync("build/google-play-oauth.json")
-    ? [{ from: "build/google-play-oauth.json", to: "google-play-oauth.json" }]
-    : [],
+  extraResources,
 
   compression: "normal",
   removePackageScripts: true,
