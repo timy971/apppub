@@ -14,6 +14,8 @@ const app = require("./app.config.cjs");
 const fs = require("fs");
 const macDistribution = process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
 const windowsDistribution = process.env.APPPUBLISHER_WIN_DISTRIBUTION === "1";
+const windowsPrivateBeta = process.env.APPPUBLISHER_WIN_PRIVATE_BETA === "1";
+const windowsInstaller = windowsDistribution || windowsPrivateBeta;
 const distribution = macDistribution || windowsDistribution;
 const azureSigningKeys = [
   "WINDOWS_AZURE_PUBLISHER_NAME",
@@ -53,6 +55,8 @@ module.exports = {
   // Compression raisonnable : équilibre taille / temps de packaging.
   compression: "normal",
   removePackageScripts: true,
+  // Seule une distribution publique Windows exige la signature. La bêta
+  // privée produit le même installateur NSIS sans coût de certificat.
   forceCodeSigning: windowsDistribution,
   extraMetadata: {
     name: "apppublisher",
@@ -100,8 +104,8 @@ module.exports = {
     ],
   },
 
-  // Le manifeste latest-mac.yml est généré avec les DMG/ZIP. L'application
-  // signée l'utilise ensuite pour rechercher les nouvelles versions GitHub.
+  // Les manifests d'auto-update et GitHub Releases ne concernent que la
+  // distribution publique. Une bêta privée ne publie rien automatiquement.
   publish: distribution
     ? {
         provider: "github",
@@ -116,7 +120,7 @@ module.exports = {
     // Nom stable pour conserver un lien de téléchargement permanent.
     artifactName: "${productName}-Setup.${ext}",
     icon: "build/icon.ico",
-    target: windowsDistribution
+    target: windowsInstaller
       ? [{ target: "nsis", arch: ["x64"] }]
       : [{ target: "dir", arch: ["x64"] }],
     azureSignOptions: windowsDistribution ? azureSigning : undefined,
