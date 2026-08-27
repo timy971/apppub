@@ -27,17 +27,17 @@ test("le packaging local reste une application arm64 non signée", () => {
   assert.equal(config.mac.hardenedRuntime, false);
 });
 
-test("la bêta privée macOS produit un DMG universel sans certificat Apple", () => {
+test("la bêta privée macOS produit deux DMG natifs sans certificat Apple", () => {
   const config = loadConfig("private-beta");
-  assert.deepEqual(config.mac.target, [{ target: "dmg", arch: ["universal"] }]);
+  assert.deepEqual(config.mac.target, [{ target: "dmg", arch: ["arm64", "x64"] }]);
   assert.equal(config.mac.identity, null);
   assert.equal(config.mac.hardenedRuntime, false);
   assert.equal(config.mac.notarize, false);
-  assert.equal(config.mac.artifactName, "${productName}.${ext}");
+  assert.equal(config.mac.artifactName, "${productName}-${arch}.${ext}");
   assert.equal(config.publish, null);
 });
 
-test("la distribution macOS est universelle, signée, notarisée et publiable", () => {
+test("la distribution macOS publique reste universelle, signée, notarisée et publiable", () => {
   const config = loadConfig("public");
   assert.deepEqual(config.mac.target, [
     { target: "dmg", arch: ["universal"] },
@@ -74,5 +74,7 @@ test("la release macOS utilise les dépendances certifiées avant de publier", (
     "la certification doit précéder la publication",
   );
   assert.match(packScript, /mac-beta/);
+  assert.match(packScript, /AppPublisher-arm64\.dmg/);
+  assert.match(packScript, /AppPublisher-x64\.dmg/);
   assert.match(packScript, /ebArgs\.push\("--publish", "never"\)/);
 });
