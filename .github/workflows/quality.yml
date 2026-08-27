@@ -73,17 +73,12 @@ jobs:
       - name: Configure Gradle cache
         uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda # v4.4.4
 
-      - name: Download pinned bundletool
-        run: |
-          mkdir -p "$RUNNER_TEMP/apppublisher-tools"
-          curl --fail --location --retry 3 \
-            --output "$RUNNER_TEMP/apppublisher-tools/bundletool.jar" \
-            https://github.com/google/bundletool/releases/download/1.18.2/bundletool-all-1.18.2.jar
-          echo "378b5434cd1378bef6b2bc527b8c7f0ff2584b273830335bce54d6d0813c8584  $RUNNER_TEMP/apppublisher-tools/bundletool.jar" | sha256sum --check
+      - name: Prepare pinned bundletool used by AppPublisher
+        run: node scripts/ensure-bundletool.cjs
 
       - name: Certify two consecutive AAB releases
         env:
-          APPPUBLISHER_BUNDLETOOL_JAR: ${{ runner.temp }}/apppublisher-tools/bundletool.jar
+          APPPUBLISHER_BUNDLETOOL_JAR: ${{ github.workspace }}/build/tools/bundletool.jar
         run: node scripts/certify-android-pipeline.cjs
 
       - name: Upload sanitized certification report
