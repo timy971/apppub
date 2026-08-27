@@ -51,8 +51,6 @@ module.exports = {
 
   compression: "normal",
   removePackageScripts: true,
-  // Seule une distribution publique Windows exige la signature. Les bêta
-  // privées Windows et macOS restent volontairement non signées.
   forceCodeSigning: windowsDistribution,
   extraMetadata: {
     name: "apppublisher",
@@ -64,7 +62,10 @@ module.exports = {
 
   // ---------- macOS ----------
   mac: {
-    artifactName: "${productName}.${ext}",
+    // La bêta privée utilise deux DMG natifs pour éviter de masquer les
+    // différences de modules natifs derrière une fusion Universal. La future
+    // distribution publique reste configurée en Universal signé/notarisé.
+    artifactName: macPrivateBeta ? "${productName}-${arch}.${ext}" : "${productName}.${ext}",
     category: "public.app-category.developer-tools",
     icon: "build/icon.icns",
     target: macDistribution
@@ -73,13 +74,11 @@ module.exports = {
           { target: "zip", arch: ["universal"] },
         ]
       : macPrivateBeta
-        ? [{ target: "dmg", arch: ["universal"] }]
+        ? [{ target: "dmg", arch: ["arm64", "x64"] }]
         : [{ target: "dir", arch: ["arm64"] }],
     darkModeSupport: true,
     hardenedRuntime: macDistribution,
     gatekeeperAssess: false,
-    // En bêta privée, aucune identité Apple n'est requise. La distribution
-    // publique choisit le certificat Developer ID Application du trousseau.
     identity: macDistribution ? undefined : null,
     notarize: macDistribution,
     entitlements: "build/entitlements.mac.plist",
@@ -99,8 +98,6 @@ module.exports = {
     ],
   },
 
-  // Les manifests d'auto-update et GitHub Releases ne concernent que la
-  // distribution publique. Une bêta privée ne publie rien automatiquement.
   publish: distribution
     ? {
         provider: "github",
