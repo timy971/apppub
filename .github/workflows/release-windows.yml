@@ -24,37 +24,46 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
-      - name: Install dependencies
-        run: npm install --no-package-lock --no-audit --no-fund
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
 
-      - name: Verify source
+      - name: Verify release candidate sources
         run: |
-          npm test
-          npm run typecheck
-          npm run lint:ci
+          bun run test
+          bun run certify:ux
+          bun run typecheck
+          bun run lint:ci
+          bun run build:electron
+          node scripts/certify-release-candidate.cjs
 
-      - name: Prepare private release files
+      - name: Check Windows release credentials
         shell: pwsh
         env:
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_PLAY_OAUTH_CLIENT_ID }}
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
           GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_AZURE_PUBLISHER_NAME: ${{ secrets.WINDOWS_AZURE_PUBLISHER_NAME }}
           WINDOWS_AZURE_ENDPOINT: ${{ secrets.WINDOWS_AZURE_ENDPOINT }}
+          WINDOWS_AZURE_CERTIFICATE_PROFILE: ${{ secrets.WINDOWS_AZURE_CERTIFICATE_PROFILE }}
+          WINDOWS_AZURE_SIGNING_ACCOUNT: ${{ secrets.WINDOWS_AZURE_SIGNING_ACCOUNT }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
-          if (-not $env:GOOGLE_PLAY_OAUTH_JSON_BASE64) { throw "Secret Google OAuth absent" }
-          if (-not $env:WINDOWS_CERTIFICATE_PFX_BASE64 -and -not $env:WINDOWS_AZURE_ENDPOINT) { throw "Signature Windows absente" }
-          [IO.File]::WriteAllBytes("build/google-play-oauth.json", [Convert]::FromBase64String($env:GOOGLE_PLAY_OAUTH_JSON_BASE64))
-          if ($env:WINDOWS_CERTIFICATE_PFX_BASE64) {
-            [IO.File]::WriteAllBytes("$env:RUNNER_TEMP/AppPublisher-signing.pfx", [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX_BASE64))
-          }
+          node scripts/check-windows-release-env.cjs
+          node scripts/google-oauth-build-config.cjs --required --require-client-secret
 
       - name: Build and verify the signed installer
         if: github.event_name == 'workflow_dispatch'
         env:
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_PLAY_OAUTH_CLIENT_ID }}
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
+          GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           CSC_LINK: ${{ runner.temp }}/AppPublisher-signing.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           WINDOWS_AZURE_PUBLISHER_NAME: ${{ secrets.WINDOWS_AZURE_PUBLISHER_NAME }}
@@ -64,11 +73,14 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        run: npm run release:win
+        run: bun run release:win
 
       - name: Build, verify and publish the signed installer
         if: startsWith(github.ref, 'refs/tags/v')
         env:
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_PLAY_OAUTH_CLIENT_ID }}
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
+          GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           CSC_LINK: ${{ runner.temp }}/AppPublisher-signing.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           WINDOWS_AZURE_PUBLISHER_NAME: ${{ secrets.WINDOWS_AZURE_PUBLISHER_NAME }}
@@ -79,10 +91,10 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release:win:publish
+        run: bun run release:win:publish
 
       - name: Keep artifacts for verification
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AppPublisher-Windows
           path: |
@@ -90,4 +102,5 @@ jobs:
             dist-app/AppPublisher-Setup.exe.blockmap
             dist-app/latest.yml
             .artifacts/windows-release-verification.json
+            .artifacts/release-candidate-certification.json
           if-no-files-found: error

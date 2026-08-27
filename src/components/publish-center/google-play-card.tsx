@@ -29,6 +29,7 @@ import { ProjectsService } from "@/core/projects/service";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import { JourneyProgress } from "@/core/navigation/journey-progress";
 import { googlePlayLaunchProgress } from "@/core/google-play/launch-plan";
+import { resolveGooglePlayPackageName } from "@/core/google-play/package-name";
 import {
   forgetGooglePlayFailure,
   rememberGooglePlayFailure,
@@ -58,7 +59,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   );
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const android = project.publishing?.android ?? {};
-  const packageName = android.applicationId ?? project.packageName ?? project.playStoreAppId ?? "";
+  const packageName = resolveGooglePlayPackageName(project, release);
   const connectionId = android.googlePlayConnectionId;
   const accountEmail = android.googlePlayAccountEmail ?? android.googlePlayServiceAccountEmail;
   const authMode =
@@ -139,6 +140,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       ProjectsService.update(
         project.id,
         patchAndroidConfig(project, {
+          applicationId: packageName,
           googlePlayConnectionId: result.connectionId,
           googlePlayAccountEmail: result.accountEmail,
           googlePlayAuthMode: "oauth",
@@ -190,6 +192,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       ProjectsService.update(
         project.id,
         patchAndroidConfig(project, {
+          applicationId: packageName,
           googlePlayConnectionId: result.connectionId,
           googlePlayAccountEmail: result.accountEmail,
           googlePlayAuthMode: "service-account",
@@ -240,6 +243,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       ProjectsService.update(
         project.id,
         patchAndroidConfig(project, {
+          applicationId: packageName,
           googlePlayLastCheckedAt: new Date().toISOString(),
           googlePlayAccountEmail: result.accountEmail,
           googlePlayAuthMode: result.authMode,
@@ -381,7 +385,10 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       AppStore.refreshProjects();
       ProjectsService.update(
         project.id,
-        patchAndroidConfig(project, { googlePlayLastKnownBuild: result.versionCode }),
+        patchAndroidConfig(project, {
+          applicationId: packageName,
+          googlePlayLastKnownBuild: result.versionCode,
+        }),
       );
       AppStore.refreshProjects();
       toast.success("Publication envoyée à Google Play", {
@@ -419,7 +426,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   }
 
   const unavailableReason = !packageName
-    ? "Renseignez d'abord l'identifiant Android de l'application."
+    ? "AppPublisher n’a pas encore identifié l’identifiant Android réel de cette application. Revenez à la préparation Android puis actualisez le projet."
     : connected && alreadyPublished
       ? "Cette version a déjà été envoyée. Préparez un nouveau numéro de version pour republier."
       : connected && !verified
@@ -636,17 +643,21 @@ function showGooglePlayError(result: {
                     ? "Connexion Google à activer"
                     : result.errorCode === "credentials-missing"
                       ? "Autorisation Google Play introuvable"
-                      : result.errorCode === "network-timeout"
-                        ? result.phase === "upload-bundle"
-                          ? "Envoi du fichier Android trop long"
-                          : "Google Play ne répond pas"
-                        : result.errorCode === "network-error"
+                      : result.errorCode === "credentials-rejected"
+                        ? "Autorisation Google refusée"
+                        : result.errorCode === "network-timeout"
                           ? result.phase === "upload-bundle"
-                            ? "Envoi du fichier Android interrompu"
-                            : "Communication Google Play interrompue"
-                          : result.errorCode === "aab-read-failed"
-                            ? "Fichier Android impossible à lire"
-                            : "Google Play a refusé l'opération";
+                            ? "Envoi du fichier Android trop long"
+                            : "Google Play ne répond pas"
+                          : result.errorCode === "network-error"
+                            ? result.phase === "upload-bundle"
+                              ? "Envoi du fichier Android interrompu"
+                              : result.phase === "oauth"
+                                ? "Connexion Google interrompue"
+                                : "Communication Google Play interrompue"
+                            : result.errorCode === "aab-read-failed"
+                              ? "Fichier Android impossible à lire"
+                              : "Google Play a refusé l'opération";
   const description =
     result.errorCode === "app-not-found"
       ? "Créez la fiche, ajoutez et enregistrez le premier fichier Android dans le test interne, puis recommencez la vérification."
@@ -846,7 +857,9 @@ function googlePlayRecoveryFor(
         explanation:
           failure.errorHint ?? "AppPublisher ne peut plus utiliser le compte enregistré.",
         solution:
-          "Déconnectez Google Play, reconnectez le bon compte, puis vérifiez de nouveau l’accès.",
+          failure.phase === "oauth"
+            ? "La connexion a échoué avant tout accès à Play Console. Réessayez après avoir vérifié la configuration OAuth AppPublisher ; il n’est pas utile de modifier votre application Google Play à cette étape."
+            : "Déconnectez Google Play, reconnectez le bon compte, puis vérifiez de nouveau l’accès.",
       };
     case "network-timeout":
     case "network-error":

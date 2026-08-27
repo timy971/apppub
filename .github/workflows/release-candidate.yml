@@ -1,0 +1,172 @@
+name: Release candidate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - agent/lot-11-release-candidate
+    paths:
+      - .github/private-beta-trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-certification:
+    name: Certify V1 release sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run complete automated tests
+        run: bun run test
+
+      - name: Certify novice journeys
+        run: bun run certify:ux
+
+      - name: Check TypeScript
+        run: bun run typecheck
+
+      - name: Run semantic lint gate
+        run: bun run lint:ci
+
+      - name: Build Electron renderer
+        run: bun run build:electron
+
+      - name: Certify release wiring
+        run: node scripts/certify-release-candidate.cjs
+
+      - name: Keep RC certification report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-candidate-certification
+          path: .artifacts/release-candidate-certification.json
+          if-no-files-found: error
+          retention-days: 30
+
+  desktop-smoke-package:
+    name: ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label: Private DMG smoke — macOS
+            command: bun run pack:mac-beta
+            artifact: dist-app/AppPublisher-arm64.dmg
+          - os: windows-2025
+            label: Clean-machine private beta — Windows
+            command: bun run pack:win-beta
+            artifact: dist-app/AppPublisher-Setup.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Require real OAuth secret for user beta
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          OAUTH_SECRET: ${{ secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
+        run: |
+          if [ -z "$OAUTH_SECRET" ]; then
+            echo "Le secret GitHub GOOGLE_PLAY_OAUTH_CLIENT_SECRET est absent."
+            echo "Une bêta utilisateur ne doit pas être construite avec une identité OAuth incomplète."
+            exit 1
+          fi
+
+      - name: Package application
+        env:
+          # Les PR utilisent seulement une valeur synthétique afin de tester le
+          # câblage et le montage. Les builds push/dispatch utilisent le vrai secret.
+          APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET: ${{ github.event_name == 'pull_request' && 'ci-placeholder-secret-not-for-users' || secrets.GOOGLE_PLAY_OAUTH_CLIENT_SECRET }}
+        run: ${{ matrix.command }}
+
+      - name: Verify packaged OAuth identity is complete
+        shell: bash
+        run: node -e "const expected=require('./build/google-play-oauth-client.json').installed.client_id; const generated=require('./build/google-play-oauth.json'); const actual=(generated.installed||generated); if(!expected?.endsWith('.apps.googleusercontent.com')) throw new Error('Client ID AppPublisher invalide'); if(actual.client_id!==expected) throw new Error('Le build n’embarque pas le Client ID AppPublisher attendu'); if(!actual.client_secret) throw new Error('Le build distribuable n’embarque pas le Client secret OAuth requis par Google');"
+
+      - name: Verify pinned bundletool prepared for packaging
+        shell: bash
+        run: node -e "const b=require('./scripts/ensure-bundletool.cjs'); if(!b.verifyBundletoolFile(b.DEFAULT_OUTPUT_PATH)) throw new Error('bundletool embarqué absent ou checksum invalide'); console.log('bundletool '+b.BUNDLETOOL_VERSION+' vérifié');"
+
+      - name: Verify packaged artifact exists
+        shell: bash
+        run: test -e "${{ matrix.artifact }}"
+
+      - name: Mount and verify private DMGs
+        if: matrix.os == 'macos-14'
+        shell: bash
+        run: |
+          expected="$(node -p "require('./build/google-play-oauth-client.json').installed.client_id")"
+          expected_bundletool_sha="$(node -p "require('./scripts/ensure-bundletool.cjs').BUNDLETOOL_SHA256")"
+          for arch in arm64 x64; do
+            mountpoint="$RUNNER_TEMP/apppublisher-$arch"
+            mkdir -p "$mountpoint"
+            hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" "dist-app/AppPublisher-$arch.dmg"
+            test -d "$mountpoint/AppPublisher.app"
+            test -x "$mountpoint/AppPublisher.app/Contents/MacOS/AppPublisher"
+            embedded="$mountpoint/AppPublisher.app/Contents/Resources/google-play-oauth.json"
+            test -f "$embedded"
+            actual="$(node -p "const c=require(process.argv[1]); (c.installed||c).client_id" "$embedded")"
+            has_secret="$(node -p "const c=require(process.argv[1]); Boolean((c.installed||c).client_secret)" "$embedded")"
+            test "$actual" = "$expected"
+            test "$has_secret" = "true"
+            bundletool="$mountpoint/AppPublisher.app/Contents/Resources/tools/bundletool.jar"
+            test -f "$bundletool"
+            actual_bundletool_sha="$(shasum -a 256 "$bundletool" | awk '{print $1}')"
+            test "$actual_bundletool_sha" = "$expected_bundletool_sha"
+            hdiutil detach "$mountpoint"
+          done
+
+      - name: Keep private macOS DMGs
+        if: matrix.os == 'macos-14' && github.event_name != 'pull_request' && !cancelled()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: AppPublisher-macOS-private-beta
+          path: |
+            dist-app/AppPublisher-arm64.dmg
+            dist-app/AppPublisher-x64.dmg
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Run clean-machine installation recipe
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: ./scripts/smoke-win-clean-install.ps1 -Installer "dist-app/AppPublisher-Setup.exe"
+
+      - name: Keep private Windows installer and recipe report
+        if: matrix.os == 'windows-2025' && github.event_name != 'pull_request' && !cancelled()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: AppPublisher-Windows-private-beta
+          path: |
+            dist-app/AppPublisher-Setup.exe
+            .artifacts/windows-clean-machine-smoke.json
+          if-no-files-found: error
+          retention-days: 30

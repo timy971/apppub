@@ -38,3 +38,5 @@ dist-ssr
 !/build/
 !/build/**
 /build/google-play-oauth.json
+/build/tools/bundletool.jar
+/build/tools/bundletool.jar.part-*

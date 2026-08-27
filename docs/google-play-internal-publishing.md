@@ -6,24 +6,43 @@ limité à la piste `internal` : aucune méthode du bridge ne permet de sélecti
 
 ## Connexion recommandée : OAuth utilisateur
 
-L'utilisateur clique sur **Se connecter avec Google**, choisit le compte autorisé dans Play Console
-dans son navigateur, puis revient automatiquement dans AppPublisher. Le jeton de renouvellement est
-conservé dans le stockage sécurisé de macOS ou Windows ; aucun mot de passe Google n'entre dans l'interface.
+Le parcours normal ne demande **aucun fichier** à l'utilisateur. Il clique sur **Se connecter avec
+Google**, choisit le compte autorisé dans Play Console dans son navigateur, puis revient
+automatiquement dans AppPublisher. Le jeton de renouvellement est conservé dans le stockage
+sécurisé du système ; aucun mot de passe Google n'entre dans l'interface.
 
-Pour activer ce bouton dans une compilation AppPublisher :
+AppPublisher utilise un client OAuth de type **Application de bureau**, une redirection loopback sur
+`127.0.0.1`, un `state` aléatoire et PKCE. Pour une application installée, le Client ID identifie
+l'application et le `client_secret` n'est pas requis par le flux utilisé ici.
 
-1. créer un client OAuth de type **Application de bureau** dans le projet Google Cloud qui porte la
-   Google Play Developer API ;
-2. copier `build/google-play-oauth.example.json` vers `build/google-play-oauth.json` ;
-3. renseigner le `client_id` et le `client_secret` téléchargés depuis Google Cloud ;
-4. empaqueter AppPublisher. Ce fichier local est ignoré par Git et ajouté aux ressources de
-   l'application au packaging ;
-5. pendant le développement, il est aussi possible de fournir
-   `APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID` et `APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET`.
+### Configuration du produit AppPublisher
 
-La redirection OAuth utilise uniquement une adresse éphémère sur `127.0.0.1`, un paramètre `state`
-aléatoire et PKCE. Le compte choisi reste limité aux droits qui lui ont été accordés dans
-**Utilisateurs et autorisations** de Play Console.
+Cette configuration appartient au **build AppPublisher**, pas à chaque utilisateur.
+
+Le Client ID Desktop public officiel d'AppPublisher est versionné dans
+`build/google-play-oauth-client.json`. Aucun `client_secret` n'est versionné.
+
+Au packaging :
+
+1. `scripts/google-oauth-build-config.cjs` lit ce Client ID public et génère la ressource normalisée
+   `build/google-play-oauth.json` ;
+2. `scripts/pack.cjs` refuse toute bêta/distribution si aucune identité OAuth valide n'est disponible ;
+3. `electron-builder` copie cette configuration dans les ressources de l'application ;
+4. la Release Candidate compare l'identité empaquetée avec le Client ID versionné et, sur macOS,
+   monte les DMG pour vérifier la ressource directement dans `AppPublisher.app`.
+
+`APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID` peut toujours surcharger le Client ID au packaging pour un cas
+contrôlé. `GOOGLE_PLAY_OAUTH_JSON_BASE64` reste accepté uniquement pour compatibilité avec les anciens
+workflows.
+
+Le sélecteur manuel de fichier OAuth n'est **pas** un parcours utilisateur. Il n'est activable que
+pour le développement ou le dépannage avec `APPPUBLISHER_ALLOW_OAUTH_FILE_PICKER=1`.
+
+Le compte choisi reste limité aux droits qui lui ont été accordés dans **Utilisateurs et
+autorisations** de Play Console.
+
+Référence Google pour les applications Desktop :
+https://developers.google.com/identity/protocols/oauth2/native-app
 
 ## Option avancée : compte de service
 
@@ -40,9 +59,9 @@ Références officielles :
 - https://developers.google.com/android-publisher/getting_started
 - https://developers.google.com/android-publisher/api-ref/rest/v3/edits
 
-Sous **Options avancées**, AppPublisher copie la clé dans le stockage sécurisé du système. Il ne modifie et ne
-supprime pas le fichier JSON d'origine : l'utilisateur reste responsable de sa conservation ou de
-sa suppression sécurisée.
+Sous **Options avancées**, AppPublisher copie la clé dans le stockage sécurisé du système. Il ne
+modifie et ne supprime pas le fichier JSON d'origine : l'utilisateur reste responsable de sa
+conservation ou de sa suppression sécurisée.
 
 ## Parcours utilisateur
 
@@ -74,7 +93,5 @@ Play déjà en cours.
 - l'application doit déjà exister dans Play Console ;
 - les déclarations de contenu, de confidentialité et réglementaires restent à compléter dans Play
   Console ;
-- les autorisations OAuth et les clés de compte de service sont prises en charge uniquement sur
-  macOS tant que les coffres Windows et Linux ne sont pas implémentés ;
 - les pistes fermée, ouverte et production ne sont pas exposées ;
 - les tests automatisés utilisent une API simulée et ne téléversent aucune application réelle.

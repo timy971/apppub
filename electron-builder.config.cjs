@@ -13,7 +13,10 @@
 const app = require("./app.config.cjs");
 const fs = require("fs");
 const macDistribution = process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
+const macPrivateBeta = process.env.APPPUBLISHER_MAC_PRIVATE_BETA === "1";
 const windowsDistribution = process.env.APPPUBLISHER_WIN_DISTRIBUTION === "1";
+const windowsPrivateBeta = process.env.APPPUBLISHER_WIN_PRIVATE_BETA === "1";
+const windowsInstaller = windowsDistribution || windowsPrivateBeta;
 const distribution = macDistribution || windowsDistribution;
 const azureSigningKeys = [
   "WINDOWS_AZURE_PUBLISHER_NAME",
@@ -30,27 +33,29 @@ const azureSigning = azureSigningKeys.every((name) => process.env[name])
     }
   : undefined;
 
+const extraResources = [
+  ...(fs.existsSync("build/google-play-oauth.json")
+    ? [{ from: "build/google-play-oauth.json", to: "google-play-oauth.json" }]
+    : []),
+  ...(fs.existsSync("build/tools/bundletool.jar")
+    ? [{ from: "build/tools/bundletool.jar", to: "tools/bundletool.jar" }]
+    : []),
+];
+
 module.exports = {
   appId: app.appId,
   productName: app.productName,
   copyright: app.copyright,
 
-  // Nettoyage automatique du dossier de sortie avant chaque build.
   directories: {
     output: "dist-app",
     buildResources: "build",
   },
 
-  // Fichiers embarqués dans l'application.
   files: ["dist/**/*", "electron/**/*", "app.config.cjs", "version.json", "package.json"],
 
-  // Le client OAuth desktop n'est pas versionné. Lorsqu'il est présent au
-  // packaging, il est embarqué comme ressource de l'application.
-  extraResources: fs.existsSync("build/google-play-oauth.json")
-    ? [{ from: "build/google-play-oauth.json", to: "google-play-oauth.json" }]
-    : [],
+  extraResources,
 
-  // Compression raisonnable : équilibre taille / temps de packaging.
   compression: "normal",
   removePackageScripts: true,
   forceCodeSigning: windowsDistribution,
@@ -64,9 +69,10 @@ module.exports = {
 
   // ---------- macOS ----------
   mac: {
-    // Nom volontairement stable : la page d'installation peut conserver un
-    // seul lien, quelle que soit la version publiée.
-    artifactName: "${productName}.${ext}",
+    // La bêta privée utilise deux DMG natifs pour éviter de masquer les
+    // différences de modules natifs derrière une fusion Universal. La future
+    // distribution publique reste configurée en Universal signé/notarisé.
+    artifactName: macPrivateBeta ? "${productName}-${arch}.${ext}" : "${productName}.${ext}",
     category: "public.app-category.developer-tools",
     icon: "build/icon.icns",
     target: macDistribution
@@ -74,13 +80,12 @@ module.exports = {
           { target: "dmg", arch: ["universal"] },
           { target: "zip", arch: ["universal"] },
         ]
-      : [{ target: "dir", arch: ["arm64"] }],
+      : macPrivateBeta
+        ? [{ target: "dmg", arch: ["arm64", "x64"] }]
+        : [{ target: "dir", arch: ["arm64"] }],
     darkModeSupport: true,
     hardenedRuntime: macDistribution,
     gatekeeperAssess: false,
-    // En local, une .app non signée reste disponible pour les tests rapides.
-    // En distribution, electron-builder choisit le certificat Developer ID
-    // Application du trousseau ou celui fourni par CSC_LINK.
     identity: macDistribution ? undefined : null,
     notarize: macDistribution,
     entitlements: "build/entitlements.mac.plist",
@@ -100,8 +105,6 @@ module.exports = {
     ],
   },
 
-  // Le manifeste latest-mac.yml est généré avec les DMG/ZIP. L'application
-  // signée l'utilise ensuite pour rechercher les nouvelles versions GitHub.
   publish: distribution
     ? {
         provider: "github",
@@ -113,10 +116,9 @@ module.exports = {
 
   // ---------- Windows ----------
   win: {
-    // Nom stable pour conserver un lien de téléchargement permanent.
     artifactName: "${productName}-Setup.${ext}",
     icon: "build/icon.ico",
-    target: windowsDistribution
+    target: windowsInstaller
       ? [{ target: "nsis", arch: ["x64"] }]
       : [{ target: "dir", arch: ["x64"] }],
     azureSignOptions: windowsDistribution ? azureSigning : undefined,

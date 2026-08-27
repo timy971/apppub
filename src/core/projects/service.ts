@@ -5,6 +5,8 @@ import { JournalService } from "@/core/journal/logger";
 import { bridge } from "@/core/bridge";
 import { diag, diagOp } from "@/core/diag/logger";
 
+const ANDROID_PACKAGE_RE = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
+
 function uuid(): UUID {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -20,13 +22,40 @@ function inferName(p: string): string {
   return last.charAt(0).toUpperCase() + last.slice(1);
 }
 
+function validAndroidPackage(value?: string): string | undefined {
+  const clean = typeof value === "string" ? value.trim() : "";
+  return ANDROID_PACKAGE_RE.test(clean) ? clean : undefined;
+}
+
+function detectedAndroidPackage(detected: DetectedFiles): string | undefined {
+  return validAndroidPackage(detected.capacitorAppId) ?? validAndroidPackage(detected.packageName);
+}
+
+function normalizeLegacyProjectPackage(project: Project): Project {
+  const current = validAndroidPackage(project.packageName);
+  if (current) return project;
+  const detected =
+    validAndroidPackage(project.publishing?.android?.applicationId) ??
+    validAndroidPackage(project.detected.capacitorAppId) ??
+    validAndroidPackage(project.playStoreAppId);
+  if (!detected) return project;
+  return {
+    ...project,
+    packageName: detected,
+    fieldSources: {
+      ...(project.fieldSources ?? {}),
+      packageName: "detected",
+    },
+  };
+}
+
 function draftFromDetected(path: string, detected: DetectedFiles): ProjectDraft {
   return {
     name: detected.displayName || detected.packageName || inferName(path),
     technicalName: detected.packageName,
     logoEmoji: "📱",
     localPath: path,
-    packageName: detected.packageName,
+    packageName: detectedAndroidPackage(detected),
     currentVersion: detected.currentVersion || "1.0.0",
     currentBuild: detected.currentBuild || 1,
     detected: {
@@ -65,7 +94,15 @@ function sourceFromStatus(status: GitProjectStatus, lastSyncedAt?: string) {
 
 export const ProjectsService = {
   list(): Project[] {
-    return storage.get<Project[]>(STORAGE_KEYS.projects, []);
+    const stored = storage.get<Project[]>(STORAGE_KEYS.projects, []);
+    let changed = false;
+    const normalized = stored.map((project) => {
+      const next = normalizeLegacyProjectPackage(project);
+      if (next !== project) changed = true;
+      return next;
+    });
+    if (changed) storage.set(STORAGE_KEYS.projects, normalized);
+    return normalized;
   },
 
   get(id: UUID): Project | undefined {
@@ -88,7 +125,6 @@ export const ProjectsService = {
     const list = this.list();
     const idx = list.findIndex((p) => p.id === id);
     if (idx === -1) return undefined;
-    // Marque comme "user" les champs explicitement modifiés depuis l'UI.
     const nextSources: Record<string, "detected" | "user"> = {
       ...(list[idx].fieldSources ?? {}),
       ...(patch.fieldSources ?? {}),
@@ -114,10 +150,6 @@ export const ProjectsService = {
     JournalService.log("info", "Projet supprimé", { id });
   },
 
-  /**
-   * Détection d'un projet ponctuel — passe par le bridge (réel en Electron,
-   * simulé en Web). L'API publique n'a pas changé depuis Phase 1.
-   */
   async detectFromPath(path: string): Promise<ProjectDraft> {
     return diagOp(`ProjectsService.detectFromPath`, async () => {
       diag("service", "detectFromPath:begin", { path });
@@ -141,7 +173,6 @@ export const ProjectsService = {
     });
   },
 
-  /** Phase 2 — scanne un dossier racine et retourne les projets détectés. */
   async scanFolder(root: string): Promise<ScannedProject[]> {
     return diagOp(`ProjectsService.scanFolder`, async () => {
       diag("service", "scanFolder:begin", { root });
@@ -152,18 +183,18 @@ export const ProjectsService = {
     });
   },
 
-  /** Phase 2 — crée un projet directement depuis un ScannedProject. */
   saveFromScan(sp: ScannedProject): Project {
+    const packageName = detectedAndroidPackage(sp.detected);
     const fieldSources: Record<string, "detected" | "user"> = {};
     if (sp.detected.displayName) fieldSources["name"] = "detected";
-    if (sp.detected.packageName) fieldSources["packageName"] = "detected";
+    if (packageName) fieldSources["packageName"] = "detected";
     if (sp.detected.currentVersion) fieldSources["currentVersion"] = "detected";
     return this.save({
       name: sp.detected.displayName || sp.detected.packageName || sp.name,
       technicalName: sp.detected.packageName,
       logoEmoji: "📱",
       localPath: sp.path,
-      packageName: sp.detected.packageName,
+      packageName,
       currentVersion: sp.detected.currentVersion || "1.0.0",
       currentBuild: sp.detected.currentBuild || 1,
       detected: {
@@ -216,7 +247,7 @@ export const ProjectsService = {
       source: sourceFromStatus(cloned.status, new Date().toISOString()),
       fieldSources: {
         name: cloned.detected.displayName ? "detected" : "user",
-        packageName: cloned.detected.packageName ? "detected" : "user",
+        packageName: draft.packageName ? "detected" : "user",
         currentVersion: cloned.detected.currentVersion ? "detected" : "user",
         githubRepo: "detected",
         defaultBranch: "detected",
@@ -265,7 +296,7 @@ export const ProjectsService = {
       packageName:
         project.fieldSources?.packageName === "user"
           ? project.packageName
-          : detectedDraft.packageName,
+          : detectedDraft.packageName ?? project.packageName,
       currentVersion: detectedDraft.currentVersion,
       currentBuild: detectedDraft.currentBuild,
       detected: detectedDraft.detected,
@@ -279,7 +310,6 @@ export const ProjectsService = {
     return result.status;
   },
 
-  /** Relit les fichiers après une préparation Android locale. */
   async refreshDetection(id: UUID, applicationId?: string): Promise<Project | undefined> {
     const project = this.get(id);
     if (!project) return undefined;
@@ -288,8 +318,13 @@ export const ProjectsService = {
     const draft = draftFromDetected(project.localPath, detected);
     const currentAndroid = project.publishing?.android ?? {};
     const detectedApplicationId = applicationId || detected.capacitorAppId;
+    const detectedPackage = validAndroidPackage(applicationId) ?? draft.packageName;
     return this.update(id, {
       technicalName: draft.technicalName,
+      packageName:
+        project.fieldSources?.packageName === "user"
+          ? project.packageName
+          : detectedPackage ?? project.packageName,
       currentVersion: detected.currentVersion ?? project.currentVersion,
       currentBuild: detected.currentBuild ?? project.currentBuild,
       detected: draft.detected,
@@ -306,6 +341,9 @@ export const ProjectsService = {
       },
       fieldSources: {
         ...(project.fieldSources ?? {}),
+        ...(detectedPackage && project.fieldSources?.packageName !== "user"
+          ? { packageName: "detected" as const }
+          : {}),
         ...(applicationId
           ? { "android.applicationId": "user" as const }
           : detectedApplicationId && project.fieldSources?.["android.applicationId"] !== "user"

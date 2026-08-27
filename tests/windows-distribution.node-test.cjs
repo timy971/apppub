@@ -5,24 +5,39 @@ const path = require("node:path");
 
 const configPath = path.resolve(__dirname, "..", "electron-builder.config.cjs");
 
-function loadConfig(distribution) {
-  const previous = process.env.APPPUBLISHER_WIN_DISTRIBUTION;
-  if (distribution) process.env.APPPUBLISHER_WIN_DISTRIBUTION = "1";
-  else delete process.env.APPPUBLISHER_WIN_DISTRIBUTION;
+function loadConfig(mode = "local") {
+  const previousDistribution = process.env.APPPUBLISHER_WIN_DISTRIBUTION;
+  const previousPrivateBeta = process.env.APPPUBLISHER_WIN_PRIVATE_BETA;
+  delete process.env.APPPUBLISHER_WIN_DISTRIBUTION;
+  delete process.env.APPPUBLISHER_WIN_PRIVATE_BETA;
+  if (mode === "public") process.env.APPPUBLISHER_WIN_DISTRIBUTION = "1";
+  if (mode === "private-beta") process.env.APPPUBLISHER_WIN_PRIVATE_BETA = "1";
   delete require.cache[require.resolve(configPath)];
   const config = require(configPath);
-  if (previous === undefined) delete process.env.APPPUBLISHER_WIN_DISTRIBUTION;
-  else process.env.APPPUBLISHER_WIN_DISTRIBUTION = previous;
+  if (previousDistribution === undefined) delete process.env.APPPUBLISHER_WIN_DISTRIBUTION;
+  else process.env.APPPUBLISHER_WIN_DISTRIBUTION = previousDistribution;
+  if (previousPrivateBeta === undefined) delete process.env.APPPUBLISHER_WIN_PRIVATE_BETA;
+  else process.env.APPPUBLISHER_WIN_PRIVATE_BETA = previousPrivateBeta;
   return config;
 }
 
 test("le packaging Windows local reste rapide et sans installateur", () => {
-  const config = loadConfig(false);
+  const config = loadConfig("local");
   assert.deepEqual(config.win.target, [{ target: "dir", arch: ["x64"] }]);
+  assert.equal(config.forceCodeSigning, false);
 });
 
-test("la distribution Windows produit un installateur novice et stable", () => {
-  const config = loadConfig(true);
+test("la bêta privée produit le vrai installateur NSIS sans certificat payant", () => {
+  const config = loadConfig("private-beta");
+  assert.deepEqual(config.win.target, [{ target: "nsis", arch: ["x64"] }]);
+  assert.equal(config.win.artifactName, "${productName}-Setup.${ext}");
+  assert.equal(config.forceCodeSigning, false);
+  assert.equal(config.win.azureSignOptions, undefined);
+  assert.equal(config.publish, null);
+});
+
+test("la distribution Windows publique produit le même installateur avec signature obligatoire", () => {
+  const config = loadConfig("public");
   assert.deepEqual(config.win.target, [{ target: "nsis", arch: ["x64"] }]);
   assert.equal(config.win.artifactName, "${productName}-Setup.${ext}");
   assert.equal(config.nsis.oneClick, true);
@@ -39,7 +54,7 @@ test("la distribution Windows produit un installateur novice et stable", () => {
   });
 });
 
-test("Microsoft Trusted Signing peut remplacer un certificat PFX", () => {
+test("Microsoft Trusted Signing peut remplacer un certificat PFX pour la distribution publique", () => {
   const values = {
     WINDOWS_AZURE_PUBLISHER_NAME: "TC Capital",
     WINDOWS_AZURE_ENDPOINT: "https://example.codesigning.azure.net/",
@@ -63,7 +78,7 @@ test("Microsoft Trusted Signing peut remplacer un certificat PFX", () => {
   delete process.env.APPPUBLISHER_WIN_DISTRIBUTION;
 });
 
-test("le workflow Windows certifie avant de publier et n'utilise pas Bun", () => {
+test("le workflow Windows utilise les dépendances certifiées avant de publier", () => {
   const root = path.resolve(__dirname, "..");
   const workflow = fs.readFileSync(
     path.join(root, ".github/workflows/release-windows.yml"),
@@ -71,7 +86,28 @@ test("le workflow Windows certifie avant de publier et n'utilise pas Bun", () =>
   );
   const release = fs.readFileSync(path.join(root, "scripts/release-win.cjs"), "utf8");
   assert.match(workflow, /runs-on: windows-2025/);
-  assert.match(workflow, /npm run release:win:publish/);
-  assert.doesNotMatch(workflow, /setup-bun|bun install|bun run/);
+  assert.match(workflow, /oven-sh\/setup-bun@/);
+  assert.match(workflow, /bun install --frozen-lockfile/);
+  assert.match(workflow, /node scripts\/certify-release-candidate\.cjs/);
+  assert.match(workflow, /bun run release:win:publish/);
+  assert.doesNotMatch(workflow, /npm install --no-package-lock/);
   assert.ok(release.indexOf("verify-win-release.cjs") < release.indexOf("publish-win-release.cjs"));
+});
+
+test("la release candidate exécute une vraie recette Windows machine neuve", () => {
+  const root = path.resolve(__dirname, "..");
+  const workflow = fs.readFileSync(
+    path.join(root, ".github/workflows/release-candidate.yml"),
+    "utf8",
+  );
+  const recipe = fs.readFileSync(path.join(root, "scripts/smoke-win-clean-install.ps1"), "utf8");
+
+  assert.match(workflow, /Clean-machine private beta — Windows/);
+  assert.match(workflow, /smoke-win-clean-install\.ps1/);
+  assert.match(workflow, /windows-clean-machine-smoke\.json/);
+  assert.match(recipe, /Installation silencieuse sans élévation/);
+  assert.match(recipe, /Raccourci menu Démarrer créé/);
+  assert.match(recipe, /Données utilisateur conservées/);
+  assert.match(recipe, /Réinstallation enregistrée/);
+  assert.match(recipe, /Get-AuthenticodeSignature/);
 });
