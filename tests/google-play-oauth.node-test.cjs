@@ -1,5 +1,8 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const http = require("node:http");
+const os = require("node:os");
+const path = require("node:path");
 const test = require("node:test");
 const {
   CALLBACK_PATH,
@@ -36,6 +39,7 @@ test("completes the desktop loopback flow when Electron openExternal resolves wi
     },
     {
       timeoutMs: 2_000,
+      persistentConfigPath: null,
       oauthFactory(_clientId, _clientSecret, callbackUri) {
         redirectUri = callbackUri;
         return {
@@ -96,7 +100,10 @@ test("prefers an explicit build environment and never invents an OAuth client", 
     },
   });
   assert.equal(configured.clientId, "env.apps.googleusercontent.com");
-  assert.equal(new GooglePlayOAuth(configured).available(), true);
+  assert.equal(
+    new GooglePlayOAuth(configured, { persistentConfigPath: null }).available(),
+    true,
+  );
   assert.equal(loadGooglePlayOAuthConfig({ env: {}, fsModule: { readFileSync() {} } }), null);
 });
 
@@ -117,5 +124,87 @@ test("keeps a packaged OAuth config available after normalization", () => {
     },
   });
 
-  assert.equal(new GooglePlayOAuth(configured).available(), true);
+  assert.equal(
+    new GooglePlayOAuth(configured, { persistentConfigPath: null }).available(),
+    true,
+  );
+});
+
+test("imports and persists a desktop OAuth client on first launch", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-oauth-"));
+  try {
+    const source = path.join(dir, "client.json");
+    const persisted = path.join(dir, "user-data", "google-play-oauth.json");
+    fs.writeFileSync(
+      source,
+      JSON.stringify({
+        installed: {
+          client_id: "selected.apps.googleusercontent.com",
+          client_secret: "selected-secret",
+        },
+      }),
+      "utf8",
+    );
+
+    const oauth = new GooglePlayOAuth(null, {
+      persistentConfigPath: persisted,
+      selectConfigFile: async () => source,
+    });
+
+    assert.equal(oauth.available(), false);
+    assert.equal(await oauth.ensureConfigured(), true);
+    assert.equal(oauth.available(), true);
+    assert.deepEqual(JSON.parse(fs.readFileSync(persisted, "utf8")), {
+      installed: {
+        client_id: "selected.apps.googleusercontent.com",
+        client_secret: "selected-secret",
+      },
+    });
+
+    let pickerCalled = false;
+    const reloaded = new GooglePlayOAuth(null, {
+      persistentConfigPath: persisted,
+      selectConfigFile: async () => {
+        pickerCalled = true;
+        return null;
+      },
+    });
+    assert.equal(reloaded.available(), true);
+    assert.equal(pickerCalled, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("rejects a runtime JSON that is not a Google desktop OAuth client", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-oauth-invalid-"));
+  try {
+    const source = path.join(dir, "client.json");
+    fs.writeFileSync(
+      source,
+      JSON.stringify({ web: { client_id: "web.apps.googleusercontent.com" } }),
+      "utf8",
+    );
+    const oauth = new GooglePlayOAuth(null, {
+      persistentConfigPath: path.join(dir, "user-data", "google-play-oauth.json"),
+      selectConfigFile: async () => source,
+    });
+    await assert.rejects(
+      () => oauth.ensureConfigured(),
+      (error) => error?.code === "oauth-config-invalid",
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("treats closing the first-run OAuth picker as a cancellation", async () => {
+  const oauth = new GooglePlayOAuth(null, {
+    persistentConfigPath: null,
+    selectConfigFile: async () => null,
+  });
+  await assert.rejects(
+    () => oauth.authorize(async () => {}),
+    (error) => error?.code === "cancelled",
+  );
 });
