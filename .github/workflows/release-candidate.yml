@@ -88,14 +88,7 @@ jobs:
 
       - name: Verify packaged OAuth identity is the AppPublisher client
         shell: bash
-        run: |
-          node - <<'NODE'
-          const expected = require('./build/google-play-oauth-client.json').installed.client_id;
-          const generated = require('./build/google-play-oauth.json');
-          const actual = (generated.installed || generated).client_id;
-          if (!expected?.endsWith('.apps.googleusercontent.com')) throw new Error('Client ID AppPublisher invalide');
-          if (actual !== expected) throw new Error('Le build n’embarque pas le Client ID AppPublisher attendu');
-          NODE
+        run: node -e "const expected=require('./build/google-play-oauth-client.json').installed.client_id; const generated=require('./build/google-play-oauth.json'); const actual=(generated.installed||generated).client_id; if(!expected?.endsWith('.apps.googleusercontent.com')) throw new Error('Client ID AppPublisher invalide'); if(actual!==expected) throw new Error('Le build n’embarque pas le Client ID AppPublisher attendu');"
 
       - name: Verify packaged artifact exists
         shell: bash
@@ -105,20 +98,17 @@ jobs:
         if: matrix.os == 'macos-14'
         shell: bash
         run: |
+          expected="$(node -p "require('./build/google-play-oauth-client.json').installed.client_id")"
           for arch in arm64 x64; do
             mountpoint="$RUNNER_TEMP/apppublisher-$arch"
             mkdir -p "$mountpoint"
             hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" "dist-app/AppPublisher-$arch.dmg"
             test -d "$mountpoint/AppPublisher.app"
             test -x "$mountpoint/AppPublisher.app/Contents/MacOS/AppPublisher"
-            test -f "$mountpoint/AppPublisher.app/Contents/Resources/google-play-oauth.json"
-            node - "$mountpoint/AppPublisher.app/Contents/Resources/google-play-oauth.json" <<'NODE'
-            const fs = require('node:fs');
-            const embedded = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-            const expected = require('./build/google-play-oauth-client.json').installed.client_id;
-            const actual = (embedded.installed || embedded).client_id;
-            if (actual !== expected) throw new Error('Le DMG n’embarque pas le Client ID AppPublisher attendu');
-            NODE
+            embedded="$mountpoint/AppPublisher.app/Contents/Resources/google-play-oauth.json"
+            test -f "$embedded"
+            actual="$(node -p "const c=require(process.argv[1]); (c.installed||c).client_id" "$embedded")"
+            test "$actual" = "$expected"
             hdiutil detach "$mountpoint"
           done
 
