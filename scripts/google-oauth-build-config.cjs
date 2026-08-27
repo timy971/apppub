@@ -41,7 +41,7 @@ function resolveGoogleOAuthBuildConfig(env = process.env) {
     client_id: env.APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID,
     client_secret: env.APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET,
   });
-  if (direct) return { config: direct, source: "client-id" };
+  if (direct) return { config: direct, source: "environment" };
 
   const legacy = parseBase64Json(env.GOOGLE_PLAY_OAUTH_JSON_BASE64);
   if (legacy) return { config: legacy, source: "legacy-base64-json" };
@@ -57,49 +57,68 @@ function writeConfig(filePath, config, fsModule = fs) {
   });
 }
 
+function resultFor(pathValue, source, config) {
+  return {
+    path: pathValue,
+    source,
+    hasClientSecret: Boolean(config.installed.client_secret),
+    clientId: config.installed.client_id,
+  };
+}
+
 function ensureGoogleOAuthBuildConfig(options = {}) {
   const fsModule = options.fsModule ?? fs;
   const env = options.env ?? process.env;
   const outputPath = options.outputPath ?? defaultOutputPath;
   const publicClientPath = options.publicClientPath ?? defaultPublicClientPath;
   const required = options.required === true;
+  const requireClientSecret = options.requireClientSecret === true;
 
-  const existing = readExistingConfig(outputPath, fsModule);
-  if (existing) {
-    return {
-      path: outputPath,
-      source: "existing-file",
-      hasClientSecret: Boolean(existing.installed.client_secret),
-      clientId: existing.installed.client_id,
-    };
-  }
-
+  // Une valeur injectée au build doit toujours primer sur un ancien fichier
+  // généré localement afin qu'une RC ne recycle jamais une configuration
+  // OAuth incomplète d'un packaging précédent.
   const resolved = resolveGoogleOAuthBuildConfig(env);
-  if (resolved) {
+  if (resolved && (!requireClientSecret || resolved.config.installed.client_secret)) {
     writeConfig(outputPath, resolved.config, fsModule);
-    return {
-      path: outputPath,
-      source: resolved.source,
-      hasClientSecret: Boolean(resolved.config.installed.client_secret),
-      clientId: resolved.config.installed.client_id,
-    };
+    return resultFor(outputPath, resolved.source, resolved.config);
   }
 
   const publicClient = readExistingConfig(publicClientPath, fsModule);
-  if (publicClient) {
-    // Le fichier versionné ne doit contenir que l'identifiant public. Même si
-    // un secret était ajouté par erreur, on ne le recopie pas dans la build.
+  const injectedSecret =
+    typeof env.APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET === "string"
+      ? env.APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET.trim()
+      : "";
+  if (publicClient && injectedSecret) {
+    const config = {
+      installed: {
+        client_id: publicClient.installed.client_id,
+        client_secret: injectedSecret,
+      },
+    };
+    writeConfig(outputPath, config, fsModule);
+    return resultFor(outputPath, "versioned-client-id+injected-secret", config);
+  }
+
+  const existing = readExistingConfig(outputPath, fsModule);
+  if (existing && (!requireClientSecret || existing.installed.client_secret)) {
+    return resultFor(outputPath, "existing-file", existing);
+  }
+
+  if (publicClient && !requireClientSecret) {
+    // Le Client ID peut suffire pour les tests de source/local, mais les builds
+    // utilisateurs Google Desktop observées en recette exigent le Client secret
+    // lors de l'échange du code au point /token.
     const config = { installed: { client_id: publicClient.installed.client_id } };
     writeConfig(outputPath, config, fsModule);
-    return {
-      path: outputPath,
-      source: "versioned-public-client-id",
-      hasClientSecret: false,
-      clientId: config.installed.client_id,
-    };
+    return resultFor(outputPath, "versioned-public-client-id", config);
   }
 
   if (!required) return null;
+  if (requireClientSecret) {
+    throw new Error(
+      "Client secret OAuth Google AppPublisher absent. Pour une build utilisateur, injectez APPPUBLISHER_GOOGLE_OAUTH_CLIENT_SECRET (ou GOOGLE_PLAY_OAUTH_JSON_BASE64) au packaging ; ne commitez jamais le secret dans le dépôt.",
+    );
+  }
   throw new Error(
     "Client OAuth Google AppPublisher absent. Ajoutez build/google-play-oauth-client.json avec le Client ID public, ou configurez APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID.",
   );
@@ -108,12 +127,13 @@ function ensureGoogleOAuthBuildConfig(options = {}) {
 if (require.main === module) {
   try {
     const required = process.argv.includes("--required");
-    const result = ensureGoogleOAuthBuildConfig({ required });
+    const requireClientSecret = process.argv.includes("--require-client-secret");
+    const result = ensureGoogleOAuthBuildConfig({ required, requireClientSecret });
     if (!result) {
       console.log("• Aucun client OAuth Google intégré pour ce build local.");
     } else {
       console.log(
-        `✓ Client OAuth Google prêt (${result.source}${result.hasClientSecret ? ", secret optionnel présent" : ", Client ID uniquement"}).`,
+        `✓ Client OAuth Google prêt (${result.source}${result.hasClientSecret ? ", Client ID + secret injecté" : ", Client ID uniquement"}).`,
       );
     }
   } catch (error) {
