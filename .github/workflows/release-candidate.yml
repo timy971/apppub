@@ -89,3 +89,12 @@ jobs:
       - name: Verify packaged artifact exists
         shell: bash
         run: test -e "${{ matrix.artifact }}"
+
+      - name: Keep private Windows installer
+        if: matrix.os == 'windows-2025'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: AppPublisher-Windows-private-beta
+          path: dist-app/AppPublisher-Setup.exe
+          if-no-files-found: error
+          retention-days: 30
