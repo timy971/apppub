@@ -1,6 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { resolveGoogleOAuthBuildConfig } = require("./google-oauth-build-config.cjs");
+const { ensureGoogleOAuthBuildConfig } = require("./google-oauth-build-config.cjs");
 
 const azureNames = [
   "WINDOWS_AZURE_PUBLISHER_NAME",
@@ -21,7 +21,12 @@ function missing(names) {
   return names.filter((name) => !present(name));
 }
 
-const googleReady = Boolean(resolveGoogleOAuthBuildConfig(process.env));
+let googleReady = false;
+try {
+  googleReady = Boolean(ensureGoogleOAuthBuildConfig({ required: true }));
+} catch {
+  googleReady = false;
+}
 const hasAnyAzure = azureNames.some(present);
 const hasAnyPfx = pfxNames.some(present);
 
@@ -43,7 +48,7 @@ if (hasAnyAzure) {
 
 const failures = [
   ...(!googleReady
-    ? ["APPPUBLISHER_GOOGLE_OAUTH_CLIENT_ID (ou GOOGLE_PLAY_OAUTH_JSON_BASE64 pour compatibilité)"]
+    ? ["build/google-play-oauth-client.json (Client ID OAuth Desktop AppPublisher)"]
     : []),
   ...missingSigning,
 ];
