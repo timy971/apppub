@@ -39,19 +39,22 @@ jobs:
           bun run build:electron
           node scripts/certify-release-candidate.cjs
 
-      - name: Prepare private release files
+      - name: Check Windows release credentials
         shell: pwsh
         env:
           GOOGLE_PLAY_OAUTH_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_OAUTH_JSON_BASE64 }}
           WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_AZURE_PUBLISHER_NAME: ${{ secrets.WINDOWS_AZURE_PUBLISHER_NAME }}
           WINDOWS_AZURE_ENDPOINT: ${{ secrets.WINDOWS_AZURE_ENDPOINT }}
+          WINDOWS_AZURE_CERTIFICATE_PROFILE: ${{ secrets.WINDOWS_AZURE_CERTIFICATE_PROFILE }}
+          WINDOWS_AZURE_SIGNING_ACCOUNT: ${{ secrets.WINDOWS_AZURE_SIGNING_ACCOUNT }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
-          if (-not $env:GOOGLE_PLAY_OAUTH_JSON_BASE64) { throw "Secret Google OAuth absent" }
-          if (-not $env:WINDOWS_CERTIFICATE_PFX_BASE64 -and -not $env:WINDOWS_AZURE_ENDPOINT) { throw "Signature Windows absente" }
+          node scripts/check-windows-release-env.cjs
           [IO.File]::WriteAllBytes("build/google-play-oauth.json", [Convert]::FromBase64String($env:GOOGLE_PLAY_OAUTH_JSON_BASE64))
-          if ($env:WINDOWS_CERTIFICATE_PFX_BASE64) {
-            [IO.File]::WriteAllBytes("$env:RUNNER_TEMP/AppPublisher-signing.pfx", [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX_BASE64))
-          }
 
       - name: Build and verify the signed installer
         if: github.event_name == 'workflow_dispatch'
