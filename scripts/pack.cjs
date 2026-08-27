@@ -111,6 +111,14 @@ if (distributableBuild) {
   } catch (error) {
     fail(error?.message ?? String(error));
   }
+
+  info("Préparation de bundletool intégré…");
+  run(process.execPath, [path.join(root, "scripts", "ensure-bundletool.cjs")]);
+  const bundletoolPath = path.join(buildDir, "tools", "bundletool.jar");
+  if (!fs.existsSync(bundletoolPath)) {
+    fail("bundletool n'a pas été préparé pour la build distribuable.");
+  }
+  ok("bundletool 1.18.2 vérifié et prêt à être embarqué.");
 }
 
 info("Synchronisation de la version…");
