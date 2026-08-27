@@ -130,6 +130,18 @@ function Invoke-SilentUninstaller {
   Add-Check "Désinstallation silencieuse" ($process.ExitCode -eq 0) "Code de sortie : $($process.ExitCode)"
 }
 
+function Check-Bundletool {
+  param([string]$AppExe)
+  $resources = Join-Path (Split-Path -Parent $AppExe) "resources"
+  $bundletool = Join-Path $resources "tools\bundletool.jar"
+  Add-Check "bundletool installé" (Test-Path -LiteralPath $bundletool -PathType Leaf) $bundletool
+
+  $bundletoolScript = Join-Path $root "scripts\ensure-bundletool.cjs"
+  $expectedSha = (& node -p "require(process.argv[1]).BUNDLETOOL_SHA256" $bundletoolScript).Trim().ToUpperInvariant()
+  $actualSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $bundletool).Hash.ToUpperInvariant()
+  Add-Check "bundletool checksum certifié" ($actualSha -eq $expectedSha) "SHA-256 : $actualSha"
+}
+
 try {
   Add-Check "Installateur présent" (Test-Path -LiteralPath $installerPath -PathType Leaf) $installerPath
 
@@ -148,6 +160,7 @@ try {
 
   $installedExe = Resolve-InstalledExe $entry
   Add-Check "Exécutable installé" ($null -ne $installedExe) "AppPublisher.exe introuvable"
+  Check-Bundletool $installedExe
 
   $versionInfo = (Get-Item -LiteralPath $installedExe).VersionInfo
   Add-Check "Métadonnées produit valides" ($versionInfo.ProductName -eq "AppPublisher") "ProductName : $($versionInfo.ProductName)"
@@ -178,6 +191,7 @@ try {
   $reEntry = Get-AppUninstallEntry
   $reInstalledExe = Resolve-InstalledExe $reEntry
   Add-Check "Exécutable restauré après réinstallation" ($null -ne $reInstalledExe) "AppPublisher.exe introuvable après réinstallation"
+  Check-Bundletool $reInstalledExe
   Add-Check "Données conservées après réinstallation" (Test-Path -LiteralPath $marker) "Le marqueur utilisateur a disparu"
   Stop-AppPublisherProcesses
 
