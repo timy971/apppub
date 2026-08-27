@@ -9,6 +9,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const { ensureGoogleOAuthBuildConfig } = require("./google-oauth-build-config.cjs");
 
 const requestedTarget = process.argv[2] || "mac";
 if (!["mac", "mac-beta", "win", "win-beta"].includes(requestedTarget)) {
@@ -26,6 +27,7 @@ if (windowsPrivateBeta) process.env.APPPUBLISHER_WIN_PRIVATE_BETA = "1";
 const macDistribution = target === "mac" && process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
 const windowsDistribution = target === "win" && process.env.APPPUBLISHER_WIN_DISTRIBUTION === "1";
 const windowsInstaller = windowsDistribution || windowsPrivateBeta;
+const distributableBuild = macPrivateBeta || windowsPrivateBeta || macDistribution || windowsDistribution;
 
 const root = path.resolve(__dirname, "..");
 const distApp = path.join(root, "dist-app");
@@ -100,6 +102,18 @@ for (const rel of ["electron/main.cjs", "electron/preload.cjs", "app.config.cjs"
   if (!fs.existsSync(path.join(root, rel))) fail(`Fichier manquant : ${rel}`);
 }
 ok("Fichiers Electron présents.");
+
+if (distributableBuild) {
+  info("Préparation de la connexion Google intégrée…");
+  try {
+    const oauth = ensureGoogleOAuthBuildConfig({ required: true });
+    ok(
+      `Client OAuth AppPublisher intégré (${oauth.hasClientSecret ? "Client ID + secret optionnel" : "Client ID public uniquement"}).`,
+    );
+  } catch (error) {
+    fail(error?.message ?? String(error));
+  }
+}
 
 info("Synchronisation de la version…");
 run(process.execPath, [path.join(root, "scripts", "sync-version.cjs")]);
