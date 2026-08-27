@@ -5,24 +5,39 @@ const path = require("node:path");
 
 const configPath = path.resolve(__dirname, "..", "electron-builder.config.cjs");
 
-function loadConfig(distribution) {
-  const previous = process.env.APPPUBLISHER_WIN_DISTRIBUTION;
-  if (distribution) process.env.APPPUBLISHER_WIN_DISTRIBUTION = "1";
-  else delete process.env.APPPUBLISHER_WIN_DISTRIBUTION;
+function loadConfig(mode = "local") {
+  const previousDistribution = process.env.APPPUBLISHER_WIN_DISTRIBUTION;
+  const previousPrivateBeta = process.env.APPPUBLISHER_WIN_PRIVATE_BETA;
+  delete process.env.APPPUBLISHER_WIN_DISTRIBUTION;
+  delete process.env.APPPUBLISHER_WIN_PRIVATE_BETA;
+  if (mode === "public") process.env.APPPUBLISHER_WIN_DISTRIBUTION = "1";
+  if (mode === "private-beta") process.env.APPPUBLISHER_WIN_PRIVATE_BETA = "1";
   delete require.cache[require.resolve(configPath)];
   const config = require(configPath);
-  if (previous === undefined) delete process.env.APPPUBLISHER_WIN_DISTRIBUTION;
-  else process.env.APPPUBLISHER_WIN_DISTRIBUTION = previous;
+  if (previousDistribution === undefined) delete process.env.APPPUBLISHER_WIN_DISTRIBUTION;
+  else process.env.APPPUBLISHER_WIN_DISTRIBUTION = previousDistribution;
+  if (previousPrivateBeta === undefined) delete process.env.APPPUBLISHER_WIN_PRIVATE_BETA;
+  else process.env.APPPUBLISHER_WIN_PRIVATE_BETA = previousPrivateBeta;
   return config;
 }
 
 test("le packaging Windows local reste rapide et sans installateur", () => {
-  const config = loadConfig(false);
+  const config = loadConfig("local");
   assert.deepEqual(config.win.target, [{ target: "dir", arch: ["x64"] }]);
+  assert.equal(config.forceCodeSigning, false);
 });
 
-test("la distribution Windows produit un installateur novice et stable", () => {
-  const config = loadConfig(true);
+test("la bêta privée produit le vrai installateur NSIS sans certificat payant", () => {
+  const config = loadConfig("private-beta");
+  assert.deepEqual(config.win.target, [{ target: "nsis", arch: ["x64"] }]);
+  assert.equal(config.win.artifactName, "${productName}-Setup.${ext}");
+  assert.equal(config.forceCodeSigning, false);
+  assert.equal(config.win.azureSignOptions, undefined);
+  assert.equal(config.publish, null);
+});
+
+test("la distribution Windows publique produit le même installateur avec signature obligatoire", () => {
+  const config = loadConfig("public");
   assert.deepEqual(config.win.target, [{ target: "nsis", arch: ["x64"] }]);
   assert.equal(config.win.artifactName, "${productName}-Setup.${ext}");
   assert.equal(config.nsis.oneClick, true);
@@ -39,7 +54,7 @@ test("la distribution Windows produit un installateur novice et stable", () => {
   });
 });
 
-test("Microsoft Trusted Signing peut remplacer un certificat PFX", () => {
+test("Microsoft Trusted Signing peut remplacer un certificat PFX pour la distribution publique", () => {
   const values = {
     WINDOWS_AZURE_PUBLISHER_NAME: "TC Capital",
     WINDOWS_AZURE_ENDPOINT: "https://example.codesigning.azure.net/",
