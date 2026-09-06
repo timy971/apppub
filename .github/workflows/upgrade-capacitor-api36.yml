@@ -1,0 +1,79 @@
+name: Temporary Capacitor 8 API 36 upgrade
+
+on:
+  push:
+    branches: ["fix/capacitor-8-api36"]
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/capacitor-8-api36
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Upgrade certified Capacitor and API gate
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const replace = (file, from, to) => {
+            const source = fs.readFileSync(file, 'utf8');
+            if (!source.includes(from)) throw new Error(`Expected text missing in ${file}`);
+            fs.writeFileSync(file, source.split(from).join(to));
+          };
+
+          const versionFiles = [
+            'electron/execution-policy.cjs',
+            'electron/android-preparation.cjs',
+            'src/core/capacitor/service.ts',
+            'src/core/capacitor/service.test.ts',
+            'tests/execution-policy.node-test.cjs',
+            'tests/android-preparation.node-test.cjs',
+            'tests/fixtures/android-reference/package.json',
+          ];
+          for (const file of versionFiles) replace(file, '7.6.8', '8.5.1');
+
+          replace(
+            '.github/workflows/quality.yml',
+            'sdkmanager "platforms;android-35" "build-tools;34.0.0" "build-tools;35.0.0"',
+            'sdkmanager "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0"',
+          );
+
+          const inspector = 'electron/aab-inspector.cjs';
+          const sdkBlock = `  } else if (archive.targetSdk < archive.minSdk) {\n    add(\n      "sdk-invalid",\n      "error",\n      "SDK incohérents",\n      \`Le targetSdk \${archive.targetSdk} est inférieur au minSdk \${archive.minSdk}.\`,\n    );\n  }\n`;
+          const sdkBlock36 = `${sdkBlock}  else if (archive.targetSdk < 36) {\n    add(\n      "target-sdk-too-low",\n      "error",\n      "Android 16 requis",\n      \`Google Play exige targetSdk 36 ou supérieur pour les nouvelles soumissions depuis le 31 août 2026 (AAB: \${archive.targetSdk}).\`,\n    );\n  }\n`;
+          replace(inspector, sdkBlock, sdkBlock36);
+
+          const inspectorTest = 'tests/aab-inspector.node-test.cjs';
+          let test = fs.readFileSync(inspectorTest, 'utf8')
+            .replaceAll('targetSdkVersion: overrides.targetSdk ?? "35"', 'targetSdkVersion: overrides.targetSdk ?? "36"')
+            .replaceAll('compiledIntegerAttribute("targetSdkVersion", 35)', 'compiledIntegerAttribute("targetSdkVersion", 36)')
+            .replaceAll('targetSdk: 35', 'targetSdk: 36');
+          const anchor = `test("blocks the exact wrong-package and wrong-upload-key scenario", () => {`;
+          if (!test.includes(anchor)) throw new Error('AAB inspector test anchor missing');
+          const apiTest = `test("blocks an otherwise valid AAB below Google Play API 36", () => {\n  const report = buildValidationReport({\n    archive: { ...archive, targetSdk: 35 },\n    expected,\n    signature: { ok: true, sha256: "112233" },\n    bundletool: { status: "passed", version: "1.18.2" },\n    inspectedAt: "2026-09-06T00:00:00.000Z",\n  });\n  assert.equal(report.verdict, "blocked");\n  assert.ok(report.issues.some((issue) => issue.id === "target-sdk-too-low"));\n});\n\n`;
+          test = test.replace(anchor, apiTest + anchor);
+          fs.writeFileSync(inspectorTest, test);
+          NODE
+
+          cd tests/fixtures/android-reference
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Commit generated upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add electron src tests .github/workflows/quality.yml
+          git commit -m "Android 2026: certify Capacitor 8.5.1 and API 36"
+          git push origin HEAD:fix/capacitor-8-api36
