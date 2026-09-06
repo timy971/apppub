@@ -32,7 +32,7 @@ export interface PrepareAndroidResult {
   applicationId: string;
 }
 
-export const CERTIFIED_CAPACITOR_VERSION = "7.6.8";
+export const CERTIFIED_CAPACITOR_VERSION = "8.5.1";
 const CERTIFIED_CAPACITOR_PACKAGES = [
   "@capacitor/cli",
   "@capacitor/android",

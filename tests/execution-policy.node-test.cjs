@@ -77,9 +77,9 @@ test("allows only the exact Android preparation commands", (t) => {
       args: [
         "install",
         "--save-exact",
-        "@capacitor/cli@7.6.8",
-        "@capacitor/android@7.6.8",
-        "@capacitor/core@7.6.8",
+        "@capacitor/cli@8.5.1",
+        "@capacitor/android@8.5.1",
+        "@capacitor/core@8.5.1",
       ],
       cwd: project,
     },

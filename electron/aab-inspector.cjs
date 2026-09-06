@@ -406,6 +406,14 @@ function buildValidationReport({
       `Le targetSdk ${archive.targetSdk} est inférieur au minSdk ${archive.minSdk}.`,
     );
   }
+  else if (archive.targetSdk < 36) {
+    add(
+      "target-sdk-too-low",
+      "error",
+      "Android 16 requis",
+      `Google Play exige targetSdk 36 ou supérieur pour les nouvelles soumissions depuis le 31 août 2026 (AAB: ${archive.targetSdk}).`,
+    );
+  }
   if (bundletool?.status === "failed") {
     add(
       "bundletool-failed",

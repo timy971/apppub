@@ -14,7 +14,7 @@ const packages = [
 
 describe("CapacitorService — commandes de préparation", () => {
   it("verrouille les trois composants sur la version certifiée", () => {
-    expect(CERTIFIED_CAPACITOR_VERSION).toBe("7.6.8");
+    expect(CERTIFIED_CAPACITOR_VERSION).toBe("8.5.1");
     expect(capacitorInstall("npm")).toEqual({
       cmd: "npm",
       args: ["install", "--save-exact", ...packages],

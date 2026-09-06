@@ -11,7 +11,7 @@ function sameArgs(actual, expected) {
   );
 }
 
-const CERTIFIED_CAPACITOR_VERSION = "7.6.8";
+const CERTIFIED_CAPACITOR_VERSION = "8.5.1";
 const CAPACITOR_PACKAGES = ["@capacitor/cli", "@capacitor/android", "@capacitor/core"].map(
   (name) => `${name}@${CERTIFIED_CAPACITOR_VERSION}`,
 );

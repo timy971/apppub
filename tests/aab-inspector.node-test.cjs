@@ -68,7 +68,7 @@ function elementWithAttributes(name, attributes, children = []) {
 function manifestBuffer(overrides = {}) {
   const sdk = element("uses-sdk", {
     minSdkVersion: overrides.minSdk ?? "24",
-    targetSdkVersion: overrides.targetSdk ?? "35",
+    targetSdkVersion: overrides.targetSdk ?? "36",
   });
   const root = element(
     "manifest",
@@ -128,14 +128,14 @@ test("extracts the Play identity and SDK values from the protobuf manifest", () 
     versionName: "1.2.3",
     versionCode: 42,
     minSdk: 24,
-    targetSdk: 35,
+    targetSdk: 36,
   });
 });
 
 test("reads numeric attributes from their official compiled Item representation", () => {
   const sdk = elementWithAttributes("uses-sdk", [
     compiledIntegerAttribute("minSdkVersion", 26),
-    compiledIntegerAttribute("targetSdkVersion", 35),
+    compiledIntegerAttribute("targetSdkVersion", 36),
   ]);
   const manifest = elementWithAttributes(
     "manifest",
@@ -151,7 +151,7 @@ test("reads numeric attributes from their official compiled Item representation"
     versionName: "2.0.0",
     versionCode: 77,
     minSdk: 26,
-    targetSdk: 35,
+    targetSdk: 36,
   });
 });
 
@@ -183,7 +183,7 @@ const archive = {
   versionName: "1.2.3",
   versionCode: 42,
   minSdk: 24,
-  targetSdk: 35,
+  targetSdk: 36,
   modules: ["base"],
   artifactSha256: "A".repeat(64),
   artifactSizeBytes: 1234,
@@ -208,6 +208,18 @@ test("returns ready only when identity, signature and bundletool all agree", () 
   assert.equal(report.verdict, "ready");
   assert.deepEqual(report.issues, []);
   assert.equal(report.signerSha256, "112233");
+});
+
+test("blocks an otherwise valid AAB below Google Play API 36", () => {
+  const report = buildValidationReport({
+    archive: { ...archive, targetSdk: 35 },
+    expected,
+    signature: { ok: true, sha256: "112233" },
+    bundletool: { status: "passed", version: "1.18.2" },
+    inspectedAt: "2026-09-06T00:00:00.000Z",
+  });
+  assert.equal(report.verdict, "blocked");
+  assert.ok(report.issues.some((issue) => issue.id === "target-sdk-too-low"));
 });
 
 test("blocks the exact wrong-package and wrong-upload-key scenario", () => {

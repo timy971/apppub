@@ -41,7 +41,7 @@ test("classifies a Vite repository as preparable and infers safe defaults", (t) 
   assert.equal(analysis.applicationId, "app.cranioscan.android");
   assert.equal(analysis.webDir, "dist");
   assert.ok(analysis.changes.some((change) => change.includes("capacitor.config.json")));
-  assert.ok(analysis.changes.some((change) => change.includes("7.6.8")));
+  assert.ok(analysis.changes.some((change) => change.includes("8.5.1")));
 });
 
 test("classifies a Lovable Vite export without Capacitor or android as preparable", (t) => {
