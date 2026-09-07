@@ -410,6 +410,13 @@ function buildValidationReport({
       "SDK incohérents",
       `Le targetSdk ${archive.targetSdk} est inférieur au minSdk ${archive.minSdk}.`,
     );
+  } else if (archive.targetSdk < CERTIFIED_TARGET_SDK) {
+    add(
+      "sdk-outdated",
+      "warning",
+      "SDK cible obsolète",
+      `L'AAB cible le SDK ${archive.targetSdk} alors que la cible certifiée est le SDK ${CERTIFIED_TARGET_SDK}. Google Play refuse les versions dont le SDK cible est trop ancien.`,
+    );
   }
   if (bundletool?.status === "failed") {
     add(
@@ -441,6 +448,7 @@ function buildValidationReport({
     versionCode: archive.versionCode,
     minSdk: archive.minSdk,
     targetSdk: archive.targetSdk,
+    certifiedTargetSdk: CERTIFIED_TARGET_SDK,
     modules: archive.modules,
     artifactSha256: archive.artifactSha256,
     artifactSizeBytes: archive.artifactSizeBytes,
@@ -460,6 +468,9 @@ function buildValidationReport({
 }
 
 module.exports = {
+  CERTIFIED_COMPILE_SDK,
+  CERTIFIED_MIN_SDK,
+  CERTIFIED_TARGET_SDK,
   buildValidationReport,
   inspectAabArchive,
   normalizeFingerprint,
