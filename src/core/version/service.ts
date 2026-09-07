@@ -26,6 +26,16 @@ interface VersionJson {
   build?: number;
 }
 
+const VERSION_SCRIPT_CANDIDATES = ["scripts/version.mjs", "scripts/version.js"] as const;
+
+async function resolveVersionScript(projectPath: string): Promise<string | null> {
+  const b = bridge();
+  for (const relative of VERSION_SCRIPT_CANDIDATES) {
+    if (await b.fs.exists(`${projectPath}/${relative}`)) return relative;
+  }
+  return null;
+}
+
 export const VersionService = {
   preview(project: Project, type: VersionChangeType): VersionBumpPreview {
     return {
@@ -59,7 +69,9 @@ export const VersionService = {
 
   /**
    * Phase 2 — applique une nouvelle version en exécutant le script officiel
-   * du projet. En Web, on simule (le workflow engine gère l'affichage).
+   * du projet. Les projets Lovable historiques utilisent selon leur génération
+   * scripts/version.mjs ou scripts/version.js ; les deux chemins sont explicitement
+   * allowlistés côté Electron.
    */
   async apply(
     project: Project,
@@ -76,18 +88,26 @@ export const VersionService = {
         "La modification réelle de la version nécessite l’application AppPublisher installée.",
       );
     }
+
+    const versionScript = await resolveVersionScript(project.localPath);
+    if (!versionScript) {
+      throw new Error(
+        "Le script de version est introuvable. AppPublisher accepte scripts/version.mjs ou scripts/version.js.",
+      );
+    }
+
     const scriptArg = type === "bugfix" ? "patch" : type === "feature" ? "minor" : "major";
     const result = await b.exec.run(
       {
         cmd: "node",
-        args: ["scripts/version.mjs", scriptArg],
+        args: [versionScript, scriptArg],
         cwd: project.localPath,
         timeoutMs: 60_000,
       },
       onLine ? (l) => onLine(l.line) : undefined,
     );
     JournalService.logCommand({
-      command: `node scripts/version.mjs ${scriptArg}`,
+      command: `node ${versionScript} ${scriptArg}`,
       cwd: project.localPath,
       durationMs: result.durationMs,
       exitCode: result.exitCode,

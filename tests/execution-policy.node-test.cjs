@@ -15,6 +15,8 @@ function policyFixture(t) {
   fs.mkdirSync(path.join(project, "android"), { recursive: true });
   fs.writeFileSync(path.join(project, "package.json"), "{}");
   fs.writeFileSync(path.join(project, "scripts", "version.mjs"), "");
+  fs.writeFileSync(path.join(project, "scripts", "version.js"), "");
+  fs.writeFileSync(path.join(project, "scripts", "other.js"), "");
   fs.writeFileSync(path.join(project, "android", "gradlew"), "");
   const access = new ProjectAccessRegistry({
     filePath: path.join(root, "roots.json"),
@@ -31,12 +33,22 @@ test("allows only the exact application workflows", (t) => {
     validateExecutionRequest({ cmd: "npm", args: ["run", "build"], cwd: project }, access).ok,
     true,
   );
+  for (const versionScript of ["scripts/version.mjs", "scripts/version.js"]) {
+    assert.equal(
+      validateExecutionRequest(
+        { cmd: "node", args: [versionScript, "patch"], cwd: project },
+        access,
+      ).ok,
+      true,
+      versionScript,
+    );
+  }
   assert.equal(
     validateExecutionRequest(
-      { cmd: "node", args: ["scripts/version.mjs", "patch"], cwd: project },
+      { cmd: "node", args: ["scripts/other.js", "patch"], cwd: project },
       access,
     ).ok,
-    true,
+    false,
   );
   assert.equal(
     validateExecutionRequest({ cmd: "node", args: ["-e", "process.exit()"], cwd: project }, access)
