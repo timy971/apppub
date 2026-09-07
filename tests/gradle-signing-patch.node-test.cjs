@@ -8,7 +8,7 @@ const {
 } = require("../electron/gradle-signing-patch.cjs");
 
 test("builds the managed signing block in the main process and stays idempotent", () => {
-  const first = buildPatchedGradle("android { compileSdkVersion 35 }\n");
+  const first = buildPatchedGradle("android { compileSdkVersion 36 }\n");
   assert.equal(first.ok, true);
   assert.equal(first.changed, true);
   assert.match(first.content, /appPublisherRelease/);
