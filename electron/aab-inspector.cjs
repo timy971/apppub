@@ -10,6 +10,11 @@ const MAX_MANIFEST_SIZE = 16 * 1024 * 1024;
 const MAX_CENTRAL_DIRECTORY_SIZE = 64 * 1024 * 1024;
 const MAX_ZIP_ENTRIES = 100_000;
 
+// Cible certifiée AppPublisher : Capacitor 8.5.0 génère compileSdk/targetSdk 36 et minSdk 24.
+const CERTIFIED_TARGET_SDK = 36;
+const CERTIFIED_COMPILE_SDK = 36;
+const CERTIFIED_MIN_SDK = 24;
+
 function normalizeFingerprint(value) {
   return typeof value === "string" ? value.replace(/[^0-9a-f]/gi, "").toUpperCase() : undefined;
 }
