@@ -18,7 +18,10 @@ export const DiagnosticService = {
       projectPath ? b.fs.exists(`${projectPath}/android`) : Promise.resolve(!!has?.hasAndroid),
       projectPath ? b.fs.exists(`${projectPath}/version.json`) : Promise.resolve(!!has?.hasVersionJson),
       projectPath
-        ? b.fs.exists(`${projectPath}/scripts/version.mjs`)
+        ? Promise.all([
+            b.fs.exists(`${projectPath}/scripts/version.mjs`),
+            b.fs.exists(`${projectPath}/scripts/version.js`),
+          ]).then(([mjs, js]) => mjs || js)
         : Promise.resolve(!!has?.hasVersionScript),
     ]);
 
@@ -110,7 +113,7 @@ export const DiagnosticService = {
         label: "Script de mise à jour de version",
         present: !project ? false : !!existsVersionScript,
         okMsg: "Le script officiel de version est présent.",
-        koMsg: "Le script scripts/version.mjs est manquant.",
+        koMsg: "Le script scripts/version.mjs ou scripts/version.js est manquant.",
         why: "AppPublisher utilise ce script pour appliquer la nouvelle version sans risque.",
         category: "project",
         weight: 2,
