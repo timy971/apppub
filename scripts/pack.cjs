@@ -1,7 +1,7 @@
 /**
  * Orchestrateur de packaging AppPublisher.
  *
- *   node scripts/pack.cjs mac    → build/dmg/zip macOS (arm64)
+ *   node scripts/pack.cjs mac    → application locale ou DMG/ZIP de distribution
  *   node scripts/pack.cjs win    → build/nsis/zip Windows (x64)
  *
  * Étapes :
@@ -18,7 +18,6 @@ const { spawnSync } = require("child_process");
 
 const target = process.argv[2] || "mac";
 const macDistribution = target === "mac" && process.env.APPPUBLISHER_MAC_DISTRIBUTION === "1";
-const publish = macDistribution && process.env.APPPUBLISHER_PUBLISH === "1";
 if (!["mac", "win"].includes(target)) {
   console.error(`Cible inconnue : ${target}. Utilisez "mac" ou "win".`);
   process.exit(1);
@@ -130,7 +129,9 @@ info(`Packaging Electron (${target})…`);
 const ebArgs = ["electron-builder", "--config", "electron-builder.config.cjs"];
 if (target === "mac") ebArgs.push("--mac");
 if (target === "win") ebArgs.push("--win");
-ebArgs.push("--publish", publish ? "always" : "never");
+// La publication est volontairement séparée du packaging : un binaire ne
+// peut atteindre GitHub Releases qu'après la certification complète du lot 9.
+ebArgs.push("--publish", "never");
 run("npx", ebArgs);
 
 if (

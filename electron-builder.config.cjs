@@ -37,7 +37,6 @@ module.exports = {
   // Compression raisonnable : équilibre taille / temps de packaging.
   compression: "normal",
   removePackageScripts: true,
-
   extraMetadata: {
     name: "apppublisher",
     productName: app.productName,
@@ -48,6 +47,9 @@ module.exports = {
 
   // ---------- macOS ----------
   mac: {
+    // Nom volontairement stable : la page d'installation peut conserver un
+    // seul lien, quelle que soit la version publiée.
+    artifactName: "${productName}.${ext}",
     category: "public.app-category.developer-tools",
     icon: "build/icon.icns",
     target: distribution
