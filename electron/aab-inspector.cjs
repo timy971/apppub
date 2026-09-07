@@ -10,6 +10,11 @@ const MAX_MANIFEST_SIZE = 16 * 1024 * 1024;
 const MAX_CENTRAL_DIRECTORY_SIZE = 64 * 1024 * 1024;
 const MAX_ZIP_ENTRIES = 100_000;
 
+// Cible certifiée AppPublisher : Capacitor 8.5.0 génère compileSdk/targetSdk 36 et minSdk 24.
+const CERTIFIED_TARGET_SDK = 36;
+const CERTIFIED_COMPILE_SDK = 36;
+const CERTIFIED_MIN_SDK = 24;
+
 function normalizeFingerprint(value) {
   return typeof value === "string" ? value.replace(/[^0-9a-f]/gi, "").toUpperCase() : undefined;
 }
@@ -405,6 +410,13 @@ function buildValidationReport({
       "SDK incohérents",
       `Le targetSdk ${archive.targetSdk} est inférieur au minSdk ${archive.minSdk}.`,
     );
+  } else if (archive.targetSdk < CERTIFIED_TARGET_SDK) {
+    add(
+      "sdk-outdated",
+      "warning",
+      "SDK cible obsolète",
+      `L'AAB cible le SDK ${archive.targetSdk} alors que la cible certifiée est le SDK ${CERTIFIED_TARGET_SDK}. Google Play refuse les versions dont le SDK cible est trop ancien.`,
+    );
   }
   if (bundletool?.status === "failed") {
     add(
@@ -436,6 +448,7 @@ function buildValidationReport({
     versionCode: archive.versionCode,
     minSdk: archive.minSdk,
     targetSdk: archive.targetSdk,
+    certifiedTargetSdk: CERTIFIED_TARGET_SDK,
     modules: archive.modules,
     artifactSha256: archive.artifactSha256,
     artifactSizeBytes: archive.artifactSizeBytes,
@@ -455,6 +468,9 @@ function buildValidationReport({
 }
 
 module.exports = {
+  CERTIFIED_COMPILE_SDK,
+  CERTIFIED_MIN_SDK,
+  CERTIFIED_TARGET_SDK,
   buildValidationReport,
   inspectAabArchive,
   normalizeFingerprint,

@@ -36,6 +36,13 @@ export function desiredCorrections(report: AabValidationReport): AndroidCorrecti
     report.targetSdk < report.minSdk
   ) {
     desired.targetSdk = report.minSdk;
+  } else if (
+    issueIds.has("sdk-outdated") &&
+    report.certifiedTargetSdk != null &&
+    report.targetSdk != null &&
+    report.targetSdk < report.certifiedTargetSdk
+  ) {
+    desired.targetSdk = report.certifiedTargetSdk;
   }
   return desired;
 }

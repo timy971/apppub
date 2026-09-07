@@ -17,7 +17,7 @@ const PACKAGE_MANAGERS = Object.freeze([
 ]);
 
 const APPLICATION_ID = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
-const CERTIFIED_CAPACITOR_VERSION = "7.6.8";
+const CERTIFIED_CAPACITOR_VERSION = "8.5.0";
 const ROLLBACK_CANDIDATES = Object.freeze([
   "android",
   "node_modules",

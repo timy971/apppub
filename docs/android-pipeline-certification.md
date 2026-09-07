@@ -3,11 +3,27 @@
 Le workflow `Quality gate` prouve la chaîne Android avant toute intégration Google Play. Il ne
 publie rien et n'utilise aucune clé réelle.
 
+## Cible certifiée
+
+| Élément | Valeur certifiée |
+| --- | --- |
+| Capacitor (`cli`, `core`, `android`) | 8.5.0, installé en version exacte |
+| compileSdk / targetSdk | 36 |
+| minSdk | 24 |
+| Android Gradle Plugin | 8.13.0 (fourni par le gabarit Capacitor 8) |
+| Gradle | 8.14.3 (wrapper du gabarit Capacitor 8) |
+| JDK | 21 |
+
+AGP, Gradle et le JDK proviennent du gabarit Android de Capacitor 8.5.0 : AppPublisher ne les
+écrase pas. Le moteur de validation AAB signale en avertissement tout bundle dont le `targetSdk`
+est inférieur à 36 et propose la correction `targetSdk = 36`.
+
+
 ## Preuve exécutée
 
 Le job `Two signed Android releases` :
 
-1. crée un projet Android à partir d'une fixture Capacitor 7 verrouillée ;
+1. crée un projet Android à partir d'une fixture Capacitor 8.5.0 verrouillée (compileSdk/targetSdk 36, minSdk 24) ;
 2. génère un keystore RSA éphémère dans le dossier temporaire du runner ;
 3. applique le bloc de signature géré par AppPublisher ;
 4. utilise le moteur de correction AppPublisher pour produire les versions `1.0.0 (100)` puis
@@ -35,7 +51,7 @@ chaîne sans conserver un binaire signé, même avec une clé éphémère.
 
 ## Exécution locale
 
-Prérequis : Node.js, npm, JDK 21, Android SDK 35 et accès réseau pour Gradle. Téléchargez
+Prérequis : Node.js, npm, JDK 21, Android SDK 36 (build-tools 36.0.0) et accès réseau pour Gradle. Téléchargez
 bundletool 1.18.2, vérifiez son SHA-256 puis lancez :
 
 ```bash
