@@ -203,6 +203,7 @@ export interface AabValidationReport {
   versionCode?: number;
   minSdk?: number;
   targetSdk?: number;
+  certifiedTargetSdk?: number;
   modules: string[];
   artifactSha256?: string;
   artifactSizeBytes: number;

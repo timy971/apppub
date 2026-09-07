@@ -39,7 +39,7 @@ test("previews and applies package, version and SDK corrections atomically", (t)
     packageName: "app.lovable.cranioscan.twa",
     versionName: "2.1.0",
     versionCode: 18,
-    targetSdk: 35,
+    targetSdk: 36,
   };
   const preview = manager.preview(root, desired);
   assert.equal(preview.canApply, true);
@@ -58,7 +58,7 @@ test("previews and applies package, version and SDK corrections atomically", (t)
   assert.match(gradle, /applicationId "app\.lovable\.cranioscan\.twa"/);
   assert.match(gradle, /versionName "2\.1\.0"/);
   assert.match(gradle, /versionCode 18/);
-  assert.match(gradle, /targetSdkVersion 35/);
+  assert.match(gradle, /targetSdkVersion 36/);
 });
 
 test("supports literal TypeScript Capacitor config and Kotlin Gradle DSL", (t) => {
