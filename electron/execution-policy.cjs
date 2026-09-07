@@ -15,6 +15,7 @@ const CERTIFIED_CAPACITOR_VERSION = "8.5.0";
 const CAPACITOR_PACKAGES = ["@capacitor/cli", "@capacitor/android", "@capacitor/core"].map(
   (name) => `${name}@${CERTIFIED_CAPACITOR_VERSION}`,
 );
+const VERSION_SCRIPTS = new Set(["scripts/version.mjs", "scripts/version.js"]);
 
 function isPackageManagerWorkflow(command, args) {
   if (["npm", "npm.cmd"].includes(command)) {
@@ -101,7 +102,7 @@ function validateExecutionRequest(opts, accessRegistry, options = {}) {
   }
 
   if (command === "node" && inProjectRoot && args.length === 2) {
-    if (args[0] === "scripts/version.mjs" && ["patch", "minor", "major"].includes(args[1])) {
+    if (VERSION_SCRIPTS.has(args[0]) && ["patch", "minor", "major"].includes(args[1])) {
       const script = accessRegistry.resolveExisting(path.join(projectRoot, args[0]));
       if (script) {
         return {
@@ -150,6 +151,7 @@ function validateExecutionRequest(opts, accessRegistry, options = {}) {
 module.exports = {
   CAPACITOR_PACKAGES,
   CERTIFIED_CAPACITOR_VERSION,
+  VERSION_SCRIPTS,
   findProjectRoot,
   isPackageManagerWorkflow,
   sameArgs,
