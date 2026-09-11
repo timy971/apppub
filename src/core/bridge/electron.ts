@@ -110,6 +110,8 @@ export const electronBridge: SystemBridge = {
   },
 
   gradle: {
+    syncVersion: (projectPath, versionName, versionCode) =>
+      ensure().gradle.syncVersion(projectPath, versionName, versionCode),
     ensureExecutable: (projectPath) => ensure().gradle.ensureExecutable(projectPath),
     ensureSigningPatch: (androidDir) => ensure().gradle.ensureSigningPatch(androidDir),
   },

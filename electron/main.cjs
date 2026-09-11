@@ -1356,6 +1356,16 @@ ipcMain.handle("android-corrections:apply", async (_e, projectPath, desired, tok
 
 /* ---------- IPC : Gradle (opérations dédiées) ---------- */
 
+ipcMain.handle("gradle:syncVersion", async (_e, projectPath, versionName, versionCode) => {
+  const project = resolveWithinAllowed(projectPath);
+  if (!project) throw new Error("Projet non autorisé.");
+  const trusted = await ensureProjectTrusted(project, trustStore, confirmProjectTrust);
+  if (!trusted) throw new Error("Exécution du projet non autorisée par l'utilisateur.");
+  return androidCorrectionManager.syncVersion(project, versionName, versionCode, (root) =>
+    backupManager.create(root, "version"),
+  );
+});
+
 ipcMain.handle("gradle:ensureExecutable", (_e, projectPath) =>
   ensureGradleWrapperExecutable(projectPath, resolveWithinAllowed),
 );

@@ -1,6 +1,7 @@
 import type { Project, VersionBumpPreview, VersionChangeType } from "@/core/types";
 import { bridge } from "@/core/bridge";
 import { JournalService } from "@/core/journal/logger";
+import { BackupService } from "@/core/backup/service";
 
 function parse(v: string): [number, number, number] {
   const parts = v.split(".").map((n) => parseInt(n, 10));
@@ -37,6 +38,25 @@ async function resolveVersionScript(projectPath: string): Promise<string | null>
 }
 
 export const VersionService = {
+  /** Aligne Gradle sur la version choisie, sans incrémenter le numéro de build. */
+  async syncAndroid(project: Project, onLine?: (line: string) => void) {
+    const result = await bridge().gradle.syncVersion(
+      project.localPath,
+      project.currentVersion,
+      project.currentBuild,
+    );
+    if (result.changed) {
+      if (!result.backup) throw new Error("La sauvegarde de la version Android est introuvable.");
+      BackupService.rememberNative(project, "version", result.backup, result.changedFiles);
+    }
+    onLine?.(
+      result.skipped
+        ? (result.reason ?? "La version sera contrôlée dans l’AAB.")
+        : `Version Android synchronisée : ${project.currentVersion} (${project.currentBuild}).`,
+    );
+    return result;
+  },
+
   preview(project: Project, type: VersionChangeType): VersionBumpPreview {
     return {
       from: project.currentVersion,

@@ -315,6 +315,17 @@ export interface SystemBridge {
   };
 
   gradle: {
+    syncVersion(
+      projectPath: string,
+      versionName: string,
+      versionCode: number,
+    ): Promise<{
+      changed: boolean;
+      skipped?: boolean;
+      reason?: string;
+      changedFiles?: string[];
+      backup?: NativeBackupResult;
+    }>;
     ensureExecutable(projectPath: string): Promise<GradleEnsureExecutableResult>;
     ensureSigningPatch(androidDir: string): Promise<{
       ok: boolean;

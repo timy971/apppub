@@ -6,6 +6,7 @@ import type {
 } from "@/core/bridge/types";
 import { bridge } from "@/core/bridge";
 import { JournalService } from "@/core/journal/logger";
+import { VersionService } from "@/core/version/service";
 
 /**
  * Préparation Android guidée. Le renderer ne reçoit aucune primitive
@@ -279,7 +280,26 @@ export const CapacitorService = {
         request.applicationId,
       );
     }
-    opts.onStep("sync", "success", "Ressources synchronisées.");
+    abortIfNeeded(signal);
+    opts.onStep("sync", "running", "Synchronisation de la version Android…");
+    try {
+      const version = await VersionService.syncAndroid(project, opts.onLine);
+      if (version.skipped) throw new Error(version.reason);
+    } catch (error) {
+      return failStep(
+        opts,
+        "sync",
+        "La version Android n’a pas pu être synchronisée.",
+        { stdout: "", stderr: error instanceof Error ? error.message : String(error) },
+        start,
+        request.applicationId,
+      );
+    }
+    opts.onStep(
+      "sync",
+      "success",
+      `Ressources et version ${project.currentVersion} synchronisées.`,
+    );
 
     abortIfNeeded(signal);
     opts.onStep("verify", "running", "Compilation Android de contrôle…");
