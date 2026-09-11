@@ -5,6 +5,7 @@ import { SigningInjector } from "./signing-injector";
 import { SigningValidator } from "@/features/android-signing/services/signing-validator";
 import { dependencyInstall, webBuild } from "@/core/capacitor/service";
 import { AabValidationService } from "@/core/aab/service";
+import { VersionService } from "@/core/version/service";
 
 /**
  * BuildService — orchestre la construction Android.
@@ -208,7 +209,21 @@ export const BuildService = {
       opts.onStep("sync", "error", "La préparation Android a échoué.");
       throw new Error(sync.stderr || sync.stdout);
     }
-    opts.onStep("sync", "success", "Application Android préparée.");
+    abortIfNeeded(signal);
+    opts.onStep("sync", "running", "Synchronisation de la version Android…");
+    try {
+      const version = await VersionService.syncAndroid(project, opts.onLine);
+      opts.onStep(
+        "sync",
+        version.skipped ? "warning" : "success",
+        version.skipped
+          ? version.reason
+          : `Application Android préparée · ${project.currentVersion}.`,
+      );
+    } catch (error) {
+      opts.onStep("sync", "error", "La version Android n’a pas pu être synchronisée.");
+      throw error;
+    }
 
     // 4. Signature — le main process prépare une session opaque puis injecte
     //    lui-même les variables Gradle. Aucun mot de passe ne revient à React.

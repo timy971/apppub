@@ -308,6 +308,9 @@ export const webBridge: SystemBridge = {
   },
 
   gradle: {
+    async syncVersion() {
+      throw new Error("La synchronisation Android nécessite l’application AppPublisher installée.");
+    },
     async ensureExecutable(projectPath) {
       return { ok: true, path: `${projectPath}/android/gradlew` };
     },

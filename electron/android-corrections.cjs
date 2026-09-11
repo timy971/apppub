@@ -150,6 +150,43 @@ class AndroidCorrectionManager {
     return project;
   }
 
+  // Called by Android preparation/build with the version selected in AppPublisher.
+  // Only standalone literals are eligible; computed versions remain owned by Gradle.
+  syncVersion(projectPath, versionName, versionCode, beforeApply = () => undefined) {
+    if (typeof versionName !== "string" || !Number.isSafeInteger(versionCode)) {
+      throw new Error("Version Android invalide.");
+    }
+    const desired = validateDesired({ versionName, versionCode });
+    const project = this.resolveProject(projectPath);
+    const gradle = ["android/app/build.gradle", "android/app/build.gradle.kts"]
+      .map((relative) => fileIfPresent(project, relative, this.fs))
+      .find(Boolean);
+    if (!gradle) throw new Error("Le fichier Gradle de l'application est introuvable.");
+    const declarations = gradle.raw.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\r\n]*/g, "");
+    const literalName =
+      /^[ \t]*versionName[ \t]*(?:=[ \t]*)?(['"])[0-9A-Za-z][0-9A-Za-z._+-]{0,79}\1[ \t]*;?[ \t\r]*$/m;
+    const literalCode = /^[ \t]*versionCode[ \t]*(?:=[ \t]*)?\d+[ \t]*;?[ \t\r]*$/m;
+    const plan = this.preview(project, desired);
+    if (
+      !literalName.test(declarations) ||
+      !literalCode.test(declarations) ||
+      (declarations.match(/\bversionName\b/g) ?? []).length !== 1 ||
+      (declarations.match(/\bversionCode\b/g) ?? []).length !== 1 ||
+      plan.blocked.length
+    ) {
+      return {
+        changed: false,
+        skipped: true,
+        reason: "La version Android est calculée ou ambiguë ; elle sera vérifiée dans l’AAB.",
+      };
+    }
+    if (!plan.canApply) return { changed: false };
+    // The caller creates a verified backup before any write. apply rechecks the token.
+    const backup = beforeApply(project);
+    const result = this.apply(project, desired, plan.token);
+    return { changed: true, changedFiles: result.changedFiles, backup };
+  }
+
   preview(projectPath, desiredInput) {
     const project = this.resolveProject(projectPath);
     const desired = validateDesired(desiredInput);

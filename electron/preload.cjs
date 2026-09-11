@@ -155,6 +155,8 @@ contextBridge.exposeInMainWorld("appPublisher", {
   },
 
   gradle: {
+    syncVersion: (projectPath, versionName, versionCode) =>
+      inv("gradle:syncVersion", projectPath, versionName, versionCode),
     ensureExecutable: (projectPath) => inv("gradle:ensureExecutable", projectPath),
     ensureSigningPatch: (androidDir) => inv("gradle:ensureSigningPatch", androidDir),
   },

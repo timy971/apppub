@@ -174,16 +174,8 @@ function certify(options = {}) {
     const reports = [];
     for (const release of RELEASES) {
       stage = `release-${release.code}-version`;
-      const correction = corrections.preview(project, {
-        versionName: release.name,
-        versionCode: release.code,
-      });
-      if (!correction.canApply) {
-        throw new Error(
-          correction.blocked[0] ?? "AppPublisher could not update the release version.",
-        );
-      }
-      corrections.apply(project, correction.desired, correction.token);
+      const version = corrections.syncVersion(project, release.name, release.code);
+      if (version.skipped) throw new Error(version.reason);
 
       stage = `release-${release.code}-build`;
       run(gradleCommand, ["--no-daemon", "--stacktrace", "bundleRelease"], {
