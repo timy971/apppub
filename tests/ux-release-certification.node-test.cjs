@@ -45,6 +45,12 @@ test("la deuxième publication impose un numéro interne supérieur", () => {
   assert.match(version, /INTERNAL_DIRTY_PREFIXES/);
   assert.match(version, /\.apppublisher-backups\//);
   assert.match(version, /userRelevantGitChanges/);
+  assert.match(version, /MANAGED_PROJECT_INTERNAL_FILES/);
+  assert.match(version, /android\/app\/capacitor\.build\.gradle/);
+  assert.match(version, /android\/capacitor\.settings\.gradle/);
+  assert.match(version, /android\/gradlew/);
+  assert.match(version, /package\.json/);
+  assert.match(version, /CHANGELOG\.md/);
   assert.match(version, /type: "build"/);
   assert.match(card, /Le numéro interne est trop petit pour Google Play/);
   assert.match(card, /Passer au numéro interne/);
