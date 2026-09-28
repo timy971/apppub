@@ -327,8 +327,17 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           } catch {
             // Le verdict Google reste prioritaire sur un défaut d'historique local.
           }
+          if (result.errorCode === "version-already-used") {
+            const rejectedBuild = Math.max(
+              project.currentBuild,
+              android.googlePlayLastKnownBuild ?? 0,
+            );
+            ProjectsService.update(
+              project.id,
+              patchAndroidConfig(project, { googlePlayLastKnownBuild: rejectedBuild }),
+            );
+          }
           reportGooglePlayError(result);
-          onChanged();
         }
         return;
       }
@@ -757,8 +766,9 @@ function googlePlayRecoveryFor(failure: GooglePlayFailure, suggestedBuild?: numb
     case "version-already-used":
       return {
         title: "Ce numéro interne existe déjà chez Google",
-        explanation:
-          "Un versionCode ne peut être utilisé qu’une seule fois, même si l’ancienne version a été supprimée ou refusée.",
+        explanation: suggestedBuild
+          ? `Google vient de refuser ce fichier parce que son numéro interne est déjà utilisé. AppPublisher propose maintenant le numéro ${suggestedBuild}. La version visible de l’application n’a pas besoin de changer.`
+          : "Google vient de refuser ce fichier parce que son numéro interne est déjà utilisé. La version visible de l’application n’a pas besoin de changer.",
         solution: suggestedBuild
           ? `Gardez la version visible si vous le souhaitez et passez uniquement le numéro interne à ${suggestedBuild}. Recréez ensuite le fichier Android puis revenez l’envoyer.`
           : "Gardez la version visible si vous le souhaitez, augmentez uniquement le numéro interne, recréez le fichier Android puis revenez l’envoyer.",
