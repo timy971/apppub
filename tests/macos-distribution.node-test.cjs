@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
+const fs = require("node:fs");
 
 const configPath = path.resolve(__dirname, "..", "electron-builder.config.cjs");
 
@@ -38,4 +39,23 @@ test("la distribution macOS est universelle, signée, notarisée et publiable", 
     releaseType: "release",
   });
   assert.match(config.mac.entitlementsInherit, /inherit\.plist$/);
+});
+
+
+test("le packaging prépare et embarque bundletool quand le JAR vérifié est présent", () => {
+  const pack = fs.readFileSync(path.resolve(__dirname, "..", "scripts", "pack.cjs"), "utf8");
+  const builder = fs.readFileSync(configPath, "utf8");
+  const ensure = fs.readFileSync(
+    path.resolve(__dirname, "..", "scripts", "ensure-bundletool.cjs"),
+    "utf8",
+  );
+
+  assert.match(pack, /ensure-bundletool\.cjs/);
+  assert.match(builder, /build\/tools\/bundletool\.jar/);
+  assert.match(builder, /tools\/bundletool\.jar/);
+  assert.match(ensure, /1\.18\.2/);
+  assert.match(
+    ensure,
+    /378b5434cd1378bef6b2bc527b8c7f0ff2584b273830335bce54d6d0813c8584/,
+  );
 });
