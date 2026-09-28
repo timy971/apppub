@@ -42,6 +42,9 @@ test("la deuxième publication impose un numéro interne supérieur", () => {
   assert.match(version, /HistoryService\.list/);
   assert.match(version, /AppPublisher propose automatiquement/);
   assert.match(version, /Numéro interne uniquement/);
+  assert.match(version, /INTERNAL_DIRTY_PREFIXES/);
+  assert.match(version, /\.apppublisher-backups\//);
+  assert.match(version, /userRelevantGitChanges/);
   assert.match(version, /type: "build"/);
   assert.match(card, /Le numéro interne est trop petit pour Google Play/);
   assert.match(card, /Passer au numéro interne/);

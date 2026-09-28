@@ -13,6 +13,17 @@ interface Pattern {
 
 const PATTERNS: Pattern[] = [
   {
+    test: (r) => /modifications non enregistrées|doit partir d’un projet propre/i.test(r),
+    error: {
+      title: "Le projet contient des modifications locales",
+      explanation:
+        "AppPublisher a détecté des fichiers modifiés qui ne viennent pas de ses sauvegardes internes.",
+      solution:
+        "Enregistrez ou annulez ces modifications, puis relancez. Les sauvegardes .apppublisher-backups ne bloquent plus le changement de version.",
+      retryable: true,
+    },
+  },
+  {
     test: (r) => /profil de signature associé au projet est introuvable/i.test(r),
     error: {
       title: "Signature à réassocier",
