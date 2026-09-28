@@ -54,6 +54,11 @@ test("le packaging prépare et embarque bundletool quand le JAR vérifié est pr
   assert.match(builder, /build\/tools\/bundletool\.jar/);
   assert.match(builder, /tools\/bundletool\.jar/);
   assert.match(ensure, /1\.18\.2/);
+  assert.match(ensure, /Téléchargement automatique de bundletool/);
+  assert.match(
+    ensure,
+    /github\.com\/google\/bundletool\/releases\/download\/1\.18\.2\/bundletool-all-1\.18\.2\.jar/,
+  );
   assert.match(
     ensure,
     /378b5434cd1378bef6b2bc527b8c7f0ff2584b273830335bce54d6d0813c8584/,
