@@ -1056,6 +1056,18 @@ function guessAndroidSdk() {
   return candidates.find((p) => p && fs.existsSync(p));
 }
 
+function androidSdkEnvironment() {
+  const sdk =
+    process.env.ANDROID_HOME ||
+    process.env.ANDROID_SDK_ROOT ||
+    guessAndroidSdk();
+  if (!sdk) return {};
+  return {
+    ANDROID_HOME: sdk,
+    ANDROID_SDK_ROOT: sdk,
+  };
+}
+
 function guessAndroidStudio() {
   if (process.platform === "darwin") {
     return fs.existsSync("/Applications/Android Studio.app") ? "installé" : undefined;
@@ -1508,7 +1520,7 @@ ipcMain.handle("exec:run", async (event, opts, channel, executionId) => {
       const command = normalizeSpawnCommand(requestedCommand);
       const child = spawn(command, args, {
         cwd: policy.cwd,
-        env: { ...process.env, ...safeEnv },
+        env: { ...process.env, ...androidSdkEnvironment(), ...safeEnv },
         shell: false,
         detached: process.platform !== "win32",
       });
