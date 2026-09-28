@@ -87,10 +87,23 @@ function VersionAssistant() {
 
   if (!project) return <NoProject />;
 
+  const knownBuilds = HistoryService.list()
+    .filter((record) => record.projectId === project.id)
+    .map((record) => record.build)
+    .filter((build) => Number.isSafeInteger(build) && build > 0);
+  const lastGooglePlayBuild = project.publishing?.android?.googlePlayLastKnownBuild;
+  const suggestedBuild =
+    Math.max(
+      project.currentBuild,
+      lastGooglePlayBuild ?? 0,
+      ...knownBuilds,
+    ) + 1;
+
   const preview = choice ? VersionService.preview(project, choice) : null;
   const parsedManualBuild = manualBuild.trim() === "" ? undefined : Number(manualBuild);
   const manualBuildValid = parsedManualBuild === undefined || (Number.isInteger(parsedManualBuild) && parsedManualBuild > 0);
-  const effectiveBuild = parsedManualBuild ?? preview?.newBuild;
+  const effectiveBuild =
+    choice === "readonly" ? preview?.newBuild : (parsedManualBuild ?? suggestedBuild);
 
   async function apply() {
     if (!choice || !preview || !project || !manualBuildValid) return;
@@ -138,7 +151,12 @@ function VersionAssistant() {
             title: "Application de la nouvelle version",
             run: async () => {
               try {
-                appliedRef.current = await VersionService.apply(project, choice!, undefined, parsedManualBuild);
+                appliedRef.current = await VersionService.apply(
+                  project,
+                  choice!,
+                  undefined,
+                  parsedManualBuild ?? suggestedBuild,
+                );
                 return { status: "success" };
               } catch (e) {
                 return {
@@ -299,19 +317,20 @@ function VersionAssistant() {
             inputMode="numeric"
             value={manualBuild}
             onChange={(e) => setManualBuild(e.target.value)}
-            placeholder={String(project.currentBuild + 1)}
+            placeholder={String(suggestedBuild)}
             className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm tabular-nums"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            Laissez vide pour utiliser automatiquement {project.currentBuild + 1}. Pour Google Play,
-            saisissez un numéro strictement supérieur au dernier build déjà publié.
+            AppPublisher propose automatiquement <strong>{suggestedBuild}</strong>, calculé à partir
+            des numéros déjà connus dans l’historique et sur Google Play. Vous pouvez le modifier si
+            nécessaire.
           </p>
           {!manualBuildValid && (
             <p className="mt-2 text-xs text-destructive">Saisissez un entier positif.</p>
           )}
-          {parsedManualBuild !== undefined && parsedManualBuild <= project.currentBuild && (
+          {parsedManualBuild !== undefined && parsedManualBuild < suggestedBuild && (
             <p className="mt-2 text-xs text-amber-600">
-              Ce numéro n’est pas supérieur au build connu par AppPublisher ({project.currentBuild}).
+              AppPublisher recommande au moins {suggestedBuild} d’après les numéros déjà connus.
             </p>
           )}
         </div>
