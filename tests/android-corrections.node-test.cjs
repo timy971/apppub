@@ -11,6 +11,10 @@ function fixture(options = {}) {
   fs.mkdirSync(path.join(root, "android", "app"), { recursive: true });
   fs.writeFileSync(path.join(root, "package.json"), '{"name":"fixture"}\n');
   fs.writeFileSync(
+    path.join(root, "version.json"),
+    JSON.stringify({ version: "1.0.0", build: 4, releasedAt: "2026-09-28" }, null, 2) + "\n",
+  );
+  fs.writeFileSync(
     path.join(root, options.capacitorTs ? "capacitor.config.ts" : "capacitor.config.json"),
     options.capacitorTs
       ? "export default { appId: 'app.old.demo', appName: 'Demo', webDir: 'dist' };\n"
@@ -47,14 +51,18 @@ test("previews and applies package, version and SDK corrections atomically", (t)
   assert.deepEqual(preview.changedFiles.sort(), [
     "android/app/build.gradle",
     "capacitor.config.json",
+    "version.json",
   ]);
-  assert.equal(preview.actions.length, 5);
+  assert.equal(preview.actions.length, 6);
 
   const result = manager.apply(root, desired, preview.token);
   assert.equal(result.applied, true);
   const capacitor = JSON.parse(fs.readFileSync(path.join(root, "capacitor.config.json"), "utf8"));
+  const version = JSON.parse(fs.readFileSync(path.join(root, "version.json"), "utf8"));
   const gradle = fs.readFileSync(path.join(root, "android", "app", "build.gradle"), "utf8");
   assert.equal(capacitor.appId, desired.packageName);
+  assert.equal(version.version, desired.versionName);
+  assert.equal(version.build, desired.versionCode);
   assert.match(gradle, /applicationId "app\.lovable\.cranioscan\.twa"/);
   assert.match(gradle, /versionName "2\.1\.0"/);
   assert.match(gradle, /versionCode 18/);
@@ -105,4 +113,20 @@ test("rejects unsafe desired values", (t) => {
   assert.throws(() => manager.preview(root, { packageName: "Not Valid" }), /invalide/);
   assert.throws(() => manager.preview(root, { versionCode: 0 }), /invalide/);
   assert.throws(() => manager.preview(root, { targetSdk: 999 }), /invalide/);
+});
+
+
+test("build-only correction keeps the visible version and updates the source-of-truth build", (t) => {
+  const { root, manager } = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const desired = { versionName: "1.0.0", versionCode: 13 };
+  const preview = manager.preview(root, desired);
+  assert.equal(preview.canApply, true);
+  manager.apply(root, desired, preview.token);
+  const version = JSON.parse(fs.readFileSync(path.join(root, "version.json"), "utf8"));
+  const gradle = fs.readFileSync(path.join(root, "android", "app", "build.gradle"), "utf8");
+  assert.equal(version.version, "1.0.0");
+  assert.equal(version.build, 13);
+  assert.match(gradle, /versionName "1\.0\.0"/);
+  assert.match(gradle, /versionCode 13/);
 });
