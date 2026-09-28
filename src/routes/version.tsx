@@ -33,6 +33,13 @@ export const Route = createFileRoute("/version")({
   component: VersionAssistant,
 });
 
+const BUILD_ONLY_SAFE_DIRTY_FILES = new Set([
+  "version.json",
+  "android/app/build.gradle",
+  "android/app/build.gradle.kts",
+  "ios/App/App/Info.plist",
+]);
+
 const CHOICES: {
   type: VersionChangeType;
   title: string;
@@ -114,6 +121,15 @@ function VersionAssistant() {
 
   async function apply() {
     if (!choice || !preview || !project || !manualBuildValid) return;
+    if (choice === "build" && parsedManualBuild !== undefined && parsedManualBuild <= project.currentBuild) {
+      setFailure({
+        title: "Numéro interne trop petit",
+        explanation: `Le numéro interne doit être supérieur à ${project.currentBuild}.`,
+        solution: `Utilisez au moins ${Math.max(suggestedBuild, project.currentBuild + 1)}.`,
+        retryable: true,
+      });
+      return;
+    }
     setConfirmOpen(false);
     setFailure(null);
     const start = performance.now();
@@ -129,9 +145,15 @@ function VersionAssistant() {
             branch: project.source.branch,
           });
           if (git.workingTree === "dirty") {
-            throw new Error(
-              "Enregistrez d’abord vos modifications Git : AppPublisher doit partir d’un projet propre pour pouvoir annuler uniquement ses propres changements.",
-            );
+            const onlySafeBuildFiles =
+              choice === "build" &&
+              git.changedFiles.length > 0 &&
+              git.changedFiles.every((file) => BUILD_ONLY_SAFE_DIRTY_FILES.has(file));
+            if (!onlySafeBuildFiles) {
+              throw new Error(
+                "Enregistrez d’abord vos modifications Git : AppPublisher doit partir d’un projet propre pour pouvoir annuler uniquement ses propres changements.",
+              );
+            }
           }
           gitFilesBefore = new Set(git.changedFiles);
         }
