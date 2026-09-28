@@ -146,7 +146,7 @@ export type ProjectDraft = Omit<Project, "id" | "createdAt" | "updatedAt">;
 
 /* ---------- Versioning ---------- */
 
-export type VersionChangeType = "bugfix" | "feature" | "major" | "readonly";
+export type VersionChangeType = "bugfix" | "feature" | "major" | "build" | "readonly";
 
 export interface VersionBumpPreview {
   from: string;
