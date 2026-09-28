@@ -93,3 +93,12 @@ test("the packaged page declares a restrictive content security policy", () => {
   assert.match(index, /object-src 'none'/);
   assert.match(index, /frame-src 'none'/);
 });
+
+
+test("build subprocesses inherit the detected Android SDK even when Finder did not provide ANDROID_HOME", () => {
+  const main = fs.readFileSync(path.join(root, "electron", "main.cjs"), "utf8");
+  assert.match(main, /function androidSdkEnvironment\(\)/);
+  assert.match(main, /ANDROID_HOME: sdk/);
+  assert.match(main, /ANDROID_SDK_ROOT: sdk/);
+  assert.match(main, /\.\.\.androidSdkEnvironment\(\), \.\.\.safeEnv/);
+});
