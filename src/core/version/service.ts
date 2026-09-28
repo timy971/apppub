@@ -16,6 +16,8 @@ function bump(from: string, type: VersionChangeType): string {
       return `${maj}.${min + 1}.0`;
     case "major":
       return `${maj + 1}.0.0`;
+    case "build":
+      return from;
     case "readonly":
       return from;
   }
@@ -51,6 +53,7 @@ export const VersionService = {
       bugfix: "Correction de bug",
       feature: "Nouvelle fonctionnalité",
       major: "Nouvelle version majeure",
+      build: "Numéro interne uniquement",
       readonly: "Voir uniquement la version",
     }[type];
   },
@@ -101,7 +104,8 @@ export const VersionService = {
       throw new Error("Le numéro de build Android doit être un entier positif.");
     }
 
-    const scriptArg = type === "bugfix" ? "patch" : type === "feature" ? "minor" : "major";
+    const scriptArg =
+      type === "bugfix" ? "patch" : type === "feature" ? "minor" : type === "major" ? "major" : "build";
     const args = [versionScript, scriptArg];
     if (buildOverride !== undefined) args.push("--build", String(buildOverride));
 

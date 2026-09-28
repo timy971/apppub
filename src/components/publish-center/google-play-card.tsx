@@ -70,6 +70,14 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       record.storeRelease?.provider === "google-play",
   );
   const hasPreviousGooglePlayRelease = successfulGooglePlayReleases.length > 0;
+  const knownGooglePlayBuilds = [
+    android.googlePlayLastKnownBuild ?? 0,
+    ...successfulGooglePlayReleases.map((record) => record.build),
+  ].filter((build) => Number.isSafeInteger(build) && build > 0);
+  const highestKnownGooglePlayBuild = Math.max(0, ...knownGooglePlayBuilds);
+  const suggestedNextGooglePlayBuild = Math.max(project.currentBuild, highestKnownGooglePlayBuild) + 1;
+  const buildTooLow =
+    highestKnownGooglePlayBuild > 0 && project.currentBuild < highestKnownGooglePlayBuild;
   const alreadyPublished =
     android.googlePlayLastKnownBuild === project.currentBuild ||
     successfulGooglePlayReleases.some(
@@ -392,9 +400,11 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
 
   const unavailableReason = !packageName
     ? "Renseignez d'abord l'identifiant Android de l'application."
-    : connected && alreadyPublished
-      ? "Cette version a déjà été envoyée. Préparez un nouveau numéro de version pour republier."
-      : connected && !verified
+    : connected && buildTooLow
+      ? `Le numéro interne ${project.currentBuild} est inférieur au dernier numéro connu (${highestKnownGooglePlayBuild}). Utilisez au moins ${suggestedNextGooglePlayBuild}.`
+      : connected && alreadyPublished
+        ? "Cette version a déjà été envoyée. Augmentez uniquement le numéro interne pour republier."
+        : connected && !verified
         ? "Vérifiez l'accès au compte Google avant l'envoi."
         : connected && !release
           ? "Créez puis préparez le fichier Android avant l'envoi."
@@ -467,7 +477,9 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
               )}
               <Button
                 onClick={publish}
-                disabled={busy !== null || !verified || !release?.notes || alreadyPublished}
+                disabled={
+                  busy !== null || !verified || !release?.notes || alreadyPublished || buildTooLow
+                }
               >
                 {busy === "publish" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -500,9 +512,36 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         initializationRequired={initializationRequired}
         hasPreviousRelease={hasPreviousGooglePlayRelease}
       />
+      {buildTooLow && (
+        <div role="alert" className="mt-4 rounded-xl border border-amber-400/40 bg-amber-50/70 p-4 text-sm dark:bg-amber-950/20">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">Le numéro interne est trop petit pour Google Play</p>
+              <p className="mt-1 leading-relaxed text-muted-foreground">
+                Ce fichier utilise le numéro interne <strong>{project.currentBuild}</strong>, alors
+                qu’AppPublisher connaît déjà le numéro <strong>{highestKnownGooglePlayBuild}</strong>.
+                Google Play exige un numéro strictement supérieur pour chaque nouveau fichier.
+              </p>
+              <p className="mt-2 leading-relaxed">
+                Vous pouvez garder la version visible <strong>{project.currentVersion}</strong> et
+                changer uniquement le numéro interne. AppPublisher recommande{" "}
+                <strong>{suggestedNextGooglePlayBuild}</strong>.
+              </p>
+              <Button asChild size="sm" className="mt-3">
+                <Link to="/version" onClick={() => JourneyProgress.rememberReturnTo("/publish")}>
+                  Passer au numéro interne {suggestedNextGooglePlayBuild}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {lastFailure && (
         <GooglePlayRecovery
           failure={lastFailure}
+          suggestedBuild={suggestedNextGooglePlayBuild}
           onRetry={lastFailure.phase === "upload-bundle" ? publish : testConnection}
         />
       )}
@@ -612,12 +651,14 @@ function showGooglePlayError(result: {
 
 function GooglePlayRecovery({
   failure,
+  suggestedBuild,
   onRetry,
 }: {
   failure: GooglePlayFailure;
+  suggestedBuild?: number;
   onRetry: () => void;
 }) {
-  const recovery = googlePlayRecoveryFor(failure);
+  const recovery = googlePlayRecoveryFor(failure, suggestedBuild);
 
   async function openPlayConsole() {
     try {
@@ -641,7 +682,7 @@ function GooglePlayRecovery({
             {recovery.action === "version" && (
               <Button asChild size="sm">
                 <Link to="/version" onClick={() => JourneyProgress.rememberReturnTo("/publish")}>
-                  Augmenter le numéro interne
+                  {suggestedBuild ? `Utiliser le numéro interne ${suggestedBuild}` : "Augmenter le numéro interne"}
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
@@ -688,7 +729,7 @@ function GooglePlayRecovery({
   );
 }
 
-function googlePlayRecoveryFor(failure: GooglePlayFailure): {
+function googlePlayRecoveryFor(failure: GooglePlayFailure, suggestedBuild?: number): {
   title: string;
   explanation: string;
   solution: string;
@@ -718,8 +759,9 @@ function googlePlayRecoveryFor(failure: GooglePlayFailure): {
         title: "Ce numéro interne existe déjà chez Google",
         explanation:
           "Un versionCode ne peut être utilisé qu’une seule fois, même si l’ancienne version a été supprimée ou refusée.",
-        solution:
-          "Augmentez le numéro interne, recréez le fichier Android, puis revenez l’envoyer. Ne changez pas seulement le nom visible de la version.",
+        solution: suggestedBuild
+          ? `Gardez la version visible si vous le souhaitez et passez uniquement le numéro interne à ${suggestedBuild}. Recréez ensuite le fichier Android puis revenez l’envoyer.`
+          : "Gardez la version visible si vous le souhaitez, augmentez uniquement le numéro interne, recréez le fichier Android puis revenez l’envoyer.",
         action: "version",
       };
     case "aab-invalid":
