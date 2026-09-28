@@ -115,6 +115,36 @@ function replaceGradleValue(raw, kind, value) {
     kind === "packageName" || kind === "versionName" ? `$1$2${value}$2` : `$1${value}`;
   return replaceUnique(raw, patterns[kind], replacement, kind);
 }
+function replaceVersionJson(raw, desired) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { status: "blocked", reason: "version.json n'est pas un JSON valide." };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { status: "blocked", reason: "version.json n'est pas un objet valide." };
+  }
+  const before = JSON.stringify({ version: parsed.version, build: parsed.build });
+  let changed = false;
+  if (desired.versionName != null && parsed.version !== desired.versionName) {
+    parsed.version = desired.versionName;
+    changed = true;
+  }
+  if (desired.versionCode != null && Number(parsed.build) !== desired.versionCode) {
+    parsed.build = desired.versionCode;
+    changed = true;
+  }
+  if (!changed) return { status: "unchanged" };
+  const after = JSON.stringify({ version: parsed.version, build: parsed.build });
+  return {
+    status: "changed",
+    content: `${JSON.stringify(parsed, null, 2)}\n`,
+    before,
+    after,
+  };
+}
+
 
 function fileIfPresent(project, relative, fsModule) {
   const absolute = path.join(project, relative);
@@ -216,6 +246,24 @@ class AndroidCorrectionManager {
     }
 
     const gradle = files.find((file) => /^android\/app\/build\.gradle/.test(file.relative));
+
+    if ((desired.versionName != null || desired.versionCode != null) && drafts.has("version.json")) {
+      const result = replaceVersionJson(drafts.get("version.json"), desired);
+      if (result.status === "blocked") blocked.push(result.reason);
+      else if (result.status === "changed") {
+        drafts.set("version.json", result.content);
+        actions.push({
+          id: "version:version.json",
+          kind: "version",
+          title: "Aligner la source de version",
+          file: "version.json",
+          before: result.before,
+          after: result.after,
+          sensitive: false,
+        });
+      }
+    }
+
     for (const kind of ["versionName", "versionCode"]) {
       if (desired[kind] == null) continue;
       if (!gradle) {
@@ -343,5 +391,6 @@ module.exports = {
   EDITABLE_FILES,
   publicPlan,
   replaceGradleValue,
+  replaceVersionJson,
   validateDesired,
 };
