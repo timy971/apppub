@@ -39,6 +39,10 @@ export interface AndroidPublishingConfig {
   googlePlaySetupStatus?: "required" | "ready";
   /** Dernier numéro interne confirmé sur la piste de test, y compris lors du premier envoi manuel. */
   googlePlayLastKnownBuild?: number;
+  /** Dernier build que l'utilisateur a réellement installé et testé depuis Google Play. */
+  googlePlayLastTestedBuild?: number;
+  /** Date locale de confirmation du test réel depuis Google Play. */
+  googlePlayLastTestedAt?: string;
 }
 
 /** Phase 3 : configuration iOS — structure posée, publication future. */
