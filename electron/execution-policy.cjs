@@ -101,8 +101,20 @@ function validateExecutionRequest(opts, accessRegistry, options = {}) {
     }
   }
 
-  if (command === "node" && inProjectRoot && args.length === 2) {
-    if (VERSION_SCRIPTS.has(args[0]) && ["patch", "minor", "major"].includes(args[1])) {
+  if (command === "node" && inProjectRoot) {
+    const hasValidBaseArgs =
+      (args.length === 2 || args.length === 4) &&
+      VERSION_SCRIPTS.has(args[0]) &&
+      ["patch", "minor", "major"].includes(args[1]);
+
+    const hasValidBuildOverride =
+      args.length === 2 ||
+      (args[2] === "--build" &&
+        /^\d+$/.test(String(args[3])) &&
+        Number.isSafeInteger(Number(args[3])) &&
+        Number(args[3]) > 0);
+
+    if (hasValidBaseArgs && hasValidBuildOverride) {
       const script = accessRegistry.resolveExisting(path.join(projectRoot, args[0]));
       if (script) {
         return {
