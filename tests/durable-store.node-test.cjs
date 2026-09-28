@@ -11,7 +11,14 @@ test("persists typed application data atomically across restarts", (t) => {
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const filePath = path.join(root, "data", "store.json");
   const first = new DurableStore(filePath);
-  assert.deepEqual(first.set("settings", { language: "fr" }), { ok: true });
+  assert.deepEqual(
+    first.set("settings", {
+      language: "fr",
+      lastJourneyPath: "/version",
+      returnToJourneyPath: "/build",
+    }),
+    { ok: true },
+  );
   assert.equal(fs.existsSync(`${filePath}.bak`), true);
   assert.deepEqual(
     first.set("projects", [
@@ -31,7 +38,11 @@ test("persists typed application data atomically across restarts", (t) => {
   assert.deepEqual(second.get("settings"), {
     ok: true,
     found: true,
-    value: { language: "fr" },
+    value: {
+      language: "fr",
+      lastJourneyPath: "/version",
+      returnToJourneyPath: "/build",
+    },
   });
   assert.equal(second.get("unknown").ok, false);
 });
@@ -84,6 +95,7 @@ test("refuses prototypes, cycles and oversized documents", (t) => {
   cyclic.self = cyclic;
   assert.equal(store.set("settings", cyclic).ok, false);
   assert.equal(store.set("settings", { payload: "x".repeat(500) }).ok, false);
+  assert.equal(store.set("settings", { lastJourneyPath: "/not-a-real-step" }).ok, false);
   assert.equal(store.set("projects", "not-an-array").ok, false);
   assert.equal(
     store.set("android-signing.profiles.v1", [
