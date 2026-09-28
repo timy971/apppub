@@ -37,6 +37,10 @@ test("la deuxième publication impose un numéro interne supérieur", () => {
   assert.match(card, /Augmenter le numéro interne/);
   assert.match(card, /version-already-used/);
   assert.match(version, /Numéro interne/);
+  assert.match(version, /suggestedBuild/);
+  assert.match(version, /googlePlayLastKnownBuild/);
+  assert.match(version, /HistoryService\.list/);
+  assert.match(version, /AppPublisher propose automatiquement/);
 });
 
 test("les écrans d'échec critiques proposent une reprise et une demande d'aide", () => {
