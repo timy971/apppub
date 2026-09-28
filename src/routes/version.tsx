@@ -74,6 +74,7 @@ function VersionAssistant() {
   const project = useActiveProject();
   const settings = useSettings();
   const [choice, setChoice] = useState<VersionChangeType | null>(null);
+  const [manualBuild, setManualBuild] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [done, setDone] = useState<{
@@ -87,9 +88,12 @@ function VersionAssistant() {
   if (!project) return <NoProject />;
 
   const preview = choice ? VersionService.preview(project, choice) : null;
+  const parsedManualBuild = manualBuild.trim() === "" ? undefined : Number(manualBuild);
+  const manualBuildValid = parsedManualBuild === undefined || (Number.isInteger(parsedManualBuild) && parsedManualBuild > 0);
+  const effectiveBuild = parsedManualBuild ?? preview?.newBuild;
 
   async function apply() {
-    if (!choice || !preview || !project) return;
+    if (!choice || !preview || !project || !manualBuildValid) return;
     setConfirmOpen(false);
     setFailure(null);
     const start = performance.now();
@@ -134,7 +138,7 @@ function VersionAssistant() {
             title: "Application de la nouvelle version",
             run: async () => {
               try {
-                appliedRef.current = await VersionService.apply(project, choice!);
+                appliedRef.current = await VersionService.apply(project, choice!, undefined, parsedManualBuild);
                 return { status: "success" };
               } catch (e) {
                 return {
@@ -283,6 +287,37 @@ function VersionAssistant() {
       </div>
 
       {!workflow && (
+        <div className="mb-6 rounded-xl border bg-card p-4 shadow-soft">
+          <label htmlFor="manual-build" className="text-sm font-medium">
+            Numéro de build Android
+          </label>
+          <input
+            id="manual-build"
+            type="number"
+            min={1}
+            step={1}
+            inputMode="numeric"
+            value={manualBuild}
+            onChange={(e) => setManualBuild(e.target.value)}
+            placeholder={String(project.currentBuild + 1)}
+            className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm tabular-nums"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Laissez vide pour utiliser automatiquement {project.currentBuild + 1}. Pour Google Play,
+            saisissez un numéro strictement supérieur au dernier build déjà publié.
+          </p>
+          {!manualBuildValid && (
+            <p className="mt-2 text-xs text-destructive">Saisissez un entier positif.</p>
+          )}
+          {parsedManualBuild !== undefined && parsedManualBuild <= project.currentBuild && (
+            <p className="mt-2 text-xs text-amber-600">
+              Ce numéro n’est pas supérieur au build connu par AppPublisher ({project.currentBuild}).
+            </p>
+          )}
+        </div>
+      )}
+
+      {!workflow && (
         <div className="grid gap-3 sm:grid-cols-2">
           {CHOICES.map((c) => {
             const p = VersionService.preview(project, c.type);
@@ -344,7 +379,8 @@ function VersionAssistant() {
               ) : (
                 <>
                   La version passera de <strong className="tabular-nums">{preview?.from}</strong> à{" "}
-                  <strong className="tabular-nums">{preview?.to}</strong>. Cette opération met à
+                  <strong className="tabular-nums">{preview?.to}</strong>, avec le build Android{" "}
+                  <strong className="tabular-nums">{effectiveBuild}</strong>. Cette opération met à
                   jour votre application.
                   {settings.autoBackupEnabled && " Une sauvegarde sera automatiquement créée."}
                 </>
