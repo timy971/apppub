@@ -25,6 +25,12 @@ describe("VersionService.preview", () => {
   it("incrémente le patch pour bugfix", () => {
     expect(VersionService.preview(make("1.2.3"), "bugfix").to).toBe("1.2.4");
   });
+
+  it("garde la version visible pour un changement de build uniquement", () => {
+    const preview = VersionService.preview(make("1.2.3"), "build");
+    expect(preview.to).toBe("1.2.3");
+    expect(preview.newBuild).toBe(preview.fromBuild + 1);
+  });
   it("incrémente le mineur pour feature", () => {
     expect(VersionService.preview(make("1.2.3"), "feature").to).toBe("1.3.0");
   });
