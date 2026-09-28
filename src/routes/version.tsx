@@ -33,12 +33,18 @@ export const Route = createFileRoute("/version")({
   component: VersionAssistant,
 });
 
+const INTERNAL_DIRTY_PREFIXES = [".apppublisher-backups/"];
+
 const BUILD_ONLY_SAFE_DIRTY_FILES = new Set([
   "version.json",
   "android/app/build.gradle",
   "android/app/build.gradle.kts",
   "ios/App/App/Info.plist",
 ]);
+
+function userRelevantGitChanges(files: string[]): string[] {
+  return files.filter((file) => !INTERNAL_DIRTY_PREFIXES.some((prefix) => file.startsWith(prefix)));
+}
 
 const CHOICES: {
   type: VersionChangeType;
@@ -144,18 +150,18 @@ function VersionAssistant() {
             remoteUrl: project.source.remoteUrl,
             branch: project.source.branch,
           });
-          if (git.workingTree === "dirty") {
+          const relevantChanges = userRelevantGitChanges(git.changedFiles);
+          if (relevantChanges.length > 0) {
             const onlySafeBuildFiles =
               choice === "build" &&
-              git.changedFiles.length > 0 &&
-              git.changedFiles.every((file) => BUILD_ONLY_SAFE_DIRTY_FILES.has(file));
+              relevantChanges.every((file) => BUILD_ONLY_SAFE_DIRTY_FILES.has(file));
             if (!onlySafeBuildFiles) {
               throw new Error(
-                "Enregistrez d’abord vos modifications Git : AppPublisher doit partir d’un projet propre pour pouvoir annuler uniquement ses propres changements.",
+                `Le projet contient des modifications non enregistrées : ${relevantChanges.join(", ")}. Enregistrez-les ou annulez-les avant de changer la version.`,
               );
             }
           }
-          gitFilesBefore = new Set(git.changedFiles);
+          gitFilesBefore = new Set(relevantChanges);
         }
         const backup = await BackupService.create(project, "version");
         backupId = backup.id;
@@ -223,7 +229,9 @@ function VersionAssistant() {
               remoteUrl: project.source.remoteUrl,
               branch: project.source.branch,
             });
-            changedFiles = git.changedFiles.filter((file) => !gitFilesBefore.has(file));
+            changedFiles = userRelevantGitChanges(git.changedFiles).filter(
+              (file) => !gitFilesBefore.has(file),
+            );
           }
           BackupService.describeChanges(backupId, changedFiles);
         }
