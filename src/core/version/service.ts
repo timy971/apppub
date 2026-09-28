@@ -77,6 +77,7 @@ export const VersionService = {
     project: Project,
     type: VersionChangeType,
     onLine?: (line: string) => void,
+    buildOverride?: number,
   ): Promise<{ version: string; build: number }> {
     const b = bridge();
     if (type === "readonly") {
@@ -96,18 +97,25 @@ export const VersionService = {
       );
     }
 
+    if (buildOverride !== undefined && (!Number.isInteger(buildOverride) || buildOverride <= 0)) {
+      throw new Error("Le numéro de build Android doit être un entier positif.");
+    }
+
     const scriptArg = type === "bugfix" ? "patch" : type === "feature" ? "minor" : "major";
+    const args = [versionScript, scriptArg];
+    if (buildOverride !== undefined) args.push("--build", String(buildOverride));
+
     const result = await b.exec.run(
       {
         cmd: "node",
-        args: [versionScript, scriptArg],
+        args,
         cwd: project.localPath,
         timeoutMs: 60_000,
       },
       onLine ? (l) => onLine(l.line) : undefined,
     );
     JournalService.logCommand({
-      command: `node ${versionScript} ${scriptArg}`,
+      command: `node ${args.join(" ")}`,
       cwd: project.localPath,
       durationMs: result.durationMs,
       exitCode: result.exitCode,
