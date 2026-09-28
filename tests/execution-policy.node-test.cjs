@@ -50,6 +50,14 @@ test("allows only the exact application workflows", (t) => {
       true,
       `${versionScript} --build`,
     );
+    assert.equal(
+      validateExecutionRequest(
+        { cmd: "node", args: [versionScript, "build", "--build", "13"], cwd: project },
+        access,
+      ).ok,
+      true,
+      `${versionScript} build-only`,
+    );
   }
   assert.equal(
     validateExecutionRequest(
