@@ -111,9 +111,10 @@ const PATTERNS: Pattern[] = [
       title: "Le SDK Android est introuvable",
       explanation:
         "AppPublisher n'a pas pu localiser le kit de développement Android sur votre ordinateur.",
-      cause: "La variable ANDROID_HOME n'est pas définie, ou Android Studio n'est pas installé.",
+      cause:
+        "Le processus de compilation Android n’a pas reçu le chemin du SDK, même si AppPublisher peut l’avoir détecté sur le Mac.",
       solution:
-        "Installez Android Studio et laissez-le installer le SDK, puis relancez AppPublisher.",
+        "Relancez le diagnostic. Si le SDK est détecté, AppPublisher doit maintenant transmettre automatiquement son chemin à Gradle ; aucune réinstallation d’Android Studio n’est nécessaire.",
       retryable: true,
     },
   },
