@@ -93,6 +93,41 @@ export const VersionService = {
       );
     }
 
+    if (type === "build") {
+      const nextBuild = buildOverride ?? project.currentBuild + 1;
+      if (!Number.isInteger(nextBuild) || nextBuild <= 0) {
+        throw new Error("Le numéro de build Android doit être un entier positif.");
+      }
+      const plan = await b.androidCorrections.preview(project.localPath, {
+        versionName: project.currentVersion,
+        versionCode: nextBuild,
+      });
+      if (!plan.canApply) {
+        throw new Error(
+          plan.blocked[0] ??
+            "AppPublisher n’a pas pu préparer la mise à jour du numéro interne.",
+        );
+      }
+      const result = await b.androidCorrections.apply(
+        project.localPath,
+        plan.desired,
+        plan.token,
+      );
+      if (!result.applied) {
+        throw new Error("Le numéro interne n’a pas pu être mis à jour.");
+      }
+      JournalService.logCommand({
+        command: `Mise à jour du numéro interne Android → ${nextBuild}`,
+        cwd: project.localPath,
+        durationMs: 0,
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+        message: "Mise à jour du numéro interne",
+      });
+      return this.readCurrent(project);
+    }
+
     const versionScript = await resolveVersionScript(project.localPath);
     if (!versionScript) {
       throw new Error(
