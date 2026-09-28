@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowRight, Bug, Check, Sparkles, Rocket, Eye, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bug, Check, Sparkles, Rocket, Eye, ShieldCheck, Hash } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -60,6 +60,13 @@ const CHOICES: {
     desc: "Grand changement, refonte.",
     icon: Rocket,
     why: "Le premier chiffre augmente (ex. 1.2.0 → 2.0.0). À réserver aux refontes importantes.",
+  },
+  {
+    type: "build",
+    title: "Numéro interne uniquement",
+    desc: "Garder la même version visible et augmenter seulement le numéro exigé par Google Play.",
+    icon: Hash,
+    why: "À utiliser quand Google Play refuse un numéro interne déjà utilisé. La version visible ne change pas, seul le versionCode Android augmente.",
   },
   {
     type: "readonly",
@@ -215,7 +222,12 @@ function VersionAssistant() {
           kind: "version",
         });
         setDone({ from: preview.from, to: finalVersion, build: finalBuild, changed: true });
-        toast.success("Version mise à jour", { description: `${preview.from} → ${finalVersion}` });
+        toast.success(choice === "build" ? "Numéro interne mis à jour" : "Version mise à jour", {
+          description:
+            choice === "build"
+              ? `Version ${finalVersion} inchangée · numéro interne ${finalBuild}`
+              : `${preview.from} → ${finalVersion}`,
+        });
       } else {
         toast.info("Aucune modification appliquée");
         setDone({ from: preview.from, to: preview.to, build: preview.newBuild, changed: false });
@@ -243,9 +255,15 @@ function VersionAssistant() {
           </div>
           <div className="text-lg font-semibold">
             {done.changed ? (
-              <>
-                {done.from} → <span className="tabular-nums">{done.to}</span>
-              </>
+              done.from === done.to ? (
+                <>
+                  Version <span className="tabular-nums">{done.to}</span> inchangée
+                </>
+              ) : (
+                <>
+                  {done.from} → <span className="tabular-nums">{done.to}</span>
+                </>
+              )
             ) : (
               <>
                 Version <span className="tabular-nums">{done.to}</span>
@@ -395,6 +413,14 @@ function VersionAssistant() {
             <AlertDialogDescription>
               {choice === "readonly" ? (
                 <>AppPublisher vérifiera les numéros actuels sans modifier vos fichiers.</>
+              ) : choice === "build" ? (
+                <>
+                  La version visible restera <strong className="tabular-nums">{preview?.from}</strong>.
+                  Seul le numéro interne Android passera à{" "}
+                  <strong className="tabular-nums">{effectiveBuild}</strong>. C’est ce numéro que
+                  Google Play utilise pour distinguer deux fichiers Android.
+                  {settings.autoBackupEnabled && " Une sauvegarde sera automatiquement créée."}
+                </>
               ) : (
                 <>
                   La version passera de <strong className="tabular-nums">{preview?.from}</strong> à{" "}
