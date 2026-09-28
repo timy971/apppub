@@ -35,6 +35,18 @@ export const Route = createFileRoute("/version")({
 
 const INTERNAL_DIRTY_PREFIXES = [".apppublisher-backups/"];
 
+const MANAGED_PROJECT_INTERNAL_FILES = new Set([
+  "version.json",
+  "package.json",
+  "CHANGELOG.md",
+  "android/app/build.gradle",
+  "android/app/build.gradle.kts",
+  "android/app/capacitor.build.gradle",
+  "android/capacitor.settings.gradle",
+  "android/gradlew",
+  "ios/App/App/Info.plist",
+]);
+
 const BUILD_ONLY_SAFE_DIRTY_FILES = new Set([
   "version.json",
   "android/app/build.gradle",
@@ -42,8 +54,17 @@ const BUILD_ONLY_SAFE_DIRTY_FILES = new Set([
   "ios/App/App/Info.plist",
 ]);
 
-function userRelevantGitChanges(files: string[]): string[] {
-  return files.filter((file) => !INTERNAL_DIRTY_PREFIXES.some((prefix) => file.startsWith(prefix)));
+function isAppPublisherManagedProject(projectPath: string): boolean {
+  return projectPath.includes("/Application Support/AppPublisher/managed-projects/");
+}
+
+function userRelevantGitChanges(projectPath: string, files: string[]): string[] {
+  const managed = isAppPublisherManagedProject(projectPath);
+  return files.filter((file) => {
+    if (INTERNAL_DIRTY_PREFIXES.some((prefix) => file.startsWith(prefix))) return false;
+    if (managed && MANAGED_PROJECT_INTERNAL_FILES.has(file)) return false;
+    return true;
+  });
 }
 
 const CHOICES: {
@@ -150,7 +171,7 @@ function VersionAssistant() {
             remoteUrl: project.source.remoteUrl,
             branch: project.source.branch,
           });
-          const relevantChanges = userRelevantGitChanges(git.changedFiles);
+          const relevantChanges = userRelevantGitChanges(project.localPath, git.changedFiles);
           if (relevantChanges.length > 0) {
             const onlySafeBuildFiles =
               choice === "build" &&
@@ -229,7 +250,7 @@ function VersionAssistant() {
               remoteUrl: project.source.remoteUrl,
               branch: project.source.branch,
             });
-            changedFiles = userRelevantGitChanges(git.changedFiles).filter(
+            changedFiles = userRelevantGitChanges(project.localPath, git.changedFiles).filter(
               (file) => !gitFilesBefore.has(file),
             );
           }
