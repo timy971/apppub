@@ -46,6 +46,12 @@ test("la deuxième publication impose un numéro interne supérieur", () => {
   assert.match(card, /Le numéro interne est trop petit pour Google Play/);
   assert.match(card, /Passer au numéro interne/);
   assert.match(card, /changer uniquement le numéro interne/);
+  assert.match(card, /googlePlayLastKnownBuild: rejectedBuild/);
+  assert.doesNotMatch(
+    card,
+    /reportGooglePlayError\(result\);\s*onChanged\(\);/,
+    "le panneau de récupération doit rester monté après un refus Google Play",
+  );
 });
 
 test("les écrans d'échec critiques proposent une reprise et une demande d'aide", () => {
