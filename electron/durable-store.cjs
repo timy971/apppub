@@ -132,9 +132,11 @@ function validateStoredValue(key, value) {
       "autoBackupEnabled",
       "contextualHelpEnabled",
       "language",
+      "lastJourneyPath",
       "mode",
       "onboardingCompleted",
       "projectsRootPath",
+      "returnToJourneyPath",
       "theme",
       "userName",
     ]);
@@ -148,6 +150,17 @@ function validateStoredValue(key, value) {
     }
     for (const field of ["onboardingCompleted", "contextualHelpEnabled", "autoBackupEnabled"]) {
       if (value[field] != null && typeof value[field] !== "boolean") return false;
+    }
+    const journeyPaths = new Set([
+      "/projects",
+      "/diagnostic",
+      "/version",
+      "/signing",
+      "/build",
+      "/publish",
+    ]);
+    for (const field of ["lastJourneyPath", "returnToJourneyPath"]) {
+      if (value[field] != null && !journeyPaths.has(value[field])) return false;
     }
     return true;
   }
