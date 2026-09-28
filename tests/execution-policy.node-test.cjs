@@ -42,10 +42,32 @@ test("allows only the exact application workflows", (t) => {
       true,
       versionScript,
     );
+    assert.equal(
+      validateExecutionRequest(
+        { cmd: "node", args: [versionScript, "minor", "--build", "13"], cwd: project },
+        access,
+      ).ok,
+      true,
+      `${versionScript} --build`,
+    );
   }
   assert.equal(
     validateExecutionRequest(
       { cmd: "node", args: ["scripts/other.js", "patch"], cwd: project },
+      access,
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateExecutionRequest(
+      { cmd: "node", args: ["scripts/version.mjs", "patch", "--build", "0"], cwd: project },
+      access,
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateExecutionRequest(
+      { cmd: "node", args: ["scripts/version.mjs", "patch", "--build", "abc"], cwd: project },
       access,
     ).ok,
     false,
