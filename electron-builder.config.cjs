@@ -30,9 +30,14 @@ module.exports = {
 
   // Le client OAuth desktop n'est pas versionné. Lorsqu'il est présent au
   // packaging, il est embarqué comme ressource de l'application.
-  extraResources: fs.existsSync("build/google-play-oauth.json")
-    ? [{ from: "build/google-play-oauth.json", to: "google-play-oauth.json" }]
-    : [],
+  extraResources: [
+    ...(fs.existsSync("build/google-play-oauth.json")
+      ? [{ from: "build/google-play-oauth.json", to: "google-play-oauth.json" }]
+      : []),
+    ...(fs.existsSync("build/tools/bundletool.jar")
+      ? [{ from: "build/tools/bundletool.jar", to: "tools/bundletool.jar" }]
+      : []),
+  ],
 
   // Compression raisonnable : équilibre taille / temps de packaging.
   compression: "normal",

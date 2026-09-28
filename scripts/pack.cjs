@@ -102,7 +102,10 @@ for (const rel of ["electron/main.cjs", "electron/preload.cjs", "app.config.cjs"
 }
 ok("Fichiers Electron présents.");
 
-/* ---------- 2. Sync version ---------- */
+/* ---------- 2. Outils embarqués + sync version ---------- */
+info("Préparation de bundletool…");
+run(process.execPath, [path.join(root, "scripts", "ensure-bundletool.cjs")]);
+
 info("Synchronisation de la version…");
 run(process.execPath, [path.join(root, "scripts", "sync-version.cjs")]);
 
