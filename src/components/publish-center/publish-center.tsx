@@ -22,6 +22,7 @@ import { PublishCopilotStrip } from "./copilot-strip";
 import { PublishExplainer } from "./publish-explainer";
 import { PublishHandoffCard } from "./handoff-card";
 import { GooglePlayCard } from "./google-play-card";
+import { PostPublishCard } from "./post-publish-card";
 import { ReleaseOverviewCard } from "./release-overview";
 import { ChecklistCard } from "./checklist";
 import { ReleaseNotesCard } from "./release-notes";
@@ -103,6 +104,18 @@ export function PublishCenter({ project }: { project: Project }) {
 
   const score = useMemo(() => computePreparationScore(categories), [categories]);
   const lastPublish = useMemo(() => findLastPublish(history, project), [history, project]);
+  const lastStoreRelease = useMemo(
+    () =>
+      history.find(
+        (record) =>
+          record.projectId === project.id &&
+          record.outcome === "success" &&
+          record.storeRelease?.provider === "google-play" &&
+          record.version === project.currentVersion &&
+          record.storeRelease.versionCode === project.currentBuild,
+      ),
+    [history, project],
+  );
   const lastPreparation = useMemo(() => findLastPreparation(history, project), [history, project]);
   const preparedRelease =
     lastPreparation &&
@@ -232,7 +245,14 @@ export function PublishCenter({ project }: { project: Project }) {
         })()}
       />
 
-      {preparedRelease && <PublishHandoffCard release={preparedRelease} />}
+      {lastStoreRelease && (
+        <PostPublishCard
+          project={project}
+          release={lastStoreRelease}
+          onChanged={() => setRefreshKey((n) => n + 1)}
+        />
+      )}
+      {preparedRelease && !lastStoreRelease && <PublishHandoffCard release={preparedRelease} />}
       <GooglePlayCard
         project={project}
         release={preparedRelease}

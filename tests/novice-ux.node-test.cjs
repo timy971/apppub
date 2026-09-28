@@ -273,3 +273,24 @@ test("les refus Google Play restent visibles avec une action compréhensible", (
   assert.match(card, /Les quatre blocages les plus fréquents/);
   assert.match(card, /Mauvaise clé/);
 });
+
+
+test("après un envoi Google Play réussi, AppPublisher montre clairement la suite", () => {
+  const center = read("src/components/publish-center/publish-center.tsx");
+  const post = read("src/components/publish-center/post-publish-card.tsx");
+  const types = read("src/core/types.ts");
+
+  assert.match(center, /<PostPublishCard/);
+  assert.match(center, /lastStoreRelease/);
+  assert.match(post, /envoyée à Google Play/);
+  assert.match(post, /Envoi réussi/);
+  assert.match(post, /La suite, dans cet ordre/);
+  assert.match(post, /1\. Vérifier Play Console/);
+  assert.match(post, /2\. Installer depuis Google Play/);
+  assert.match(post, /3\. Faire un test rapide/);
+  assert.match(post, /4\. Confirmer ici/);
+  assert.match(post, /J’ai testé cette version/);
+  assert.match(post, /Préparer la prochaine version/);
+  assert.match(types, /googlePlayLastTestedBuild\?: number/);
+  assert.match(types, /googlePlayLastTestedAt\?: string/);
+});
