@@ -3,6 +3,7 @@ import type { Project } from "@/core/types";
 
 const mocks = vi.hoisted(() => ({
   execRun: vi.fn(),
+  gitCheck: vi.fn(),
   resolveProfile: vi.fn(),
   journalLog: vi.fn(),
 }));
@@ -11,6 +12,7 @@ vi.mock("@/core/bridge", () => ({
   bridge: () => ({
     runtime: "electron",
     exec: { run: mocks.execRun },
+    git: { check: mocks.gitCheck },
   }),
 }));
 
@@ -48,6 +50,7 @@ const project: Project = {
 describe("BuildService — validation initiale de la signature", () => {
   beforeEach(() => {
     mocks.execRun.mockReset();
+    mocks.gitCheck.mockReset();
     mocks.resolveProfile.mockReset();
     mocks.journalLog.mockReset();
   });
@@ -73,4 +76,25 @@ describe("BuildService — validation initiale de la signature", () => {
     );
     expect(mocks.execRun).not.toHaveBeenCalled();
   });
+});
+
+it("blocks a stale Git source before invoking npm, even with a valid signing profile", async () => {
+  mocks.execRun.mockClear();
+  mocks.resolveProfile.mockReturnValue({ ok: true });
+  mocks.gitCheck.mockResolvedValue({ relation: "behind", shortSha: "c9c8d96d53" });
+  await expect(
+    BuildService.build(
+      {
+        ...project,
+        source: {
+          type: "git",
+          managed: true,
+          remoteUrl: "https://github.com/timy971/CranioScan",
+          branch: "main",
+        },
+      },
+      { onStep: vi.fn() },
+    ),
+  ).rejects.toThrow(/Source Git non synchronisée/);
+  expect(mocks.execRun).not.toHaveBeenCalled();
 });

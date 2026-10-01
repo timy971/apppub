@@ -134,21 +134,23 @@ function VersionAssistant() {
     .filter((build) => Number.isSafeInteger(build) && build > 0);
   const lastGooglePlayBuild = project.publishing?.android?.googlePlayLastKnownBuild;
   const suggestedBuild =
-    Math.max(
-      project.currentBuild,
-      lastGooglePlayBuild ?? 0,
-      ...knownBuilds,
-    ) + 1;
+    Math.max(project.currentBuild, lastGooglePlayBuild ?? 0, ...knownBuilds) + 1;
 
   const preview = choice ? VersionService.preview(project, choice) : null;
   const parsedManualBuild = manualBuild.trim() === "" ? undefined : Number(manualBuild);
-  const manualBuildValid = parsedManualBuild === undefined || (Number.isInteger(parsedManualBuild) && parsedManualBuild > 0);
+  const manualBuildValid =
+    parsedManualBuild === undefined ||
+    (Number.isInteger(parsedManualBuild) && parsedManualBuild > 0);
   const effectiveBuild =
     choice === "readonly" ? preview?.newBuild : (parsedManualBuild ?? suggestedBuild);
 
   async function apply() {
     if (!choice || !preview || !project || !manualBuildValid) return;
-    if (choice === "build" && parsedManualBuild !== undefined && parsedManualBuild <= project.currentBuild) {
+    if (
+      choice === "build" &&
+      parsedManualBuild !== undefined &&
+      parsedManualBuild <= project.currentBuild
+    ) {
       setFailure({
         title: "Numéro interne trop petit",
         explanation: `Le numéro interne doit être supérieur à ${project.currentBuild}.`,
@@ -166,11 +168,16 @@ function VersionAssistant() {
     try {
       if (choice !== "readonly") {
         if (project.source?.type === "git") {
-          const git = await bridge().git.status({
+          const git = await bridge().git.check({
             projectPath: project.localPath,
             remoteUrl: project.source.remoteUrl,
             branch: project.source.branch,
           });
+          if (git.relation !== "up-to-date") {
+            throw new Error(
+              "Synchronisez le projet dans Configuration avant de préparer une nouvelle version.",
+            );
+          }
           const relevantChanges = userRelevantGitChanges(project.localPath, git.changedFiles);
           if (relevantChanges.length > 0) {
             const onlySafeBuildFiles =
@@ -466,10 +473,10 @@ function VersionAssistant() {
                 <>AppPublisher vérifiera les numéros actuels sans modifier vos fichiers.</>
               ) : choice === "build" ? (
                 <>
-                  La version visible restera <strong className="tabular-nums">{preview?.from}</strong>.
-                  Seul le numéro interne Android passera à{" "}
-                  <strong className="tabular-nums">{effectiveBuild}</strong>. C’est ce numéro que
-                  Google Play utilise pour distinguer deux fichiers Android.
+                  La version visible restera{" "}
+                  <strong className="tabular-nums">{preview?.from}</strong>. Seul le numéro interne
+                  Android passera à <strong className="tabular-nums">{effectiveBuild}</strong>.
+                  C’est ce numéro que Google Play utilise pour distinguer deux fichiers Android.
                   {settings.autoBackupEnabled && " Une sauvegarde sera automatiquement créée."}
                 </>
               ) : (

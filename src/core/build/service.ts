@@ -1,3 +1,5 @@
+import { requireCurrentGitSource } from "@/core/projects/release-source";
+import { VersionService } from "@/core/version/service";
 import type { AabValidationReport, Project } from "@/core/types";
 import { bridge } from "@/core/bridge";
 import { JournalService } from "@/core/journal/logger";
@@ -141,23 +143,18 @@ export const BuildService = {
       throw new Error(signingProfile.error.message);
     }
 
-    // Fige l'origine exacte avant toute commande de build. Un arbre modifié
-    // reste constructible, mais l'historique le signalera explicitement afin
-    // de ne jamais présenter le SHA seul comme une reproduction parfaite.
+    // Fetch before any build command: a new versionCode cannot hide old source.
     let sourceCommit: string | undefined;
     let sourceDirty = false;
-    if (project.source?.type === "git") {
-      const gitStatus = await b.git.status({
-        projectPath: project.localPath,
-        remoteUrl: project.source.remoteUrl,
-        branch: project.source.branch,
-      });
+    const gitStatus = await requireCurrentGitSource(project);
+    if (gitStatus) {
       sourceCommit = gitStatus.headSha;
       sourceDirty = gitStatus.workingTree === "dirty";
       opts.onLine?.(
-        `Source Git : ${gitStatus.branch} @ ${gitStatus.shortSha}${sourceDirty ? " (modifications locales)" : ""}`,
+        `Source Git vérifiée : ${gitStatus.branch} @ ${gitStatus.shortSha}${sourceDirty ? " (modifications locales)" : ""}`,
       );
     }
+    await VersionService.synchronizeSelected(project);
 
     // 1. Dépendances
     abortIfNeeded(signal);
@@ -209,6 +206,8 @@ export const BuildService = {
       throw new Error(sync.stderr || sync.stdout);
     }
     opts.onStep("sync", "success", "Application Android préparée.");
+
+    await VersionService.synchronizeSelected(project);
 
     // 4. Signature — le main process prépare une session opaque puis injecte
     //    lui-même les variables Gradle. Aucun mot de passe ne revient à React.

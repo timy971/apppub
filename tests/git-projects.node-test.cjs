@@ -120,3 +120,128 @@ test("refuses Git operations outside the managed projects directory", async (t) 
   const { manager, seed } = fixture(t);
   await assert.rejects(manager.status({ projectPath: seed }), /géré par AppPublisher/);
 });
+
+function advance(seed, file = "REMOTE.md") {
+  fs.writeFileSync(path.join(seed, file), "remote update\n");
+  git(seed, ["add", file]);
+  git(seed, ["commit", "-m", "advance remote"]);
+  git(seed, ["push"]);
+  return git(seed, ["rev-parse", "HEAD"]);
+}
+
+test("internal backups do not dirty a project or hide real changes beyond 50 files", async (t) => {
+  const { manager, remote, seed } = fixture(t);
+  const { localPath } = await manager.clone({ remoteUrl: remote, branch: "main" });
+  const backups = path.join(localPath, ".apppublisher-backups");
+  fs.mkdirSync(backups);
+  for (let i = 0; i < 70; i++) fs.writeFileSync(path.join(backups, `${i}.txt`), "backup");
+  const args = { projectPath: localPath, remoteUrl: remote, branch: "main" };
+  const status = await manager.status(args);
+  assert.equal(status.workingTree, "clean");
+  assert.equal(status.ignoredBackupFiles, 70);
+  advance(seed);
+  assert.equal((await manager.sync(args)).status.relation, "up-to-date");
+  assert.equal(fs.readFileSync(path.join(backups, "0.txt"), "utf8"), "backup");
+  for (let i = 0; i < 60; i++) fs.writeFileSync(path.join(localPath, `source-${i}.txt`), "manual");
+  const dirty = await manager.status(args);
+  assert.equal(dirty.changedFiles.length, 60);
+  await assert.rejects(manager.sync(args), /modifications/);
+});
+
+test("save-and-sync preserves tracked, staged and untracked work without replaying old files", async (t) => {
+  const { manager, remote, seed } = fixture(t);
+  const { localPath } = await manager.clone({ remoteUrl: remote, branch: "main" });
+  fs.writeFileSync(path.join(localPath, "package.json"), '{"version":"1.2.0"}\n');
+  git(localPath, ["add", "package.json"]);
+  fs.writeFileSync(path.join(localPath, "notes.txt"), "user work\n");
+  fs.mkdirSync(path.join(localPath, ".apppublisher-backups"));
+  fs.writeFileSync(path.join(localPath, ".apppublisher-backups/old.txt"), "old backup\n");
+  const target = advance(seed, "package.json");
+  const synced = await manager.sync({
+    projectPath: localPath,
+    remoteUrl: remote,
+    branch: "main",
+    backupLocalChanges: true,
+  });
+  assert.equal(synced.status.headSha, target);
+  assert.equal(synced.status.workingTree, "clean");
+  assert.match(synced.backupRef, /^refs\/apppublisher\/sync-backups\//);
+  assert.equal(git(localPath, ["show", `${synced.backupRef}:package.json`]), '{"version":"1.2.0"}');
+  assert.equal(git(localPath, ["show", `${synced.backupRef}^3:notes.txt`]), "user work");
+  assert.equal(
+    fs.readFileSync(path.join(localPath, ".apppublisher-backups/old.txt"), "utf8"),
+    "old backup\n",
+  );
+  assert.equal(fs.readFileSync(path.join(localPath, "package.json"), "utf8"), "remote update\n");
+  assert.equal(fs.existsSync(path.join(localPath, "notes.txt")), false);
+  git(localPath, ["stash", "drop"]);
+  assert.equal(git(localPath, ["show", `${synced.backupRef}:package.json`]), '{"version":"1.2.0"}');
+});
+
+test("network failure leaves local work intact before any stash", async (t) => {
+  const { manager, remote } = fixture(t);
+  const { localPath } = await manager.clone({ remoteUrl: remote, branch: "main" });
+  fs.writeFileSync(path.join(localPath, "notes.txt"), "user work\n");
+  const run = manager.runChecked.bind(manager);
+  manager.runChecked = (args, opts) =>
+    args[0] === "fetch" ? Promise.reject(new Error("offline")) : run(args, opts);
+  await assert.rejects(
+    manager.sync({
+      projectPath: localPath,
+      remoteUrl: remote,
+      branch: "main",
+      backupLocalChanges: true,
+    }),
+    /offline/,
+  );
+  assert.equal(fs.readFileSync(path.join(localPath, "notes.txt"), "utf8"), "user work\n");
+  assert.equal(git(localPath, ["stash", "list"]), "");
+});
+
+test("merge failure reports the saved ref and never reapplies old changes", async (t) => {
+  const { manager, remote, seed } = fixture(t);
+  const { localPath, status } = await manager.clone({ remoteUrl: remote, branch: "main" });
+  fs.writeFileSync(path.join(localPath, "notes.txt"), "user work\n");
+  advance(seed);
+  const run = manager.runChecked.bind(manager);
+  manager.runChecked = (args, opts) =>
+    args[0] === "merge" ? Promise.reject(new Error("merge failed")) : run(args, opts);
+  let saved;
+  await assert.rejects(
+    manager.sync({
+      projectPath: localPath,
+      remoteUrl: remote,
+      branch: "main",
+      backupLocalChanges: true,
+    }),
+    (error) => {
+      saved = error.message.match(/refs\/apppublisher\/sync-backups\/[\w-]+/)?.[0];
+      return Boolean(saved);
+    },
+  );
+  assert.equal(git(localPath, ["show", `${saved}^3:notes.txt`]), "user work");
+  assert.equal(git(localPath, ["rev-parse", "HEAD"]), status.headSha);
+  assert.equal(fs.existsSync(path.join(localPath, "notes.txt")), false);
+});
+
+test("unpublished commits block save-and-sync without touching local work", async (t) => {
+  const { manager, remote } = fixture(t);
+  const { localPath } = await manager.clone({ remoteUrl: remote, branch: "main" });
+  git(localPath, ["config", "user.email", "test@example.invalid"]);
+  git(localPath, ["config", "user.name", "Test"]);
+  fs.writeFileSync(path.join(localPath, "commit.txt"), "local");
+  git(localPath, ["add", "commit.txt"]);
+  git(localPath, ["commit", "-m", "local work"]);
+  fs.writeFileSync(path.join(localPath, "notes.txt"), "keep me");
+  await assert.rejects(
+    manager.sync({
+      projectPath: localPath,
+      remoteUrl: remote,
+      branch: "main",
+      backupLocalChanges: true,
+    }),
+    /commits non publiés/,
+  );
+  assert.equal(fs.readFileSync(path.join(localPath, "notes.txt"), "utf8"), "keep me");
+  assert.equal(git(localPath, ["stash", "list"]), "");
+});

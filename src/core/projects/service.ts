@@ -5,6 +5,8 @@ import { JournalService } from "@/core/journal/logger";
 import { bridge } from "@/core/bridge";
 import { diag, diagOp } from "@/core/diag/logger";
 
+import { versionAfterSync } from "./release-source";
+
 function uuid(): UUID {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -248,7 +250,7 @@ export const ProjectsService = {
     return status;
   },
 
-  async syncGit(id: UUID): Promise<GitProjectStatus> {
+  async syncGit(id: UUID, backupLocalChanges = false): Promise<GitProjectStatus> {
     const project = this.get(id);
     if (!project || project.source?.type !== "git") {
       throw new Error("Ce projet n’est pas lié à une copie Git gérée.");
@@ -257,6 +259,7 @@ export const ProjectsService = {
       projectPath: project.localPath,
       remoteUrl: project.source.remoteUrl,
       branch: project.source.branch,
+      backupLocalChanges,
     });
     const detectedDraft = draftFromDetected(project.localPath, result.detected);
     const syncedAt = new Date().toISOString();
@@ -266,8 +269,12 @@ export const ProjectsService = {
         project.fieldSources?.packageName === "user"
           ? project.packageName
           : detectedDraft.packageName,
-      currentVersion: detectedDraft.currentVersion,
-      currentBuild: detectedDraft.currentBuild,
+      currentVersion: versionAfterSync(project.currentVersion, detectedDraft.currentVersion),
+      currentBuild: Math.max(
+        project.currentBuild,
+        detectedDraft.currentBuild,
+        project.publishing?.android?.googlePlayLastKnownBuild ?? 0,
+      ),
       detected: detectedDraft.detected,
       source: sourceFromStatus(result.status, syncedAt),
     });
@@ -275,6 +282,7 @@ export const ProjectsService = {
       projectId: id,
       previousCommit: result.previousHeadSha,
       commit: result.status.headSha,
+      backupRef: result.backupRef,
     });
     return result.status;
   },

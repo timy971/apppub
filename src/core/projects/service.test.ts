@@ -248,6 +248,70 @@ describe("ProjectsService", () => {
     });
   });
 
+  it("preserves the selected release when syncing an older version.json", async () => {
+    const project = ProjectsService.save({
+      name: "Demo",
+      localPath: "/managed/demo",
+      packageName: "custom.package",
+      currentVersion: "1.2.0",
+      currentBuild: 19,
+      detected: {
+        hasPackageJson: true,
+        hasVersionJson: true,
+        hasCapacitorConfig: false,
+        hasAndroid: false,
+        hasIos: false,
+      },
+      source: {
+        type: "git",
+        managed: true,
+        remoteUrl: "https://github.com/acme/demo.git",
+        branch: "main",
+      },
+      fieldSources: { packageName: "user" },
+    });
+    mocks.gitSync.mockResolvedValue({
+      updated: true,
+      previousHeadSha: "a".repeat(40),
+      status: {
+        remoteUrl: "https://github.com/acme/demo.git",
+        branch: "main",
+        headSha: "c".repeat(40),
+        shortSha: "c".repeat(10),
+        ahead: 0,
+        behind: 0,
+        relation: "up-to-date",
+        workingTree: "clean",
+        changedFiles: [],
+        checkedAt: "2026-08-03T09:00:00.000Z",
+      },
+      detected: {
+        hasPackageJson: true,
+        hasVersionJson: true,
+        hasCapacitorConfig: true,
+        hasAndroid: true,
+        hasIos: false,
+        hasVersionScript: true,
+        hasGradleWrapper: true,
+        packageName: "remote.package",
+        currentVersion: "1.1.0",
+        currentBuild: 2,
+      },
+    });
+
+    await ProjectsService.syncGit(project.id, true);
+    expect(mocks.gitSync).toHaveBeenCalledWith(
+      expect.objectContaining({ backupLocalChanges: true }),
+    );
+    expect(ProjectsService.get(project.id)).toMatchObject({
+      packageName: "custom.package",
+      currentVersion: "1.2.0",
+      currentBuild: 19,
+      source: { headSha: "c".repeat(40), workingTree: "clean" },
+      detected: { hasAndroid: true },
+    });
+  });
+
   it("refreshes Android detection without resetting the project version", async () => {
     const project = ProjectsService.save({
       name: "Web App",

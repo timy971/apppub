@@ -1,3 +1,4 @@
+import { requireCurrentArtifactSource } from "@/core/projects/release-source";
 import { bridge } from "@/core/bridge";
 import type { AabValidationReport, Project, PublishRecord } from "@/core/types";
 import { AabValidationService } from "@/core/aab/service";
@@ -60,6 +61,7 @@ export async function verifyPublishArtifact(
   }
 
   try {
+    await requireCurrentArtifactSource(project, record.sourceCommit);
     const stat = await b.fs.stat(record.artifactPath);
     if (!stat?.isFile || stat.size <= 0) {
       return {

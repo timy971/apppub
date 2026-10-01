@@ -1,4 +1,11 @@
-import { describe, expect, it } from "vitest";
+const mocks = vi.hoisted(() => ({ preview: vi.fn(), apply: vi.fn() }));
+vi.mock("@/core/bridge", () => ({
+  bridge: () => ({
+    runtime: "electron",
+    androidCorrections: { preview: mocks.preview, apply: mocks.apply },
+  }),
+}));
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VersionService } from "./service";
 import type { Project } from "@/core/types";
 
@@ -45,5 +52,40 @@ describe("VersionService.preview", () => {
   it("incrémente le build sauf en readonly", () => {
     expect(VersionService.preview(make("1.0.0", 5), "feature").newBuild).toBe(6);
     expect(VersionService.preview(make("1.0.0", 5), "readonly").newBuild).toBe(5);
+  });
+});
+
+describe("VersionService.synchronizeSelected", () => {
+  beforeEach(() => {
+    mocks.preview.mockReset();
+    mocks.apply.mockReset();
+  });
+  it("aligns disk metadata with selected 1.2.0 (19) without increasing it", async () => {
+    const desired = { versionName: "1.2.0", versionCode: 19 };
+    mocks.preview.mockResolvedValue({
+      blocked: [],
+      actions: [{ id: "version" }],
+      desired,
+      token: "checked",
+    });
+    mocks.apply.mockResolvedValue({ applied: true });
+    await VersionService.synchronizeSelected(make("1.2.0", 19));
+    expect(mocks.preview).toHaveBeenCalledWith("/tmp", desired);
+    expect(mocks.apply).toHaveBeenCalledWith("/tmp", desired, "checked");
+  });
+  it("is idempotent when the source already has the selected version", async () => {
+    mocks.preview.mockResolvedValue({ blocked: [], actions: [] });
+    await VersionService.synchronizeSelected(make("1.2.0", 19));
+    expect(mocks.apply).not.toHaveBeenCalled();
+  });
+  it("blocks compilation if version synchronization is unsafe or cancelled", async () => {
+    mocks.preview.mockResolvedValue({ blocked: ["expression Gradle"], actions: [] });
+    await expect(VersionService.synchronizeSelected(make("1.2.0", 19))).rejects.toThrow(
+      /expression Gradle/,
+    );
+    expect(mocks.apply).not.toHaveBeenCalled();
+    mocks.preview.mockResolvedValue({ blocked: [], actions: [{}], desired: {}, token: "checked" });
+    mocks.apply.mockResolvedValue({ applied: false });
+    await expect(VersionService.synchronizeSelected(make("1.2.0", 19))).rejects.toThrow(/annulé/);
   });
 });
