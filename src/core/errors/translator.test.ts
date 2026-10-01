@@ -2,6 +2,29 @@ import { describe, expect, it } from "vitest";
 import { translateError } from "./translator";
 
 describe("translateError", () => {
+
+  it("indique la synchronisation pour un blocage du contrôle Git", () => {
+    const translated = translateError(new Error(
+      "Source Git non synchronisée (ce51021c). Ouvrez Configuration → Projet Git → Synchroniser ou Sauvegarder et synchroniser, puis relancez.",
+    ));
+    expect(translated.title).toBe("Synchronisez le projet avant de continuer");
+    expect(translated.solution).toContain("Sauvegarder et synchroniser");
+    expect(translated.raw).toContain("ce51021c");
+  });
+
+  it("ne promet pas que le réseau est disponible quand la source est inconnue", () => {
+    const translated = translateError("Source Git non synchronisée (unknown).");
+    expect(translated.solution).toContain("connexion");
+  });
+
+  it("demande de reconstruire un AAB dont la source ne correspond plus", () => {
+    const translated = translateError(new Error(
+      "Cet AAB ne correspond pas au code Git à jour, ou son commit est inconnu. Reconstruisez le fichier Android puis préparez à nouveau la publication.",
+    ));
+    expect(translated.title).toBe("Reconstruisez le fichier Android");
+    expect(translated.solution).toContain("nouveau fichier");
+  });
+
   it("explique comment réparer une association de signature obsolète", () => {
     const t = translateError(
       "Le profil de signature associé au projet est introuvable. Réassociez une signature dans la fiche du projet avant de relancer.",
