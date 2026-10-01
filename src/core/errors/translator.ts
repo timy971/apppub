@@ -13,6 +13,28 @@ interface Pattern {
 
 const PATTERNS: Pattern[] = [
   {
+    test: (r) => /Source Git non synchronisée/i.test(r),
+    error: {
+      title: "Synchronisez le projet avant de continuer",
+      explanation:
+        "AppPublisher a arrêté l’opération car il n’a pas pu confirmer que le code local correspond à la branche Git à jour.",
+      solution:
+        "Ouvrez Configuration → Projet Git, puis cliquez sur Synchroniser ou Sauvegarder et synchroniser. Si le contrôle Git indique un problème de connexion, corrigez-le d’abord. Relancez ensuite l’opération.",
+      retryable: true,
+    },
+  },
+  {
+    test: (r) => /Cet AAB ne correspond pas au code Git à jour/i.test(r),
+    error: {
+      title: "Reconstruisez le fichier Android",
+      explanation:
+        "L’AAB sélectionné provient d’un autre commit, ou son commit source n’a pas été enregistré.",
+      solution:
+        "Synchronisez le projet si nécessaire, reconstruisez l’AAB, puis préparez à nouveau la publication avec ce nouveau fichier.",
+      retryable: true,
+    },
+  },
+  {
     test: (r) => /modifications non enregistrées|doit partir d’un projet propre/i.test(r),
     error: {
       title: "Le projet contient des modifications locales",
