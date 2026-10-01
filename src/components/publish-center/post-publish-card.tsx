@@ -1,12 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  CheckCircle2,
-  ExternalLink,
-  ListChecks,
-  Smartphone,
-  Store,
-  TestTube2,
-} from "lucide-react";
+import { CheckCircle2, ExternalLink, ListChecks, Smartphone, Store, TestTube2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +45,7 @@ export function PostPublishCard({
   }
 
   function confirmTested() {
+    if (!storeRelease) return;
     const testedAt = new Date().toISOString();
     ProjectsService.update(
       project.id,

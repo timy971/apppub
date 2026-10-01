@@ -36,6 +36,7 @@ export interface GitProjectStatus {
   relation: GitRelation;
   workingTree: "clean" | "dirty";
   changedFiles: string[];
+  ignoredBackupFiles?: number;
   checkedAt: string;
 }
 
@@ -47,6 +48,7 @@ export interface GitCloneResult {
 }
 
 export interface GitSyncResult {
+  backupRef?: string;
   updated: boolean;
   previousHeadSha: string;
   status: GitProjectStatus;
@@ -155,7 +157,11 @@ export interface SigningAabVerifyResult {
   sha256?: string;
   certificate?: string;
   errorCode?:
-    "file-missing" | "empty-file" | "jarsigner-missing" | "unsigned" | "verification-failed";
+    | "file-missing"
+    | "empty-file"
+    | "jarsigner-missing"
+    | "unsigned"
+    | "verification-failed";
   errorHint?: string;
 }
 
@@ -280,7 +286,12 @@ export interface SystemBridge {
       remoteUrl: string;
       branch: string;
     }): Promise<GitProjectStatus>;
-    sync(args: { projectPath: string; remoteUrl: string; branch: string }): Promise<GitSyncResult>;
+    sync(args: {
+      projectPath: string;
+      remoteUrl: string;
+      branch: string;
+      backupLocalChanges?: boolean;
+    }): Promise<GitSyncResult>;
   };
 
   androidPreparation: {

@@ -1,3 +1,4 @@
+import { requireCurrentArtifactSource } from "@/core/projects/release-source";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -75,7 +76,8 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     ...successfulGooglePlayReleases.map((record) => record.build),
   ].filter((build) => Number.isSafeInteger(build) && build > 0);
   const highestKnownGooglePlayBuild = Math.max(0, ...knownGooglePlayBuilds);
-  const suggestedNextGooglePlayBuild = Math.max(project.currentBuild, highestKnownGooglePlayBuild) + 1;
+  const suggestedNextGooglePlayBuild =
+    Math.max(project.currentBuild, highestKnownGooglePlayBuild) + 1;
   const buildTooLow =
     highestKnownGooglePlayBuild > 0 && project.currentBuild < highestKnownGooglePlayBuild;
   const alreadyPublished =
@@ -292,6 +294,16 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     setLastFailure(null);
     const started = performance.now();
     try {
+      await requireCurrentArtifactSource(project, release.sourceCommit);
+    } catch (error) {
+      toast.error("Code source à vérifier avant l’envoi", {
+        description: error instanceof Error ? error.message : String(error),
+        duration: 15_000,
+      });
+      setBusy(null);
+      return;
+    }
+    try {
       const result = await bridge().googlePlay.publishInternal({
         ...connectionArgs,
         aabPath: release.artifactPath,
@@ -357,6 +369,8 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           artifactSizeBytes: release.artifactSizeBytes,
           aabValidation: release.aabValidation,
           aabReportPath: release.aabReportPath,
+          sourceCommit: release.sourceCommit,
+          sourceDirty: release.sourceDirty,
           notes: release.notes,
           storeRelease: {
             provider: "google-play",
@@ -414,12 +428,12 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       : connected && alreadyPublished
         ? "Cette version a déjà été envoyée. Augmentez uniquement le numéro interne pour republier."
         : connected && !verified
-        ? "Vérifiez l'accès au compte Google avant l'envoi."
-        : connected && !release
-          ? "Créez puis préparez le fichier Android avant l'envoi."
-          : connected && !release?.notes
-            ? "Ajoutez les notes de version puis préparez de nouveau la publication."
-            : undefined;
+          ? "Vérifiez l'accès au compte Google avant l'envoi."
+          : connected && !release
+            ? "Créez puis préparez le fichier Android avant l'envoi."
+            : connected && !release?.notes
+              ? "Ajoutez les notes de version puis préparez de nouveau la publication."
+              : undefined;
 
   return (
     <Card id="google-play-publication" className="border-primary/30 p-6 shadow-soft">
@@ -522,15 +536,19 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         hasPreviousRelease={hasPreviousGooglePlayRelease}
       />
       {buildTooLow && (
-        <div role="alert" className="mt-4 rounded-xl border border-amber-400/40 bg-amber-50/70 p-4 text-sm dark:bg-amber-950/20">
+        <div
+          role="alert"
+          className="mt-4 rounded-xl border border-amber-400/40 bg-amber-50/70 p-4 text-sm dark:bg-amber-950/20"
+        >
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <p className="font-medium">Le numéro interne est trop petit pour Google Play</p>
               <p className="mt-1 leading-relaxed text-muted-foreground">
                 Ce fichier utilise le numéro interne <strong>{project.currentBuild}</strong>, alors
-                qu’AppPublisher connaît déjà le numéro <strong>{highestKnownGooglePlayBuild}</strong>.
-                Google Play exige un numéro strictement supérieur pour chaque nouveau fichier.
+                qu’AppPublisher connaît déjà le numéro{" "}
+                <strong>{highestKnownGooglePlayBuild}</strong>. Google Play exige un numéro
+                strictement supérieur pour chaque nouveau fichier.
               </p>
               <p className="mt-2 leading-relaxed">
                 Vous pouvez garder la version visible <strong>{project.currentVersion}</strong> et
@@ -691,7 +709,9 @@ function GooglePlayRecovery({
             {recovery.action === "version" && (
               <Button asChild size="sm">
                 <Link to="/version" onClick={() => JourneyProgress.rememberReturnTo("/publish")}>
-                  {suggestedBuild ? `Utiliser le numéro interne ${suggestedBuild}` : "Augmenter le numéro interne"}
+                  {suggestedBuild
+                    ? `Utiliser le numéro interne ${suggestedBuild}`
+                    : "Augmenter le numéro interne"}
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
@@ -738,7 +758,10 @@ function GooglePlayRecovery({
   );
 }
 
-function googlePlayRecoveryFor(failure: GooglePlayFailure, suggestedBuild?: number): {
+function googlePlayRecoveryFor(
+  failure: GooglePlayFailure,
+  suggestedBuild?: number,
+): {
   title: string;
   explanation: string;
   solution: string;

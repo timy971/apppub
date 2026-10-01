@@ -2,6 +2,8 @@ import type { Project, VersionBumpPreview, VersionChangeType } from "@/core/type
 import { bridge } from "@/core/bridge";
 import { JournalService } from "@/core/journal/logger";
 
+import { requireCurrentGitSource } from "@/core/projects/release-source";
+
 function parse(v: string): [number, number, number] {
   const parts = v.split(".").map((n) => parseInt(n, 10));
   return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
@@ -39,6 +41,21 @@ async function resolveVersionScript(projectPath: string): Promise<string | null>
 }
 
 export const VersionService = {
+  /** Align the selected release before web compilation and after Capacitor sync. */
+  async synchronizeSelected(project: Project): Promise<void> {
+    const b = bridge();
+    if (b.runtime !== "electron") return;
+    const plan = await b.androidCorrections.preview(project.localPath, {
+      versionName: project.currentVersion,
+      versionCode: project.currentBuild,
+    });
+    if (plan.blocked.length) throw new Error(plan.blocked.join(" "));
+    if (!plan.actions.length) return;
+    const result = await b.androidCorrections.apply(project.localPath, plan.desired, plan.token);
+    if (!result.applied)
+      throw new Error("L’alignement de la version a été annulé. Aucun AAB n’a été construit.");
+  },
+
   preview(project: Project, type: VersionChangeType): VersionBumpPreview {
     return {
       from: project.currentVersion,
@@ -93,6 +110,8 @@ export const VersionService = {
       );
     }
 
+    await requireCurrentGitSource(project);
+
     if (type === "build") {
       const nextBuild = buildOverride ?? project.currentBuild + 1;
       if (!Number.isInteger(nextBuild) || nextBuild <= 0) {
@@ -104,15 +123,10 @@ export const VersionService = {
       });
       if (!plan.canApply) {
         throw new Error(
-          plan.blocked[0] ??
-            "AppPublisher n’a pas pu préparer la mise à jour du numéro interne.",
+          plan.blocked[0] ?? "AppPublisher n’a pas pu préparer la mise à jour du numéro interne.",
         );
       }
-      const result = await b.androidCorrections.apply(
-        project.localPath,
-        plan.desired,
-        plan.token,
-      );
+      const result = await b.androidCorrections.apply(project.localPath, plan.desired, plan.token);
       if (!result.applied) {
         throw new Error("Le numéro interne n’a pas pu être mis à jour.");
       }
@@ -140,7 +154,13 @@ export const VersionService = {
     }
 
     const scriptArg =
-      type === "bugfix" ? "patch" : type === "feature" ? "minor" : type === "major" ? "major" : "build";
+      type === "bugfix"
+        ? "patch"
+        : type === "feature"
+          ? "minor"
+          : type === "major"
+            ? "major"
+            : "build";
     const args = [versionScript, scriptArg];
     if (buildOverride !== undefined) args.push("--build", String(buildOverride));
 

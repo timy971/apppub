@@ -1,3 +1,14 @@
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -537,18 +548,18 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
     void refreshGit();
   }, [project.source?.type, refreshGit]);
 
-  async function syncGit() {
+  async function syncGit(backupLocalChanges = false) {
     if (project.source?.type !== "git") return;
     setGitLoading(true);
     try {
       const before = gitStatus?.headSha;
-      const status = await ProjectsService.syncGit(project.id);
+      const status = await ProjectsService.syncGit(project.id, backupLocalChanges);
       setGitStatus(status);
       AppStore.refreshProjects();
       toast.success(
         before && before !== status.headSha ? "Projet mis à jour" : "Projet déjà à jour",
         {
-          description: `${status.branch} · ${status.shortSha}`,
+          description: `${status.branch} · ${status.shortSha}${backupLocalChanges ? " — changements locaux sauvegardés séparément, sans réapplication. Référence dans le journal." : ""}`,
         },
       );
     } catch (error) {
@@ -602,7 +613,7 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
         fichiers ; les réglages techniques restent masqués dans ce mode.
       </DiscoveryHint>
 
-      <AssistantOrAbove>
+      <>
         {project.source?.type === "git" && (
           <GitSourcePanel
             project={project}
@@ -612,7 +623,7 @@ function ConfigurationTab({ project, update }: { project: Project; update: Updat
             onSync={syncGit}
           />
         )}
-      </AssistantOrAbove>
+      </>
 
       <div>
         <Label>Dossier local</Label>
@@ -741,7 +752,7 @@ function GitSourcePanel({
   status: GitProjectStatus | null;
   loading: boolean;
   onRefresh: () => void;
-  onSync: () => void;
+  onSync: (backupLocalChanges?: boolean) => void;
 }) {
   const source = project.source;
   if (source?.type !== "git") return null;
@@ -780,9 +791,39 @@ function GitSourcePanel({
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Vérifier
           </Button>
-          <Button size="sm" onClick={onSync} disabled={loading || dirty}>
-            Synchroniser
-          </Button>
+          {dirty ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" disabled={loading}>
+                  Sauvegarder et synchroniser
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Sauvegarder les changements et mettre à jour ?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tous les changements locaux, y compris vos éventuelles modifications manuelles,
+                    seront conservés dans une sauvegarde Git puis retirés de la copie de travail.
+                    AppPublisher récupérera la branche distante sans réappliquer les anciens
+                    fichiers. La version sélectionnée et le numéro interne ne seront pas abaissés.
+                    La référence de sauvegarde sera disponible dans le journal.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onSync(true)}>
+                    Sauvegarder et synchroniser
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button size="sm" onClick={() => onSync()} disabled={loading || !status}>
+              Synchroniser
+            </Button>
+          )}
         </div>
       </div>
 
@@ -798,22 +839,25 @@ function GitSourcePanel({
         <div className="rounded-md bg-background p-2">
           <div className="text-muted-foreground">État</div>
           <div className={`mt-0.5 ${dirty ? "text-warning" : ""}`}>
-            {dirty
-              ? "Modifications locales"
-              : status
-                ? relationLabels[status.relation]
-                : "Vérification…"}
+            {status ? relationLabels[status.relation] : "Vérification…"}
+            {dirty && " · Modifications locales"}
           </div>
         </div>
       </div>
 
+      {!!status?.ignoredBackupFiles && (
+        <p className="text-xs text-muted-foreground">
+          {status.ignoredBackupFiles} fichier(s) de sauvegarde interne conservé(s), exclus des
+          changements du code.
+        </p>
+      )}
       {dirty && (
         <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs">
           <div className="flex items-start gap-2 text-warning">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              La synchronisation ne modifiera rien tant que ces changements locaux ne sont pas
-              traités. Vous pouvez toujours construire cette version locale.
+              Utilisez « Sauvegarder et synchroniser » pour conserver ces changements et récupérer
+              le code à jour. Une construction avec une source Git en retard est bloquée.
             </div>
           </div>
           {!!generatedByAppPublisher?.length && (
@@ -826,7 +870,7 @@ function GitSourcePanel({
           {status.changedFiles.length > 0 && (
             <details className="mt-2 text-muted-foreground">
               <summary className="cursor-pointer font-sans font-medium">
-                Voir tous les fichiers ({status.changedFiles.length})
+                Voir les fichiers modifiés ({status.changedFiles.length})
               </summary>
               <div className="mt-2 max-h-48 space-y-1 overflow-y-auto font-mono">
                 {status.changedFiles.map((file) => (

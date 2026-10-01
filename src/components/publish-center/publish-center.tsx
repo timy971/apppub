@@ -174,6 +174,8 @@ export function PublishCenter({ project }: { project: Project }) {
         artifactSizeBytes: verifiedArtifact.size,
         aabValidation: verifiedArtifact.validation,
         aabReportPath: verifiedArtifact.record?.aabReportPath,
+        sourceCommit: verifiedArtifact.record?.sourceCommit,
+        sourceDirty: verifiedArtifact.record?.sourceDirty,
         notes: notesFormatted || undefined,
       });
       AppStore.refreshProjects();

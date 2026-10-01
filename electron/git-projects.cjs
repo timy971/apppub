@@ -117,6 +117,7 @@ class GitProjectManager {
     this.spawn = options.spawnImpl ?? spawn;
     this.platform = options.platform ?? process.platform;
     this.allowLocalRemotes = options.allowLocalRemotes === true;
+    this.syncing = new Set();
     this.hooksPath = path.join(this.rootPath, ".hooks-disabled");
     this.fs.mkdirSync(this.rootPath, { recursive: true });
     this.fs.mkdirSync(this.hooksPath, { recursive: true });
@@ -154,7 +155,12 @@ class GitProjectManager {
       let stdout = "";
       let stderr = "";
       let settled = false;
-      const append = (current, chunk) => (current + chunk.toString("utf8")).slice(-MAX_OUTPUT);
+      let truncated = false;
+      const append = (current, chunk) => {
+        const next = current + chunk.toString("utf8");
+        if (next.length > MAX_OUTPUT) truncated = true;
+        return next.slice(-MAX_OUTPUT);
+      };
       child.stdout?.on("data", (chunk) => {
         stdout = append(stdout, chunk);
       });
@@ -186,7 +192,7 @@ class GitProjectManager {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
-        resolve({ exitCode: Number(code ?? -1), stdout, stderr });
+        resolve({ exitCode: Number(code ?? -1), stdout, stderr, truncated });
       });
     });
   }
@@ -283,10 +289,16 @@ class GitProjectManager {
       this.runChecked(["remote", "get-url", "origin"], { cwd: projectPath }),
       this.runChecked(["rev-parse", "--abbrev-ref", "HEAD"], { cwd: projectPath }),
       this.runChecked(["rev-parse", "--verify", "HEAD"], { cwd: projectPath }),
-      this.runChecked(["status", "--porcelain=v1", "--untracked-files=all"], {
+      this.runChecked(["status", "--porcelain=v1", "-z", "--untracked-files=all"], {
         cwd: projectPath,
       }),
     ]);
+    if (changesResult.truncated) {
+      throw new GitProjectError(
+        "too-many-changes",
+        "La liste des modifications est trop volumineuse pour être vérifiée en sécurité.",
+      );
+    }
     const remoteUrl = this.normalizeRemote(remoteResult.stdout.trim());
     const branch = branchResult.stdout.trim();
     const headSha = headResult.stdout.trim();
@@ -305,11 +317,23 @@ class GitProjectManager {
         `La copie locale est sur « ${branch} » au lieu de « ${expectedBranch} ».`,
       );
     }
-    const changedFiles = changesResult.stdout
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .slice(0, 50)
-      .map((line) => safeChangedPath(line.length > 3 ? line.slice(3) : line));
+    // NUL-separated paths preserve spaces/newlines and rename pairs. Internal
+    // untracked backups are not source changes; tracked files remain visible.
+    const entries = changesResult.stdout.split("\0");
+    const changedFiles = [];
+    let ignoredBackupFiles = 0;
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (!entry) continue;
+      const code = entry.slice(0, 2);
+      const file = entry.slice(3);
+      if (code === "??" && file.startsWith(".apppublisher-backups/")) {
+        ignoredBackupFiles++;
+        continue;
+      }
+      changedFiles.push(safeChangedPath(file));
+      if (/[RC]/.test(code)) i++; // second path of a rename/copy
+    }
     const upstreamResult = await this.run(
       ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
       { cwd: projectPath },
@@ -347,6 +371,7 @@ class GitProjectManager {
       relation,
       workingTree: changedFiles.length ? "dirty" : "clean",
       changedFiles,
+      ignoredBackupFiles,
       checkedAt: new Date().toISOString(),
     };
   }
@@ -393,23 +418,45 @@ class GitProjectManager {
     const branch = validateBranch(args?.branch);
     // Valide d'abord l'identité locale : on ne contacte jamais un autre
     // origin que celui associé au projet dans AppPublisher.
-    await this.status({ projectPath, remoteUrl, branch });
-    await this.runChecked(["fetch", "--prune", "origin", branch], {
-      cwd: projectPath,
-      timeoutMs: 5 * 60_000,
-    });
+    const local = await this.status({ projectPath, remoteUrl, branch });
+    if (local.upstream !== `origin/${branch}`) {
+      throw new GitProjectError(
+        "no-upstream",
+        "La branche doit suivre la branche origin attendue.",
+      );
+    }
+    await this.runChecked(
+      ["fetch", "--prune", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`],
+      {
+        cwd: projectPath,
+        timeoutMs: 5 * 60_000,
+      },
+    );
     return this.status({ projectPath, remoteUrl, branch });
   }
 
   async sync(args) {
     const projectPath = this.resolveManagedProject(args?.projectPath);
+    if (this.syncing.has(projectPath)) {
+      throw new GitProjectError("sync-busy", "Une synchronisation est déjà en cours.");
+    }
+    this.syncing.add(projectPath);
+    try {
+      return await this.syncUnlocked(args, projectPath);
+    } finally {
+      this.syncing.delete(projectPath);
+    }
+  }
+
+  async syncUnlocked(args, projectPath) {
     const remoteUrl = this.normalizeRemote(args?.remoteUrl);
     const branch = validateBranch(args?.branch);
-    const before = await this.status({ projectPath, remoteUrl, branch });
-    if (before.workingTree === "dirty") {
+    // Fetch before saving anything: network/auth failures leave the worktree intact.
+    const before = await this.check({ projectPath, remoteUrl, branch });
+    if (before.upstream !== `origin/${branch}` || before.relation === "no-upstream") {
       throw new GitProjectError(
-        "local-changes",
-        "Synchronisation bloquée : la copie locale contient des modifications.",
+        "no-upstream",
+        "La branche doit suivre la branche origin attendue.",
       );
     }
     if (before.relation === "ahead" || before.relation === "diverged") {
@@ -418,41 +465,89 @@ class GitProjectManager {
         "Synchronisation bloquée : la branche locale contient des commits non publiés.",
       );
     }
-    await this.runChecked(["fetch", "--prune", "origin", branch], {
-      cwd: projectPath,
-      timeoutMs: 5 * 60_000,
-    });
-    const fetched = await this.status({ projectPath, remoteUrl, branch });
-    if (fetched.workingTree === "dirty") {
+    if (before.workingTree === "dirty" && args?.backupLocalChanges !== true) {
       throw new GitProjectError(
         "local-changes",
-        "Synchronisation bloquée : la copie locale contient des modifications.",
+        "Utilisez « Sauvegarder et synchroniser » pour conserver les modifications locales avant la mise à jour.",
       );
     }
-    if (fetched.relation === "ahead" || fetched.relation === "diverged") {
-      throw new GitProjectError(
-        "not-fast-forward",
-        "La branche locale ne peut pas être mise à jour automatiquement sans réécrire son historique.",
-      );
-    }
-    if (fetched.relation === "no-upstream") {
-      throw new GitProjectError(
-        "no-upstream",
-        "Synchronisation bloquée : cette branche ne suit plus de branche distante.",
-      );
-    }
-    if (fetched.relation === "behind") {
-      await this.runChecked(["merge", "--ff-only", fetched.upstream], {
+    const target = (
+      await this.runChecked(["rev-parse", "--verify", `refs/remotes/origin/${branch}`], {
         cwd: projectPath,
-        timeoutMs: 5 * 60_000,
-      });
+      })
+    ).stdout.trim();
+    let backupRef;
+    let stashSha;
+    try {
+      if (before.workingTree === "dirty") {
+        const previous = await this.run(["rev-parse", "--verify", "refs/stash"], {
+          cwd: projectPath,
+        });
+        const id = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
+        // Keep existing backup locations valid for the Resources screen. If
+        // backup files were committed/edited as source, include them instead.
+        const preserveBackups = !before.changedFiles.some((file) =>
+          file.startsWith(".apppublisher-backups/"),
+        );
+        await this.runChecked(
+          [
+            "stash",
+            "push",
+            "--include-untracked",
+            "-m",
+            `AppPublisher avant synchronisation ${id}`,
+            "--",
+            ".",
+            ...(preserveBackups ? [":(exclude).apppublisher-backups"] : []),
+          ],
+          { cwd: projectPath },
+        );
+        stashSha = (
+          await this.runChecked(["rev-parse", "--verify", "refs/stash"], { cwd: projectPath })
+        ).stdout.trim();
+        if (stashSha === previous.stdout.trim()) {
+          throw new GitProjectError("backup-failed", "La sauvegarde Git n’a pas pu être vérifiée.");
+        }
+        // A dedicated ref keeps the snapshot recoverable even if the stash list changes.
+        const savedRef = `refs/apppublisher/sync-backups/${id}`;
+        await this.runChecked(["update-ref", savedRef, stashSha], { cwd: projectPath });
+        backupRef = savedRef;
+      }
+      const saved = await this.status({ projectPath, remoteUrl, branch });
+      if (saved.workingTree !== "clean" || saved.headSha !== before.headSha) {
+        throw new GitProjectError(
+          "local-changes",
+          "Le projet a changé pendant la synchronisation. Relancez la vérification.",
+        );
+      }
+      if (saved.headSha !== target) {
+        await this.runChecked(["merge", "--ff-only", target], {
+          cwd: projectPath,
+          timeoutMs: 5 * 60_000,
+        });
+      }
+      const after = await this.status({ projectPath, remoteUrl, branch });
+      if (after.headSha !== target)
+        throw new GitProjectError(
+          "sync-incomplete",
+          "La mise à jour Git n’a pas pu être vérifiée.",
+        );
+      return {
+        updated: before.headSha !== after.headSha,
+        previousHeadSha: before.headSha,
+        backupRef,
+        status: after,
+      };
+    } catch (error) {
+      // Never pop old generated files over the updated source, even after a failure.
+      if (stashSha) {
+        throw new GitProjectError(
+          error.code ?? "sync-failed",
+          `${error.message} Changements conservés dans la sauvegarde Git ${backupRef ?? stashSha}. Ne la réappliquez pas automatiquement.`,
+        );
+      }
+      throw error;
     }
-    const after = await this.status({ projectPath, remoteUrl, branch });
-    return {
-      updated: before.headSha !== after.headSha,
-      previousHeadSha: before.headSha,
-      status: after,
-    };
   }
 }
 
