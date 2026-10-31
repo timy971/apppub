@@ -143,6 +143,9 @@ export const PublicationBuildService = {
         aabPath: promoted.artifactPath,
         aabSize: promoted.artifactSizeBytes,
         aabReportPath: promoted.reportPath,
+        aabValidation: built.aabValidation
+          ? { ...built.aabValidation, reportPath: promoted.reportPath }
+          : built.aabValidation,
         artifactSha256: promoted.artifactSha256,
         sourceCommit: prepared.workspace.sourceSha,
         sourceDirty: false,
