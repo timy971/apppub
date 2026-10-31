@@ -53,9 +53,9 @@ export function isAndroidApplicationId(value: unknown): value is string {
 export function resolvePublicationApplicationId(project: Project): string | undefined {
   const android = getAndroidConfig(project);
   const candidates = [
+    project.playStoreAppId,
     android.applicationId,
     project.detected?.capacitorAppId,
-    project.playStoreAppId,
     project.packageName,
   ];
   return candidates.find(isAndroidApplicationId)?.trim();
