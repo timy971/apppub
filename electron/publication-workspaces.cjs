@@ -203,6 +203,54 @@ class PublicationWorkspaceManager {
     await this.git.run(["worktree", "prune"], { cwd: managedProjectPath, timeoutMs: 60_000 });
     return { released: true, workspacePath: workspace };
   }
+
+  /**
+   * Nettoyage de démarrage : aucune publication ne peut être active avant
+   * l'ouverture de la fenêtre. On ne supprime que les dossiers qui peuvent
+   * être prouvés comme worktrees d'un projet Git géré encore connu.
+   * Les dossiers inconnus sont volontairement laissés intacts.
+   */
+  async cleanupOrphans(projectPaths = []) {
+    let entries = [];
+    try {
+      entries = this.fs.readdirSync(this.rootPath, { withFileTypes: true });
+    } catch {
+      return { removed: [], skipped: [] };
+    }
+
+    const managedProjects = [];
+    for (const projectPath of projectPaths) {
+      try {
+        managedProjects.push(this.git.resolveManagedProject(projectPath));
+      } catch {}
+    }
+
+    const removed = [];
+    const skipped = [];
+    for (const entry of entries) {
+      if (!entry?.isDirectory?.()) continue;
+      const workspacePath = path.join(this.rootPath, entry.name);
+      let owner;
+      for (const projectPath of managedProjects) {
+        try {
+          await this.assertWorkspaceOwner(workspacePath, projectPath);
+          owner = projectPath;
+          break;
+        } catch {}
+      }
+      if (!owner) {
+        skipped.push(workspacePath);
+        continue;
+      }
+      try {
+        await this.release({ projectPath: owner, workspacePath });
+        removed.push(workspacePath);
+      } catch {
+        skipped.push(workspacePath);
+      }
+    }
+    return { removed, skipped };
+  }
 }
 
 module.exports = {
