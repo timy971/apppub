@@ -325,6 +325,52 @@ class GooglePlayPublisher {
     }
   }
 
+  async editExists(packageName, editId, token) {
+    try {
+      await this.request(
+        `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}`,
+        token,
+        { method: "GET", phase: "resume-edit" },
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof GooglePlayError && error.status === 404) return false;
+      throw error;
+    }
+  }
+
+  async listBundles(packageName, editId, token) {
+    const payload = await this.request(
+      `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/bundles`,
+      token,
+      { method: "GET", phase: "resume-bundles" },
+    );
+    return Array.isArray(payload?.bundles) ? payload.bundles : [];
+  }
+
+  async getTrack(packageName, editId, track, token) {
+    return this.request(
+      `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/tracks/${encode(track)}`,
+      token,
+      { method: "GET", phase: "resume-track" },
+    );
+  }
+
+  async versionOnInternalTrack(packageName, versionCode, token) {
+    const editId = await this.insertEdit(packageName, token);
+    try {
+      const track = await this.getTrack(packageName, editId, INTERNAL_TRACK, token);
+      const releases = Array.isArray(track?.releases) ? track.releases : [];
+      return releases.some((release) =>
+        Array.isArray(release?.versionCodes) &&
+        release.versionCodes.some((value) => Number(value) === versionCode),
+      );
+    } finally {
+      await this.deleteEdit(packageName, editId, token);
+    }
+  }
+
+
   async testConnection(credentialsInput, packageNameInput) {
     const credentials = validateGooglePlayCredentials(credentialsInput);
     const packageName = normalizePackageName(packageNameInput);
@@ -360,7 +406,7 @@ class GooglePlayPublisher {
     }
   }
 
-  async publishInternal(input, onStep = () => {}) {
+  async publishInternal(input, onStep = () => {}, onCheckpoint = () => {}) {
     const credentials = validateGooglePlayCredentials(input.credentials);
     const packageName = normalizePackageName(input.packageName);
     const notes = normalizeNotes(input.notes);
@@ -370,49 +416,126 @@ class GooglePlayPublisher {
       throw new GooglePlayError("aab-invalid", "Le fichier AAB est absent ou vide.");
     }
 
+    const resume =
+      input.resume &&
+      typeof input.resume.editId === "string" &&
+      Number.isSafeInteger(input.resume.versionCode) &&
+      input.resume.versionCode > 0 &&
+      ["bundle-uploaded", "commit-unknown"].includes(input.resume.phase)
+        ? input.resume
+        : null;
+
+    const emitCheckpoint = async (checkpoint) => {
+      try {
+        await onCheckpoint(checkpoint);
+      } catch {
+        // Le checkpoint améliore la reprise, mais ne doit jamais interrompre
+        // une publication qui peut encore être commitée avec succès.
+      }
+    };
+
     onStep("authenticate");
     const token = await this.accessToken(credentials);
-    onStep("create-edit");
-    const editId = await this.insertEdit(packageName, token);
+
+    if (resume?.phase === "commit-unknown") {
+      onStep("check-commit");
+      const alreadyCommitted = await this.versionOnInternalTrack(
+        packageName,
+        resume.versionCode,
+        token,
+      );
+      if (alreadyCommitted) {
+        onStep("done");
+        return {
+          ok: true,
+          packageName,
+          track: INTERNAL_TRACK,
+          editId: resume.editId,
+          versionCode: resume.versionCode,
+          releaseStatus: "completed",
+          resumed: true,
+          recoveredCommit: true,
+          ...credentialIdentity(credentials),
+        };
+      }
+    }
+
+    let editId;
+    let bundleVersionCode;
+    let bundleUploaded = false;
+    let resumed = false;
+
+    if (resume) {
+      onStep("resume-edit");
+      const exists = await this.editExists(packageName, resume.editId, token);
+      if (exists) {
+        const bundles = await this.listBundles(packageName, resume.editId, token);
+        const found = bundles.find(
+          (bundle) => Number(bundle?.versionCode) === resume.versionCode,
+        );
+        if (found) {
+          editId = resume.editId;
+          bundleVersionCode = resume.versionCode;
+          bundleUploaded = true;
+          resumed = true;
+          onStep("resume-bundle");
+        }
+      }
+    }
+
+    if (!editId) {
+      onStep("create-edit");
+      editId = await this.insertEdit(packageName, token);
+    }
+
     let committed = false;
     try {
-      onStep("upload-bundle");
-      let bundleBytes;
-      try {
-        bundleBytes = await this.readFile(input.aabPath);
-      } catch {
-        throw new GooglePlayError(
-          "aab-read-failed",
-          "Le fichier AAB ne peut pas être lu. Vérifiez qu'il existe toujours, puis relancez la publication.",
-          { phase: "upload-bundle" },
-        );
-      }
-      if (!Buffer.isBuffer(bundleBytes) || bundleBytes.length !== stat.size) {
-        throw new GooglePlayError(
-          "aab-read-failed",
-          "La lecture de l'AAB est incomplète. Aucun envoi n'a été validé.",
-          { phase: "upload-bundle" },
-        );
-      }
-      const bundle = await this.request(
-        `${UPLOAD_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/bundles?uploadType=media`,
-        token,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/octet-stream",
-            "Content-Length": String(bundleBytes.length),
+      if (!bundleUploaded) {
+        onStep("upload-bundle");
+        let bundleBytes;
+        try {
+          bundleBytes = await this.readFile(input.aabPath);
+        } catch {
+          throw new GooglePlayError(
+            "aab-read-failed",
+            "Le fichier AAB ne peut pas être lu. Vérifiez qu'il existe toujours, puis relancez la publication.",
+            { phase: "upload-bundle" },
+          );
+        }
+        if (!Buffer.isBuffer(bundleBytes) || bundleBytes.length !== stat.size) {
+          throw new GooglePlayError(
+            "aab-read-failed",
+            "La lecture de l'AAB est incomplète. Aucun envoi n'a été validé.",
+            { phase: "upload-bundle" },
+          );
+        }
+        const bundle = await this.request(
+          `${UPLOAD_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/bundles?uploadType=media`,
+          token,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/octet-stream",
+              "Content-Length": String(bundleBytes.length),
+            },
+            body: bundleBytes,
+            timeoutMs: AAB_UPLOAD_TIMEOUT_MS,
+            phase: "upload-bundle",
           },
-          body: bundleBytes,
-          timeoutMs: AAB_UPLOAD_TIMEOUT_MS,
-          phase: "upload-bundle",
-        },
-      );
-      if (!Number.isSafeInteger(bundle.versionCode) || bundle.versionCode <= 0) {
-        throw new GooglePlayError(
-          "invalid-response",
-          "Google Play n'a pas reconnu la version de l'AAB.",
         );
+        if (!Number.isSafeInteger(bundle.versionCode) || bundle.versionCode <= 0) {
+          throw new GooglePlayError(
+            "invalid-response",
+            "Google Play n'a pas reconnu la version de l'AAB.",
+          );
+        }
+        bundleVersionCode = bundle.versionCode;
+        bundleUploaded = true;
+        await emitCheckpoint({
+          editId,
+          versionCode: bundleVersionCode,
+          phase: "bundle-uploaded",
+        });
       }
 
       onStep("update-track");
@@ -427,7 +550,7 @@ class GooglePlayPublisher {
             releases: [
               {
                 name: input.releaseName,
-                versionCodes: [String(bundle.versionCode)],
+                versionCodes: [String(bundleVersionCode)],
                 status: "completed",
                 releaseNotes: [{ language, text: notes }],
               },
@@ -463,9 +586,15 @@ class GooglePlayPublisher {
         );
       } catch (error) {
         if (error?.code === "network-error" || error?.code === "network-timeout") {
+          await emitCheckpoint({
+            editId,
+            versionCode: bundleVersionCode,
+            phase: "commit-unknown",
+          });
           throw new GooglePlayError(
             "commit-outcome-unknown",
-            "La connexion a été interrompue pendant la validation finale. La release a peut-être été publiée : vérifiez Google Play Console avant toute nouvelle tentative.",
+            "La connexion a été interrompue pendant la validation finale. AppPublisher vérifiera automatiquement l'état réel sur Google Play au prochain essai.",
+            { phase: "commit-edit", causeCode: error.causeCode },
           );
         }
         throw error;
@@ -477,12 +606,16 @@ class GooglePlayPublisher {
         packageName,
         track: INTERNAL_TRACK,
         editId,
-        versionCode: bundle.versionCode,
+        versionCode: bundleVersionCode,
         releaseStatus: "completed",
+        resumed,
+        recoveredCommit: false,
         ...credentialIdentity(credentials),
       };
     } finally {
-      if (!committed) await this.deleteEdit(packageName, editId, token);
+      // Un edit qui contient déjà l'AAB est conservé pour permettre une vraie
+      // reprise sans re-téléverser le fichier. Les edits vides sont nettoyés.
+      if (!committed && !bundleUploaded) await this.deleteEdit(packageName, editId, token);
     }
   }
 }
