@@ -11,15 +11,15 @@ test("Android identity rejects npm project names", () => {
   assert.equal(isAndroidApplicationId("app.cranioscan.android"), true);
 });
 
-test("stored Android identity prefers explicit applicationId", () => {
+test("stored Android identity keeps an established Play package immutable", () => {
   assert.equal(
     resolveStoredAndroidPackage({
       packageName: "vite_react_shadcn_ts",
-      playStoreAppId: "app.old.play",
+      playStoreAppId: "app.play.immutable",
       detected: { capacitorAppId: "app.old.capacitor" },
       publishing: { android: { applicationId: "app.victorytrack.android" } },
     }),
-    "app.victorytrack.android",
+    "app.play.immutable",
   );
 });
 
@@ -27,7 +27,6 @@ test("stored Android identity falls back only to valid package-shaped candidates
   assert.equal(
     resolveStoredAndroidPackage({
       packageName: "vite_react_shadcn_ts",
-      playStoreAppId: "app.old.play",
       detected: { capacitorAppId: "app.cranioscan.android" },
       publishing: { android: {} },
     }),
