@@ -199,6 +199,27 @@ export const webBridge: SystemBridge = {
     },
   },
 
+  publicationWorkspace: {
+    async prepare({ projectPath, remoteUrl, branch }) {
+      const detected = await webBridge.projects.detect(projectPath);
+      return {
+        workspacePath: projectPath + "/.apppublisher-publication-snapshot",
+        managedProjectPath: projectPath,
+        remoteUrl,
+        branch,
+        sourceSha: "0123456789abcdef0123456789abcdef01234567",
+        shortSha: "0123456789",
+        sourceRelation: "up-to-date",
+        sourceWorkingTree: "clean",
+        createdAt: new Date().toISOString(),
+        detected,
+      };
+    },
+    async release({ workspacePath }) {
+      return { released: true, workspacePath };
+    },
+  },
+
   androidPreparation: {
     async inspect(projectPath) {
       return {
