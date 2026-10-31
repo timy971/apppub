@@ -105,6 +105,7 @@ contextBridge.exposeInMainWorld("appPublisher", {
 
   system: {
     detect: () => inv("system:detect"),
+    ensureAndroidSdk: () => inv("android-sdk:ensureRequired"),
     copyText: (value) => inv("system:copyText", value),
   },
 

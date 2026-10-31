@@ -71,6 +71,7 @@ export const electronBridge: SystemBridge = {
 
   system: {
     detect: () => ensure().system.detect(),
+    ensureAndroidSdk: () => ensure().system.ensureAndroidSdk?.() ?? Promise.reject(new Error("Réparation SDK indisponible")),
     copyText: (value) => ensure().system.copyText(value),
   },
 

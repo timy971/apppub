@@ -64,8 +64,22 @@ export const webBridge: SystemBridge = {
         androidSdkPath: undefined,
         androidHome: undefined,
         javaHome: undefined,
+        androidSdkState: {
+          present: true,
+          ready: true,
+          installable: false,
+          sdkPath: undefined,
+          sdkmanagerPath: undefined,
+          requiredPackages: ["platform-tools", "platforms;android-36", "build-tools;36.0.0"],
+          missingPackages: [],
+          reason: "ready",
+        },
         internet: typeof navigator !== "undefined" ? navigator.onLine : true,
       };
+    },
+    async ensureAndroidSdk() {
+      const info = await webBridge.system.detect();
+      return { ok: true, installed: [], state: info.androidSdkState! };
     },
     async copyText(value) {
       if (typeof navigator === "undefined" || !navigator.clipboard) return false;

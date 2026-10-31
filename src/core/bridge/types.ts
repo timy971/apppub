@@ -319,6 +319,12 @@ export interface SystemBridge {
 
   system: {
     detect(): Promise<SystemInfo>;
+    ensureAndroidSdk?(): Promise<{
+      ok: boolean;
+      errorCode?: string;
+      installed?: string[];
+      state: NonNullable<SystemInfo["androidSdkState"]>;
+    }>;
     copyText(value: string): Promise<boolean>;
   };
 

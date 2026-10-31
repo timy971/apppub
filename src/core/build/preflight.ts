@@ -402,7 +402,21 @@ export const PreflightService = {
     }
 
     // ---------- Environnement ----------
-    const info = await b.system.detect().catch(() => null);
+    let info = await b.system.detect().catch(() => null);
+    if (
+      options.autoRepair &&
+      info?.androidSdkState?.installable &&
+      b.system.ensureAndroidSdk
+    ) {
+      const repair = await b.system.ensureAndroidSdk().catch(() => null);
+      if (repair?.ok) {
+        autoRepairs.push({
+          id: "android-sdk-components",
+          message: "Les composants Android manquants ont été installés automatiquement.",
+        });
+        info = await b.system.detect().catch(() => info);
+      }
+    }
     checks.push({
       id: "java",
       category: "environment",
@@ -428,20 +442,29 @@ export const PreflightService = {
       technical: info?.javaHome,
     });
 
+    const sdkState = info?.androidSdkState;
+    const sdkReady = sdkState?.ready ?? Boolean(info?.androidSdk || info?.androidHome);
+    const sdkInstallable = sdkState?.installable === true;
     checks.push({
       id: "android-sdk",
       category: "environment",
-      status: info?.androidSdk || info?.androidHome ? "success" : "error",
+      status: sdkReady ? "success" : "error",
       title: "SDK Android",
-      message:
-        info?.androidSdk || info?.androidHome
-          ? "SDK Android détecté."
-          : "Le SDK Android est introuvable. Installez Android Studio ou définissez ANDROID_HOME.",
-      technical: info?.androidHome
-        ? `ANDROID_HOME=${info.androidHome}`
-        : info?.androidSdkPath,
+      message: sdkReady
+        ? "SDK Android et composants requis prêts."
+        : sdkInstallable
+          ? "Des composants Android requis manquent. AppPublisher peut les installer automatiquement."
+          : sdkState?.reason === "command-line-tools-missing"
+            ? "Le SDK Android est présent, mais ses outils d’installation sont absents."
+            : "Le SDK Android est introuvable.",
+      technical: [
+        info?.androidHome ? `ANDROID_HOME=${info.androidHome}` : info?.androidSdkPath,
+        sdkState?.missingPackages?.length
+          ? `Manquants : ${sdkState.missingPackages.join(", ")}`
+          : undefined,
+      ].filter(Boolean).join("\n"),
       fix:
-        info?.androidSdk || info?.androidHome
+        sdkReady || sdkInstallable
           ? undefined
           : { label: "Ouvrir le diagnostic", kind: "open-diagnostic" },
     });

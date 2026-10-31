@@ -392,6 +392,16 @@ export interface SystemInfo {
   androidSdkPath?: string;
   androidHome?: string;
   javaHome?: string;
+  androidSdkState?: {
+    present: boolean;
+    ready: boolean;
+    installable: boolean;
+    sdkPath?: string;
+    sdkmanagerPath?: string;
+    requiredPackages: string[];
+    missingPackages: string[];
+    reason: "ready" | "sdk-missing" | "components-missing" | "command-line-tools-missing";
+  };
   internet: boolean;
 }
 
