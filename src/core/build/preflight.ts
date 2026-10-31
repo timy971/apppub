@@ -1,7 +1,8 @@
 import type { Project } from "@/core/types";
 import { bridge } from "@/core/bridge";
 import { getAndroidConfig } from "@/core/projects/android-config";
-import { hasGlobalGradle, resolveGradle } from "./gradle";
+import { resolvePublicationApplicationId } from "@/core/publication/intent";
+import { ensureGradleExecutable, hasGlobalGradle, resolveGradle } from "./gradle";
 import { ProfilesStore } from "@/features/android-signing/storage/profiles-store";
 import { SigningValidator } from "@/features/android-signing/services/signing-validator";
 
@@ -55,7 +56,9 @@ export interface BuildPreflight {
   /** true si au moins un check est en `error`. */
   hasBlockers: boolean;
   checks: BuildCheck[];
-  /** Suggestion de keystore trouvée dans le projet (pour l'auto-fix). */
+  /** Corrections sûres déjà effectuées automatiquement pendant le préflight. */
+  autoRepairs: Array<{ id: string; message: string }>;
+  /** Suggestion de keystore trouvée dans le projet (pour l'auto-fix sensible). */
   keystoreCandidate?: string;
 }
 
@@ -88,9 +91,13 @@ function basename(p: string | undefined): string | undefined {
 }
 
 export const PreflightService = {
-  async run(project: Project): Promise<BuildPreflight> {
+  async run(
+    project: Project,
+    options: { autoRepair?: boolean } = {},
+  ): Promise<BuildPreflight> {
     const b = bridge();
     const checks: BuildCheck[] = [];
+    const autoRepairs: BuildPreflight["autoRepairs"] = [];
     const projectPath = project.localPath;
     const androidDir = `${projectPath}/android`;
 
@@ -108,6 +115,7 @@ export const PreflightService = {
             message: "Préflight simulé : la construction réelle n'est disponible que dans l'application.",
           },
         ],
+        autoRepairs: [],
       };
     }
 
@@ -117,6 +125,12 @@ export const PreflightService = {
       b.fs.exists(androidDir),
       b.fs.exists(`${projectPath}/package.json`),
     ]);
+
+    const disposableAndroid =
+      !hasAndroidDir &&
+      project.source?.type === "git" &&
+      project.source.managed === true &&
+      project.detected.androidReadiness !== "blocked";
 
     checks.push({
       id: "project-dir",
@@ -146,55 +160,85 @@ export const PreflightService = {
     checks.push({
       id: "android-dir",
       category: "project",
-      status: hasAndroidDir ? "success" : "error",
+      status: hasAndroidDir || disposableAndroid ? "success" : "error",
       title: "Dossier Android",
       message: hasAndroidDir
         ? "Dossier android/ détecté."
-        : project.detected.androidReadiness === "blocked"
-          ? project.detected.androidReadinessReason ||
-            "Ce projet web doit être corrigé avant la préparation Android."
-          : "Ce projet web peut être configuré, compilé et préparé pour Android par AppPublisher.",
-      technical: androidDir,
-      fix: hasAndroidDir || project.detected.androidReadiness === "blocked"
-        ? undefined
-        : { label: "Préparer Android", kind: "create-android", confirm: false },
+        : disposableAndroid
+          ? "Android sera créé automatiquement dans une source de publication propre."
+          : project.detected.androidReadiness === "blocked"
+            ? project.detected.androidReadinessReason ||
+              "Ce projet web doit être corrigé avant la préparation Android."
+            : "Ce projet web peut être configuré, compilé et préparé pour Android par AppPublisher.",
+      technical: disposableAndroid
+        ? "Aucune modification Android n'est requise dans le clone source."
+        : androidDir,
+      fix:
+        hasAndroidDir || disposableAndroid || project.detected.androidReadiness === "blocked"
+          ? undefined
+          : { label: "Préparer Android", kind: "create-android", confirm: false },
     });
 
     // ---------- Gradle wrapper ----------
     const gradle = await resolveGradle(projectPath);
-    const globalGradleAvailable = gradle.wrapperExists ? false : await hasGlobalGradle(androidDir);
+    const globalGradleAvailable =
+      disposableAndroid || gradle.wrapperExists ? false : await hasGlobalGradle(androidDir);
     checks.push({
       id: "gradle-wrapper",
       category: "android",
-      status: gradle.wrapperExists ? "success" : globalGradleAvailable ? "warning" : "error",
+      status: disposableAndroid
+        ? "success"
+        : gradle.wrapperExists
+          ? "success"
+          : globalGradleAvailable
+            ? "warning"
+            : "error",
       title:
         gradle.platform === "win32" ? "Wrapper Gradle (gradlew.bat)" : "Wrapper Gradle (gradlew)",
-      message: gradle.wrapperExists
-        ? "Wrapper Gradle trouvé."
+      message: disposableAndroid
+        ? "Le wrapper Gradle sera généré automatiquement avec Android."
+        : gradle.wrapperExists
+          ? "Wrapper Gradle trouvé."
+          : globalGradleAvailable
+            ? "Wrapper absent : AppPublisher utilisera l'installation globale de Gradle."
+            : "Le wrapper Gradle attendu est introuvable et aucune installation globale n'est disponible.",
+      technical: disposableAndroid
+        ? "Généré dans le workspace jetable."
         : globalGradleAvailable
-          ? "Wrapper absent : AppPublisher utilisera l'installation globale de Gradle."
-          : "Le wrapper Gradle attendu est introuvable et aucune installation globale n'est disponible.",
-      technical: globalGradleAvailable
-        ? `Repli : gradle bundleRelease depuis ${androidDir}`
-        : gradle.expectedWrapperPath,
+          ? `Repli : gradle bundleRelease depuis ${androidDir}`
+          : gradle.expectedWrapperPath,
     });
 
     // Exécutable sous Unix
     if (gradle.platform !== "win32" && gradle.hasWrapperUnix) {
-      // On ne peut pas lire le bit exécutable via le bridge — on propose
-      // toujours la correction en warning (idempotente, sans risque).
+      let executableReady = true;
+      if (options.autoRepair) {
+        executableReady = await ensureGradleExecutable(projectPath);
+        if (executableReady) {
+          autoRepairs.push({
+            id: "gradle-executable",
+            message: "Le wrapper Gradle a été rendu exécutable automatiquement.",
+          });
+        }
+      }
       checks.push({
         id: "gradle-executable",
         category: "android",
-        status: "success",
+        status: executableReady ? "success" : "error",
         title: "Wrapper Gradle exécutable",
-        message: "AppPublisher s'assurera que gradlew est exécutable avant de lancer le build.",
+        message: executableReady
+          ? options.autoRepair
+            ? "AppPublisher a vérifié et corrigé automatiquement les droits de gradlew."
+            : "AppPublisher s'assurera que gradlew est exécutable avant de lancer le build."
+          : "AppPublisher n'a pas pu rendre gradlew exécutable automatiquement.",
         technical: `chmod +x ${gradle.expectedWrapperPath}`,
-        fix: {
-          label: "Rendre gradlew exécutable maintenant",
-          kind: "chmod-gradlew",
-          confirm: false,
-        },
+        fix: executableReady
+          ? undefined
+          : {
+              label: "Réessayer automatiquement",
+              kind: "chmod-gradlew",
+              confirm: false,
+            },
       });
     }
 
@@ -205,27 +249,36 @@ export const PreflightService = {
     checks.push({
       id: "build-gradle",
       category: "android",
-      status: hasAppGradle ? "success" : "error",
-      title: "android/app/build.gradle",
+      status: hasAppGradle || disposableAndroid ? "success" : "error",
+      title: "Configuration Android",
       message: hasAppGradle
         ? "Fichier de configuration Gradle trouvé."
-        : "android/app/build.gradle est introuvable.",
-      technical: `${androidDir}/app/build.gradle`,
+        : disposableAndroid
+          ? "La configuration Gradle sera créée automatiquement dans le workspace."
+          : "android/app/build.gradle est introuvable.",
+      technical: disposableAndroid
+        ? "Configuration générée dans le workspace jetable."
+        : `${androidDir}/app/build.gradle`,
     });
 
     // applicationId / versions
     const android = getAndroidConfig(project);
+    const publicationApplicationId = resolvePublicationApplicationId(project);
     checks.push({
       id: "application-id",
       category: "android",
-      status: android.applicationId ? "success" : "warning",
+      status: publicationApplicationId ? "success" : "error",
       title: "Identifiant d'application",
-      message: android.applicationId
-        ? `Identifiant détecté : ${android.applicationId}`
-        : "Aucun identifiant d'application configuré (applicationId).",
-      fix: android.applicationId
+      message: publicationApplicationId
+        ? `Identifiant Android fiable : ${publicationApplicationId}`
+        : "AppPublisher n'a pas encore identifié l'application Android à publier.",
+      fix: publicationApplicationId
         ? undefined
-        : { label: "Configurer l'identifiant", kind: "open-cockpit", payload: { tab: "publishing", field: "android.applicationId" } },
+        : {
+            label: "Configurer l'identifiant",
+            kind: "open-cockpit",
+            payload: { tab: "publishing", field: "android.applicationId" },
+          },
     });
 
     checks.push({
@@ -415,21 +468,27 @@ export const PreflightService = {
     checks.push({
       id: "capacitor-config",
       category: "capacitor",
-      status: hasCapConfig ? "success" : "warning",
+      status: hasCapConfig || disposableAndroid ? "success" : "warning",
       title: "Configuration Capacitor",
       message: hasCapConfig
         ? "capacitor.config détecté."
-        : "Aucun capacitor.config détecté à la racine du projet.",
+        : disposableAndroid
+          ? "La configuration Capacitor sera créée automatiquement dans le workspace."
+          : "Aucun capacitor.config détecté à la racine du projet.",
     });
 
     checks.push({
       id: "capacitor-sync",
       category: "capacitor",
-      status: hasSyncedAssets ? "success" : "warning",
+      status: hasSyncedAssets || hasAndroidDir || disposableAndroid ? "success" : "warning",
       title: "Synchronisation Android",
       message: hasSyncedAssets
-        ? "Le projet Android contient déjà les fichiers web synchronisés."
-        : "Le projet Android n'a pas encore reçu la synchronisation. AppPublisher lancera `cap sync` pendant le build.",
+        ? "Les fichiers web sont déjà présents côté Android."
+        : hasAndroidDir
+          ? "AppPublisher synchronisera automatiquement les fichiers web pendant le build."
+          : disposableAndroid
+            ? "Android et les fichiers web seront créés et synchronisés automatiquement."
+            : "La synchronisation Android sera effectuée pendant la préparation.",
     });
 
     const hasBlockers = checks.some((c) => c.status === "error");
@@ -441,6 +500,7 @@ export const PreflightService = {
       ok: !hasBlockers,
       hasBlockers,
       checks,
+      autoRepairs,
       keystoreCandidate,
     };
   },
