@@ -1094,11 +1094,15 @@ function runCapture(cmd, args, timeoutMs = 4000) {
 }
 
 async function detectSystem() {
+  const javaHome = guessJavaHome();
+  const javaCommand = javaHome
+    ? path.join(javaHome, "bin", process.platform === "win32" ? "java.exe" : "java")
+    : "java";
   const [node, npm, git, java] = await Promise.all([
     runCapture("node", ["-v"]),
     runCapture(process.platform === "win32" ? "npm.cmd" : "npm", ["-v"]),
     runCapture("git", ["--version"]),
-    runCapture("java", ["-version"]),
+    runCapture(javaCommand, ["-version"]),
   ]);
 
   const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || guessAndroidSdk();
@@ -1118,7 +1122,7 @@ async function detectSystem() {
     androidSdk: androidHome ? readSdkVersion(androidHome) : undefined,
     androidSdkPath: androidHome,
     androidHome,
-    javaHome: process.env.JAVA_HOME,
+    javaHome,
     internet,
   };
 }
@@ -1144,6 +1148,73 @@ function androidSdkEnvironment() {
     ANDROID_HOME: sdk,
     ANDROID_SDK_ROOT: sdk,
   };
+}
+
+function validJavaHome(home) {
+  if (typeof home !== "string" || !home.trim()) return false;
+  const javaBin = path.join(
+    home,
+    "bin",
+    process.platform === "win32" ? "java.exe" : "java",
+  );
+  const keytoolBin = path.join(
+    home,
+    "bin",
+    process.platform === "win32" ? "keytool.exe" : "keytool",
+  );
+  try {
+    return fs.statSync(javaBin).isFile() && fs.statSync(keytoolBin).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function guessJavaHome() {
+  const home = os.homedir();
+  const candidates = [];
+  if (process.env.JAVA_HOME) candidates.push(process.env.JAVA_HOME);
+
+  if (process.platform === "darwin") {
+    candidates.push(
+      "/Applications/Android Studio.app/Contents/jbr/Contents/Home",
+      "/Applications/Android Studio.app/Contents/jre/Contents/Home",
+      path.join(home, "Applications/Android Studio.app/Contents/jbr/Contents/Home"),
+    );
+    try {
+      const root = "/Library/Java/JavaVirtualMachines";
+      for (const name of fs.readdirSync(root).sort().reverse()) {
+        candidates.push(path.join(root, name, "Contents/Home"));
+      }
+    } catch {}
+  } else if (process.platform === "win32") {
+    candidates.push(
+      path.join(process.env.LOCALAPPDATA || "", "Programs", "Android Studio", "jbr"),
+      path.join(process.env.ProgramFiles || "", "Android", "Android Studio", "jbr"),
+      path.join(process.env["ProgramFiles(x86)"] || "", "Android", "Android Studio", "jbr"),
+    );
+  } else {
+    candidates.push(
+      path.join(home, "android-studio", "jbr"),
+      "/opt/android-studio/jbr",
+      "/usr/local/android-studio/jbr",
+    );
+  }
+
+  for (const candidate of candidates) {
+    if (validJavaHome(candidate)) {
+      try {
+        return fs.realpathSync(candidate);
+      } catch {
+        return path.resolve(candidate);
+      }
+    }
+  }
+  return undefined;
+}
+
+function javaEnvironment() {
+  const javaHome = guessJavaHome();
+  return javaHome ? { JAVA_HOME: javaHome } : {};
 }
 
 function guessAndroidStudio() {
@@ -1675,7 +1746,7 @@ ipcMain.handle("exec:run", async (event, opts, channel, executionId) => {
       const command = normalizeSpawnCommand(requestedCommand);
       const child = spawn(command, args, {
         cwd: policy.cwd,
-        env: { ...process.env, ...androidSdkEnvironment(), ...safeEnv },
+        env: { ...process.env, ...androidSdkEnvironment(), ...javaEnvironment(), ...safeEnv },
         shell: false,
         detached: process.platform !== "win32",
       });
@@ -1922,17 +1993,13 @@ function isValidPassword(s) {
  *   2. keytool dans le PATH (résolu par spawn).
  */
 function resolveKeytool() {
-  const home = process.env.JAVA_HOME;
+  const home = guessJavaHome();
   if (home) {
-    const candidate = path.join(
+    return path.join(
       home,
       "bin",
       process.platform === "win32" ? "keytool.exe" : "keytool",
     );
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK);
-      return candidate;
-    } catch {}
   }
   return process.platform === "win32" ? "keytool.exe" : "keytool";
 }
@@ -1947,7 +2014,7 @@ function runKeytool(args, env = {}, timeoutMs = 30_000) {
   return new Promise((resolve) => {
     const bin = resolveKeytool();
     const child = spawn(bin, args, {
-      env: { ...process.env, ...env },
+      env: { ...process.env, ...javaEnvironment(), ...env },
       shell: false,
     });
     let stdout = "";
