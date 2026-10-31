@@ -47,7 +47,7 @@ export function isAndroidApplicationId(value: unknown): value is string {
   // AppPublisher accepte seulement des identifiants de type package Java,
   // avec au moins deux segments. Un nom npm comme vite_react_shadcn_ts est
   // donc explicitement exclu.
-  return /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$/.test(trimmed);
+  return /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(trimmed);
 }
 
 export function resolvePublicationApplicationId(project: Project): string | undefined {
