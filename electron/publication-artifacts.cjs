@@ -141,7 +141,21 @@ class PublicationArtifactManager {
     try {
       this.fs.copyFileSync(aab.path, temporaryArtifact);
       this.fs.renameSync(temporaryArtifact, artifactPath);
-      if (report && reportPath) this.fs.copyFileSync(report.path, reportPath);
+      if (report && reportPath) {
+        this.fs.copyFileSync(report.path, reportPath);
+        try {
+          const parsed = JSON.parse(this.fs.readFileSync(reportPath, "utf8"));
+          this.fs.writeFileSync(
+            reportPath,
+            JSON.stringify({ ...parsed, reportPath }, null, 2) + "\n",
+            { encoding: "utf8", mode: 0o600 },
+          );
+        } catch {
+          // Le rapport original a déjà été validé comme fichier non vide.
+          // S'il n'est pas JSON, on conserve sa copie brute plutôt que de
+          // perdre l'AAB stable.
+        }
+      }
 
       const copiedHash = await hashFile(artifactPath, this.fs);
       const copiedStat = this.fs.statSync(artifactPath);
