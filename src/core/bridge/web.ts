@@ -202,6 +202,7 @@ export const webBridge: SystemBridge = {
   publicationWorkspace: {
     async prepare({ projectPath, remoteUrl, branch }) {
       const detected = await webBridge.projects.detect(projectPath);
+      if (!detected) throw new Error("Projet simulé introuvable.");
       return {
         workspacePath: projectPath + "/.apppublisher-publication-snapshot",
         managedProjectPath: projectPath,
