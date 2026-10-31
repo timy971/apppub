@@ -1427,6 +1427,36 @@ ipcMain.handle("publication-artifact:promote", async (_e, args) => {
   return result;
 });
 
+ipcMain.handle("publication-artifact:recordPreparation", async (_e, args) => {
+  const aabPath = resolveWithinAllowed(args?.aabPath);
+  if (!aabPath || path.extname(aabPath).toLowerCase() !== ".aab") {
+    throw new Error("Fichier Android de préparation non autorisé.");
+  }
+  if (typeof args?.notes !== "string") {
+    throw new Error("Notes de version invalides.");
+  }
+  return publicationArtifactManager.recordPreparation(aabPath, {
+    notes: args.notes,
+    preparedAt: args.preparedAt,
+  });
+});
+
+ipcMain.handle("publication-artifact:recover", async (_e, args) => {
+  if (!args || typeof args.projectId !== "string") return null;
+  const stored = durableStore.get("projects");
+  if (!stored.ok || !stored.found || !Array.isArray(stored.value)) return null;
+  const project = stored.value.find((item) => item?.id === args.projectId);
+  if (!project) return null;
+  const applicationId = resolveStoredAndroidPackage(project);
+  if (!isAndroidApplicationId(applicationId)) return null;
+  return publicationArtifactManager.latestForProject({
+    projectId: project.id,
+    applicationId,
+    versionName: project.currentVersion,
+    versionCode: project.currentBuild,
+  });
+});
+
 /* ---------- IPC : préparation Android guidée ---------- */
 
 ipcMain.handle("android-preparation:inspect", (_e, projectPath) =>
