@@ -54,8 +54,8 @@ export function resolvePublicationApplicationId(project: Project): string | unde
   const android = getAndroidConfig(project);
   const candidates = [
     android.applicationId,
-    project.playStoreAppId,
     project.detected?.capacitorAppId,
+    project.playStoreAppId,
     project.packageName,
   ];
   return candidates.find(isAndroidApplicationId)?.trim();
