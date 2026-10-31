@@ -53,10 +53,12 @@ const { BackupManager } = require("./backup-manager.cjs");
 const { validateExecutionRequest, findProjectRoot } = require("./execution-policy.cjs");
 const { ProjectTrustStore, ensureProjectTrusted } = require("./project-trust.cjs");
 const { installWindowGuards } = require("./window-security.cjs");
-const { SigningSessionRegistry } = require("./signing-session.cjs");\nconst { resolveSigningProjectContext } = require("./signing-project-context.cjs");
+const { SigningSessionRegistry } = require("./signing-session.cjs");
+const { resolveSigningProjectContext } = require("./signing-project-context.cjs");
 const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
-const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");\nconst { PublicationArtifactManager } = require("./publication-artifacts.cjs");
+const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");
+const { PublicationArtifactManager } = require("./publication-artifacts.cjs");
 const { isAndroidApplicationId, resolveStoredAndroidPackage } = require("./android-package-identity.cjs");
 const {
   AndroidPreparationManager,
