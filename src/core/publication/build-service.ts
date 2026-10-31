@@ -90,6 +90,7 @@ export const PublicationBuildService = {
       prepared = await PublicationWorkspaceService.prepare(project, {
         knownPublishedBuilds: knownPublishedBuilds(project),
       });
+      const androidWasMissing = prepared.needsAndroidPreparation;
       opts.onLine?.(
         `Source figée : ${prepared.workspace.branch} @ ${prepared.workspace.shortSha}`,
       );
@@ -132,7 +133,7 @@ export const PublicationBuildService = {
         artifactSha256: built.artifactSha256,
         corrections: [
           ...(prepared.corrections?.changedFiles ?? []),
-          ...(prepared.workspace.detected.hasAndroid ? [] : ["android/"]),
+          ...(androidWasMissing ? ["android/"] : []),
         ],
         adjustments: prepared.intent.adjustments.map((item) => ({ ...item })),
       });
