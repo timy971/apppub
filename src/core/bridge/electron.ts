@@ -23,6 +23,7 @@ interface AppPublisherApi {
   };
   projects: SystemBridge["projects"];
   git: SystemBridge["git"];
+  publicationWorkspace: SystemBridge["publicationWorkspace"];
   androidPreparation: SystemBridge["androidPreparation"];
   androidCorrections: SystemBridge["androidCorrections"];
   aab: SystemBridge["aab"];
@@ -85,6 +86,11 @@ export const electronBridge: SystemBridge = {
     status: (args) => ensure().git.status(args),
     check: (args) => ensure().git.check(args),
     sync: (args) => ensure().git.sync(args),
+  },
+
+  publicationWorkspace: {
+    prepare: (args) => ensure().publicationWorkspace.prepare(args),
+    release: (args) => ensure().publicationWorkspace.release(args),
   },
 
   androidPreparation: {
