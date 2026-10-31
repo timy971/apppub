@@ -370,6 +370,32 @@ class GooglePlayPublisher {
     }
   }
 
+  async latestInternalVersionCode(credentialsInput, packageNameInput) {
+    const credentials = validateGooglePlayCredentials(credentialsInput);
+    const packageName = normalizePackageName(packageNameInput);
+    const token = await this.accessToken(credentials);
+    const editId = await this.insertEdit(packageName, token);
+    try {
+      const track = await this.getTrack(packageName, editId, INTERNAL_TRACK, token);
+      const releases = Array.isArray(track?.releases) ? track.releases : [];
+      const codes = releases.flatMap((release) =>
+        Array.isArray(release?.versionCodes)
+          ? release.versionCodes
+              .map((value) => Number(value))
+              .filter((value) => Number.isSafeInteger(value) && value > 0)
+          : [],
+      );
+      return {
+        ok: true,
+        packageName,
+        versionCode: codes.length ? Math.max(...codes) : 0,
+        ...credentialIdentity(credentials),
+      };
+    } finally {
+      await this.deleteEdit(packageName, editId, token);
+    }
+  }
+
 
   async testConnection(credentialsInput, packageNameInput) {
     const credentials = validateGooglePlayCredentials(credentialsInput);
