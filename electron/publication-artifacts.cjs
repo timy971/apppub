@@ -266,6 +266,10 @@ class PublicationArtifactManager {
       !Number.isSafeInteger(manifest?.release?.versionCode) ||
       manifest.release.versionCode < 1 ||
       typeof manifest?.artifact?.fileName !== "string" ||
+      path.basename(manifest.artifact.fileName) !== manifest.artifact.fileName ||
+      (manifest.reportFileName != null &&
+        (typeof manifest.reportFileName !== "string" ||
+          path.basename(manifest.reportFileName) !== manifest.reportFileName)) ||
       typeof manifest?.artifact?.sha256 !== "string" ||
       !/^[0-9A-Fa-f]{64}$/.test(manifest.artifact.sha256) ||
       typeof manifest?.storedAt !== "string" ||
