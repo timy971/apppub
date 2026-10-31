@@ -58,7 +58,8 @@ const { resolveSigningProjectContext } = require("./signing-project-context.cjs"
 const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
 const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");
-const { PublicationArtifactManager } = require("./publication-artifacts.cjs");
+const { PublicationArtifactManager, hashFile } = require("./publication-artifacts.cjs");
+const { GooglePlayResumeStore } = require("./google-play-resume-store.cjs");
 const { isAndroidApplicationId, resolveStoredAndroidPackage } = require("./android-package-identity.cjs");
 const {
   AndroidPreparationManager,
@@ -487,6 +488,9 @@ const googlePlayOAuth = new GooglePlayOAuth(
     resourcesPath: process.resourcesPath,
     appPath: app.getAppPath(),
   }),
+);
+const googlePlayResumeStore = new GooglePlayResumeStore(
+  path.join(app.getPath("userData"), "data", "google-play-resume-v1.json"),
 );
 
 function registerAllowedRoot(p) {
@@ -3073,6 +3077,7 @@ ipcMain.handle("google-play:disconnect", async (_event, args) => {
       GOOGLE_PLAY_KEYCHAIN_SERVICE,
     ]);
   }
+  googlePlayResumeStore.clear(project.id);
   diagSigning("info", "google-play:disconnect", {
     projectId: project.id,
     packageName: args.packageName,
@@ -3134,16 +3139,27 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
         "Le package, la version ou le versionCode de l'AAB ne correspond pas au projet actif.",
     };
   }
+  const artifactSha256 = await hashFile(aabPath);
+  const resume = googlePlayResumeStore.get(project.id, {
+    connectionId: args.connectionId,
+    packageName: args.packageName,
+    artifactSha256,
+    versionCode: archive.versionCode,
+  });
   const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
     type: "warning",
-    title: "Publier sur la piste interne ?",
-    message: `Envoyer « ${project.name} » v${project.currentVersion} (build ${project.currentBuild}) à Google Play ?`,
+    title: resume ? "Reprendre la publication ?" : "Publier sur la piste interne ?",
+    message: resume
+      ? `Reprendre l’envoi de « ${project.name} » v${project.currentVersion} (build ${project.currentBuild}) ?`
+      : `Envoyer « ${project.name} » v${project.currentVersion} (build ${project.currentBuild}) à Google Play ?`,
     detail:
       `Application : ${args.packageName}\n` +
       "Piste : internal\n" +
       `Compte : ${credentials.account_email ?? credentials.client_email}\n\n` +
-      "Cette action téléverse l'AAB et valide une nouvelle édition Google Play. Elle ne publie pas en production.",
-    buttons: ["Publier sur internal", "Annuler"],
+      (resume
+        ? "AppPublisher a retrouvé une étape Google Play déjà réussie et la reprendra sans renvoyer inutilement l’AAB."
+        : "Cette action téléverse l'AAB et valide une nouvelle édition Google Play. Elle ne publie pas en production."),
+    buttons: [resume ? "Reprendre" : "Publier sur internal", "Annuler"],
     defaultId: 1,
     cancelId: 1,
     noLink: true,
@@ -3159,6 +3175,7 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
         notes: args.notes,
         language: project.publishing?.android?.primaryLanguage ?? "fr-FR",
         releaseName: `${project.name} ${project.currentVersion} (${project.currentBuild})`,
+        resume,
       },
       (phase) =>
         diagSigning("info", "google-play:publishInternal step", {
@@ -3166,7 +3183,18 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
           packageName: args.packageName,
           phase,
         }),
+      (checkpoint) => {
+        googlePlayResumeStore.save(project.id, {
+          connectionId: args.connectionId,
+          packageName: args.packageName,
+          artifactSha256,
+          versionCode: checkpoint.versionCode,
+          editId: checkpoint.editId,
+          phase: checkpoint.phase,
+        });
+      },
     );
+    googlePlayResumeStore.clear(project.id);
     diagSigning("info", "google-play:publishInternal", {
       projectId: project.id,
       packageName: result.packageName,
@@ -3177,6 +3205,9 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
     return result;
   } catch (error) {
     const publicError = publicGooglePlayError(error);
+    if (publicError.errorCode === "version-already-used") {
+      googlePlayResumeStore.clear(project.id);
+    }
     diagSigning("warn", "google-play:publishInternal failed", {
       projectId: project.id,
       packageName: args.packageName,
