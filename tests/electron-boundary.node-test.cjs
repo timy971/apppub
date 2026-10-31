@@ -78,7 +78,7 @@ test("the main process does not register removed generic IPC handlers", () => {
   assert.match(main, /GOOGLE_PLAY_KEYCHAIN_SERVICE/);
   assert.match(main, /buttons: \[resume \? "Reprendre" : "Publier sur internal", "Annuler"\]/);
   const playIdentityCheck = main.indexOf("archive = inspectAabArchive(aabPath)");
-  const playConfirmation = main.indexOf('title: "Publier sur la piste interne ?"');
+  const playConfirmation = main.indexOf('title: resume ? "Reprendre la publication ?"');
   assert.ok(playIdentityCheck > 0, "Google Play publication must inspect the real AAB identity");
   assert.ok(
     playConfirmation > playIdentityCheck,
