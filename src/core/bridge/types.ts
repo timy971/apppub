@@ -68,6 +68,15 @@ export interface PublicationWorkspaceResult {
   detected: DetectedFiles;
 }
 
+export interface PublicationArtifactPromotionResult {
+  artifactPath: string;
+  reportPath?: string;
+  manifestPath: string;
+  artifactSizeBytes: number;
+  artifactSha256: string;
+  storedAt: string;
+}
+
 export type AndroidPreparationStatus = "ready" | "preparable" | "blocked";
 export type SupportedPackageManager = "npm" | "pnpm" | "yarn" | "bun";
 
@@ -319,6 +328,26 @@ export interface SystemBridge {
     }): Promise<{ released: boolean; workspacePath: string }>;
   };
 
+  publicationArtifacts: {
+    promote(args: {
+      projectId: string;
+      projectName?: string;
+      projectPath: string;
+      workspacePath: string;
+      aabPath: string;
+      reportPath?: string;
+      sourceSha: string;
+      branch?: string;
+      applicationId: string;
+      versionName: string;
+      versionCode: number;
+      signerSha256?: string;
+      artifactSha256?: string;
+      corrections?: string[];
+      adjustments?: Array<Record<string, unknown>>;
+    }): Promise<PublicationArtifactPromotionResult>;
+  };
+
   androidPreparation: {
     inspect(projectPath: string): Promise<AndroidPreparationAnalysis>;
     beginRollbackGuard(
@@ -477,6 +506,8 @@ export interface SystemBridge {
       keystorePath: string;
       alias: string;
       projectPath: string;
+      /** Projet géré propriétaire lorsqu'on signe depuis un workspace jetable. */
+      sourceProjectPath?: string;
     }): Promise<SigningPrepareBuildResult>;
     /** Scan ciblé : uniquement les racines fournies. Jamais tout le disque. */
     scan(roots: string[]): Promise<SigningScanResult[]>;
