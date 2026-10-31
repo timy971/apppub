@@ -53,6 +53,19 @@ export interface GitSyncResult {
   detected: DetectedFiles;
 }
 
+export interface PublicationWorkspaceResult {
+  workspacePath: string;
+  managedProjectPath: string;
+  remoteUrl: string;
+  branch: string;
+  sourceSha: string;
+  shortSha: string;
+  sourceRelation: GitRelation;
+  sourceWorkingTree: "clean" | "dirty";
+  createdAt: string;
+  detected: DetectedFiles;
+}
+
 export type AndroidPreparationStatus = "ready" | "preparable" | "blocked";
 export type SupportedPackageManager = "npm" | "pnpm" | "yarn" | "bun";
 
@@ -284,6 +297,18 @@ export interface SystemBridge {
       branch: string;
     }): Promise<GitProjectStatus>;
     sync(args: { projectPath: string; remoteUrl: string; branch: string }): Promise<GitSyncResult>;
+  };
+
+  publicationWorkspace: {
+    prepare(args: {
+      projectPath: string;
+      remoteUrl: string;
+      branch: string;
+    }): Promise<PublicationWorkspaceResult>;
+    release(args: {
+      projectPath: string;
+      workspacePath: string;
+    }): Promise<{ released: boolean; workspacePath: string }>;
   };
 
   androidPreparation: {
