@@ -46,6 +46,15 @@ export interface BuildRunOptions {
   onStep: (id: string, status: StepReport["status"], detail?: string) => void;
   onLine?: (line: string) => void;
   signal?: AbortSignal;
+  /**
+   * Source déjà figée et vérifiée par PublicationWorkspaceService.
+   * Évite de refaire un git check sur un worktree jetable, tout en conservant
+   * le SHA source exact dans le résultat.
+   */
+  preparedSource?: {
+    managedProjectPath: string;
+    sourceSha: string;
+  };
 }
 
 function abortIfNeeded(signal?: AbortSignal) {
@@ -143,16 +152,26 @@ export const BuildService = {
       throw new Error(signingProfile.error.message);
     }
 
-    // Fetch before any build command: a new versionCode cannot hide old source.
+    // Fetch before any build command unless le workspace a déjà figé la
+    // source distante exacte. Un versionCode plus récent ne doit jamais cacher
+    // une source obsolète.
     let sourceCommit: string | undefined;
     let sourceDirty = false;
-    const gitStatus = await requireCurrentGitSource(project);
-    if (gitStatus) {
-      sourceCommit = gitStatus.headSha;
-      sourceDirty = gitStatus.workingTree === "dirty";
+    if (opts.preparedSource) {
+      sourceCommit = opts.preparedSource.sourceSha;
+      sourceDirty = false;
       opts.onLine?.(
-        `Source Git vérifiée : ${gitStatus.branch} @ ${gitStatus.shortSha}${sourceDirty ? " (modifications locales)" : ""}`,
+        `Source de publication figée : ${project.source?.branch ?? "branche"} @ ${sourceCommit.slice(0, 10)}`,
       );
+    } else {
+      const gitStatus = await requireCurrentGitSource(project);
+      if (gitStatus) {
+        sourceCommit = gitStatus.headSha;
+        sourceDirty = gitStatus.workingTree === "dirty";
+        opts.onLine?.(
+          `Source Git vérifiée : ${gitStatus.branch} @ ${gitStatus.shortSha}${sourceDirty ? " (modifications locales)" : ""}`,
+        );
+      }
     }
     await VersionService.synchronizeSelected(project);
 
@@ -223,7 +242,10 @@ export const BuildService = {
     diagnostic(`✓ Projet : ${project.localPath}`);
     diagnostic(`✓ Dossier Android : ${androidDir}`);
 
-    const prep = await SigningInjector.prepare(project);
+    const prep = await SigningInjector.prepare(
+      project,
+      opts.preparedSource?.managedProjectPath,
+    );
     if (!prep.ok) {
       diagnostic(`✗ ${prep.error.message}`, "error");
       opts.onStep("gradle", "error", prep.error.message);
