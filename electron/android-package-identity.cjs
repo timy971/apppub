@@ -9,8 +9,8 @@ function resolveStoredAndroidPackage(project) {
   const android = project?.publishing?.android ?? {};
   const candidates = [
     android.applicationId,
-    project?.playStoreAppId,
     project?.detected?.capacitorAppId,
+    project?.playStoreAppId,
     project?.packageName,
   ];
   const resolved = candidates.find(isAndroidApplicationId);
