@@ -80,6 +80,56 @@ test("promotes AAB, report and manifest into stable AppPublisher storage", async
   assert.deepEqual(manifest.corrections, ["android/app/build.gradle", "version.json"]);
 });
 
+test("records preparation notes and recovers the latest stable release after restart", async (t) => {
+  const f = fixture(t);
+  const a = args(f);
+  fs.mkdirSync(path.dirname(a.aabPath), { recursive: true });
+  fs.writeFileSync(a.aabPath, Buffer.from("signed-aab-fixture"));
+  fs.writeFileSync(a.reportPath, JSON.stringify({ verdict: "ready" }));
+  const promoted = await f.manager.promote(a);
+
+  const prepared = f.manager.recordPreparation(promoted.artifactPath, {
+    notes: "Corrections de stabilité et amélioration du suivi.",
+    preparedAt: "2026-10-31T23:00:00.000Z",
+  });
+
+  const recovered = await f.manager.latestForProject({
+    projectId: "project-1",
+    applicationId: "app.victorytrack.android",
+    versionName: "2.3.0",
+    versionCode: 17,
+  });
+
+  assert.equal(prepared.manifestPath, promoted.manifestPath);
+  assert.equal(recovered.artifactPath, promoted.artifactPath);
+  assert.equal(recovered.reportPath, promoted.reportPath);
+  assert.equal(recovered.manifestPath, promoted.manifestPath);
+  assert.equal(recovered.notes, "Corrections de stabilité et amélioration du suivi.");
+  assert.equal(recovered.preparedAt, "2026-10-31T23:00:00.000Z");
+  assert.equal(recovered.sourceCommit, "a".repeat(40));
+  assert.equal(recovered.artifactSha256, promoted.artifactSha256);
+});
+
+test("recovery ignores a stable artifact whose bytes no longer match its manifest", async (t) => {
+  const f = fixture(t);
+  const a = args(f);
+  fs.mkdirSync(path.dirname(a.aabPath), { recursive: true });
+  fs.writeFileSync(a.aabPath, Buffer.from("signed-aab-fixture"));
+  fs.writeFileSync(a.reportPath, JSON.stringify({ verdict: "ready" }));
+  const promoted = await f.manager.promote(a);
+  f.manager.recordPreparation(promoted.artifactPath, { notes: "Version prête." });
+
+  fs.writeFileSync(promoted.artifactPath, Buffer.from("tampered"));
+
+  const recovered = await f.manager.latestForProject({
+    projectId: "project-1",
+    versionName: "2.3.0",
+    versionCode: 17,
+  });
+
+  assert.equal(recovered, null);
+});
+
 test("records the committed Google Play result in the stable manifest", async (t) => {
   const f = fixture(t);
   const a = args(f);
