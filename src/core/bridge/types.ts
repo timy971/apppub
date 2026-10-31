@@ -278,6 +278,9 @@ export interface GooglePlayPublishResult {
   releaseStatus: "completed";
   accountEmail: string;
   authMode: "oauth" | "service-account";
+  resumed?: boolean;
+  recoveredCommit?: boolean;
+  committedAt?: string;
 }
 
 export interface SystemBridge {
@@ -454,6 +457,14 @@ export interface SystemBridge {
         accountEmail: string;
         authMode: "oauth" | "service-account";
         packageName: string;
+      }>
+    >;
+    latestVersionCode(args: GooglePlayConnectionArgs): Promise<
+      GooglePlayResult<{
+        accountEmail: string;
+        authMode: "oauth" | "service-account";
+        packageName: string;
+        versionCode: number;
       }>
     >;
     disconnect(args: GooglePlayConnectionArgs): Promise<boolean>;
