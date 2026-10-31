@@ -105,6 +105,27 @@ test("releasing a publication workspace removes only the disposable worktree", a
   assert.equal(fs.existsSync(path.join(cloned.localPath, "package.json")), true);
 });
 
+test("startup cleanup removes only orphan worktrees owned by known managed projects", async (t) => {
+  const { remote, gitManager, workspaceManager, workspaces } = fixture(t);
+  const cloned = await gitManager.clone({ remoteUrl: remote, branch: "main" });
+  const prepared = await workspaceManager.prepare({
+    projectPath: cloned.localPath,
+    remoteUrl: remote,
+    branch: "main",
+  });
+  const unknown = path.join(workspaces, "unknown-folder");
+  fs.mkdirSync(unknown);
+  fs.writeFileSync(path.join(unknown, "keep.txt"), "do-not-delete\n");
+
+  const result = await workspaceManager.cleanupOrphans([cloned.localPath]);
+
+  assert.deepEqual(result.removed, [prepared.workspacePath]);
+  assert.equal(result.skipped.includes(unknown), true);
+  assert.equal(fs.existsSync(prepared.workspacePath), false);
+  assert.equal(fs.existsSync(unknown), true);
+  assert.equal(fs.existsSync(cloned.localPath), true);
+});
+
 test("a workspace cannot be released through another managed repository", async (t) => {
   const first = fixture(t);
   const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-workspace-other-"));
