@@ -89,12 +89,13 @@ function project(): Project {
 
 function prepared(needsAndroidPreparation = false) {
   const p = project();
+  const remoteUrl = "https://github.com/example/victorytrack.git";
   return {
     intent: {
       schemaVersion: 1,
       projectId: p.id,
       projectName: p.name,
-      source: { remoteUrl: p.source.remoteUrl, branch: "main" },
+      source: { remoteUrl, branch: "main" },
       versionName: "2.0.0",
       requestedVersionCode: 8,
       versionCode: 10,
@@ -106,7 +107,7 @@ function prepared(needsAndroidPreparation = false) {
     workspace: {
       workspacePath: "/workspaces/victorytrack-2",
       managedProjectPath: p.localPath,
-      remoteUrl: p.source.remoteUrl,
+      remoteUrl,
       branch: "main",
       sourceSha: "2".repeat(40),
       shortSha: "2".repeat(10),
