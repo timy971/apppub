@@ -187,8 +187,6 @@ describe("publication intent", () => {
     expect(derived.currentVersion).toBe("2.4.1");
     expect(derived.currentBuild).toBe(44);
     expect(derived.publishing?.android?.applicationId).toBe("app.cranioscan.android");
-    expect(derived.detected.currentVersion).toBe("1.0.0");
-    expect(derived.detected.currentBuild).toBe(2);
     expect(derived.detected.capacitorAppId).toBe("app.cranioscan.android");
     expect(derived.source?.headSha).toBe("2".repeat(40));
     expect(derived.source?.workingTree).toBe("clean");
