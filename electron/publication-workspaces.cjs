@@ -238,6 +238,24 @@ class PublicationWorkspaceManager {
           break;
         } catch {}
       }
+
+      // Le projet peut avoir été retiré de l'interface alors que son clone
+      // géré existe encore. Dans ce cas, Git permet de retrouver le dépôt
+      // propriétaire sans jamais faire confiance au nom du dossier.
+      if (!owner) {
+        try {
+          const common = await this.git.runChecked(["rev-parse", "--git-common-dir"], {
+            cwd: workspacePath,
+          });
+          const commonDir = path.resolve(workspacePath, common.stdout.trim());
+          if (path.basename(commonDir) === ".git") {
+            const candidate = this.git.resolveManagedProject(path.dirname(commonDir));
+            await this.assertWorkspaceOwner(workspacePath, candidate);
+            owner = candidate;
+          }
+        } catch {}
+      }
+
       if (!owner) {
         skipped.push(workspacePath);
         continue;
