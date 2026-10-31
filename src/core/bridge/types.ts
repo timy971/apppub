@@ -77,6 +77,37 @@ export interface PublicationArtifactPromotionResult {
   storedAt: string;
 }
 
+export interface PublicationArtifactRecoveryResult {
+  projectId: string;
+  projectName?: string;
+  versionName: string;
+  versionCode: number;
+  applicationId: string;
+  artifactPath: string;
+  artifactSizeBytes: number;
+  artifactSha256: string;
+  reportPath?: string;
+  manifestPath: string;
+  sourceCommit?: string;
+  sourceBranch?: string;
+  storedAt: string;
+  notes?: string;
+  preparedAt?: string;
+  googlePlay?: {
+    provider: "google-play";
+    track: "internal";
+    packageName: string;
+    versionCode: number;
+    releaseStatus: "completed";
+    editId: string;
+    accountEmail: string;
+    authMode: "oauth" | "service-account";
+    resumed?: boolean;
+    recoveredCommit?: boolean;
+    committedAt: string;
+  };
+}
+
 export type AndroidPreparationStatus = "ready" | "preparable" | "blocked";
 export type SupportedPackageManager = "npm" | "pnpm" | "yarn" | "bun";
 
@@ -349,6 +380,17 @@ export interface SystemBridge {
       corrections?: string[];
       adjustments?: Array<Record<string, unknown>>;
     }): Promise<PublicationArtifactPromotionResult>;
+    recordPreparation(args: {
+      aabPath: string;
+      notes: string;
+      preparedAt?: string;
+    }): Promise<{ manifestPath: string; preparedAt: string }>;
+    recover(args: {
+      projectId: string;
+      applicationId?: string;
+      versionName?: string;
+      versionCode?: number;
+    }): Promise<PublicationArtifactRecoveryResult | null>;
   };
 
   androidPreparation: {
