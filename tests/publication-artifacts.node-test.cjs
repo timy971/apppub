@@ -65,6 +65,8 @@ test("promotes AAB, report and manifest into stable AppPublisher storage", async
   assert.equal(fs.existsSync(promoted.artifactPath), true);
   assert.equal(fs.existsSync(promoted.reportPath), true);
   assert.equal(fs.existsSync(promoted.manifestPath), true);
+  const copiedReport = JSON.parse(fs.readFileSync(promoted.reportPath, "utf8"));
+  assert.equal(copiedReport.reportPath, promoted.reportPath);
   assert.match(promoted.artifactPath, /project-1/);
   assert.match(promoted.artifactPath, /2\.3\.0-17-aaaaaaaaaa/);
 
