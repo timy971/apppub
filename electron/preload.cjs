@@ -212,6 +212,7 @@ contextBridge.exposeInMainWorld("appPublisher", {
     connectOAuth: (args) => inv("google-play:connectOAuth", args),
     importServiceAccount: (args) => inv("google-play:importServiceAccount", args),
     testConnection: (args) => inv("google-play:testConnection", args),
+    latestVersionCode: (args) => inv("google-play:latestVersionCode", args),
     disconnect: (args) => inv("google-play:disconnect", args),
     publishInternal: (args) => inv("google-play:publishInternal", args),
   },
