@@ -105,7 +105,7 @@ test("releasing a publication workspace removes only the disposable worktree", a
   assert.equal(fs.existsSync(path.join(cloned.localPath, "package.json")), true);
 });
 
-test("startup cleanup removes only orphan worktrees owned by known managed projects", async (t) => {
+test("startup cleanup recovers the managed Git owner and leaves unknown folders intact", async (t) => {
   const { remote, gitManager, workspaceManager, workspaces } = fixture(t);
   const cloned = await gitManager.clone({ remoteUrl: remote, branch: "main" });
   const prepared = await workspaceManager.prepare({
@@ -117,7 +117,7 @@ test("startup cleanup removes only orphan worktrees owned by known managed proje
   fs.mkdirSync(unknown);
   fs.writeFileSync(path.join(unknown, "keep.txt"), "do-not-delete\n");
 
-  const result = await workspaceManager.cleanupOrphans([cloned.localPath]);
+  const result = await workspaceManager.cleanupOrphans([]);
 
   assert.deepEqual(result.removed, [prepared.workspacePath]);
   assert.equal(result.skipped.includes(unknown), true);
