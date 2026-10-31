@@ -396,7 +396,7 @@ test("resumes an existing edit without uploading the AAB a second time", async (
     }
     if (url.endsWith("edit-resume:validate")) return response(200, { id: "edit-resume" });
     if (url.includes("edit-resume:commit?")) return response(200, { id: "edit-resume" });
-    throw new Error(\`Unexpected URL: \${url}\`);
+    throw new Error(`Unexpected URL: ${url}`);
   });
 
   const result = await api.publishInternal(
@@ -450,7 +450,7 @@ test("recovers an ambiguous commit by checking the internal track before retryin
     if (url.endsWith("/edits/edit-check-commit") && options.method === "DELETE") {
       return response(204);
     }
-    throw new Error(\`Unexpected URL: \${url}\`);
+    throw new Error(`Unexpected URL: ${url}`);
   });
 
   const result = await api.publishInternal({
@@ -491,7 +491,7 @@ test("emits a resumable checkpoint immediately after Google accepts the bundle",
       failure.cause = { code: "ECONNRESET" };
       throw failure;
     }
-    throw new Error(\`Unexpected URL: \${url}\`);
+    throw new Error(`Unexpected URL: ${url}`);
   });
 
   await assert.rejects(
