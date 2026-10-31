@@ -56,7 +56,7 @@ const { installWindowGuards } = require("./window-security.cjs");
 const { SigningSessionRegistry } = require("./signing-session.cjs");
 const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
-const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");
+const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");\nconst { PublicationArtifactManager } = require("./publication-artifacts.cjs");
 const { isAndroidApplicationId, resolveStoredAndroidPackage } = require("./android-package-identity.cjs");
 const {
   AndroidPreparationManager,
@@ -473,6 +473,10 @@ const publicationWorkspaceManager = new PublicationWorkspaceManager(
   path.join(app.getPath("userData"), "publication-workspaces"),
   gitProjectManager,
 );
+const publicationArtifactManager = new PublicationArtifactManager(
+  path.join(app.getPath("userData"), "publication-artifacts"),
+  publicationWorkspaceManager,
+);
 const androidPreparationManager = new AndroidPreparationManager(projectAccess);
 const androidCorrectionManager = new AndroidCorrectionManager(projectAccess);
 const googlePlayPublisher = new GooglePlayPublisher();
@@ -499,6 +503,10 @@ function registerAllowedRoot(p) {
 function resolveWithinAllowed(inputPath) {
   return projectAccess.resolveExisting(inputPath);
 }
+
+// Les artefacts promus doivent rester accessibles après suppression du
+// workspace et après redémarrage d'AppPublisher.
+registerAllowedRoot(publicationArtifactManager.rootPath);
 
 async function confirmProjectTrust({ projectPath, projectName }) {
   const result = await dialog.showMessageBox(mainWindow ?? undefined, {
@@ -1342,6 +1350,17 @@ ipcMain.handle("publication-workspace:release", async (_e, args) => {
   const workspace = resolveWithinAllowed(args?.workspacePath);
   if (workspace) trustStore.revoke(workspace);
   return publicationWorkspaceManager.release(args);
+});
+
+ipcMain.handle("publication-artifact:promote", async (_e, args) => {
+  const result = await publicationArtifactManager.promote(args);
+  const authorized =
+    resolveWithinAllowed(result.artifactPath) ??
+    registerAllowedRoot(path.dirname(result.artifactPath));
+  if (!authorized) {
+    throw new Error("L’artefact final n’a pas pu être autorisé par AppPublisher.");
+  }
+  return result;
 });
 
 /* ---------- IPC : préparation Android guidée ---------- */
