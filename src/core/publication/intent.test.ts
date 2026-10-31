@@ -91,6 +91,14 @@ describe("publication intent", () => {
       packageName: "vite_react_shadcn_ts",
     });
     expect(resolvePublicationApplicationId(p)).toBe("app.cranioscan.android");
+
+    const stalePlay = project({
+      publishing: { android: { applicationId: undefined } },
+      playStoreAppId: "app.old.play",
+      detected: { ...project().detected, capacitorAppId: "app.cranioscan.android" },
+      packageName: "vite_react_shadcn_ts",
+    });
+    expect(resolvePublicationApplicationId(stalePlay)).toBe("app.cranioscan.android");
   });
 
   it("prefers the explicit Android identity over stale detected or npm values", () => {
