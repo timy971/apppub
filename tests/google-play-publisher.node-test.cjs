@@ -226,7 +226,10 @@ test("preserves an uploaded bundle when Google rejects the track update", async 
     }),
     (error) => error.code === "permission-denied",
   );
-  assert.equal(\n    calls.some((call) => call.options.method === "DELETE"),\n    false,\n  );
+  assert.equal(
+    calls.some((call) => call.options.method === "DELETE"),
+    false,
+  );
   assert.equal(
     calls.some((call) => call.url.includes(":commit")),
     false,
@@ -337,7 +340,10 @@ test("marks a network interruption during commit as an unknown outcome", async (
     }),
     (error) => error.code === "commit-outcome-unknown",
   );
-  assert.equal(\n    calls.some((call) => call.options.method === "DELETE"),\n    false,\n  );
+  assert.equal(
+    calls.some((call) => call.options.method === "DELETE"),
+    false,
+  );
 });
 
 
