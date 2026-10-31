@@ -356,6 +356,15 @@ class GooglePlayPublisher {
     );
   }
 
+  async listTracks(packageName, editId, token) {
+    const payload = await this.request(
+      `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/tracks`,
+      token,
+      { method: "GET", phase: "version-code-check" },
+    );
+    return Array.isArray(payload?.tracks) ? payload.tracks : [];
+  }
+
   async versionOnInternalTrack(packageName, versionCode, token) {
     const editId = await this.insertEdit(packageName, token);
     try {
@@ -376,13 +385,20 @@ class GooglePlayPublisher {
     const token = await this.accessToken(credentials);
     const editId = await this.insertEdit(packageName, token);
     try {
-      const track = await this.getTrack(packageName, editId, INTERNAL_TRACK, token);
-      const releases = Array.isArray(track?.releases) ? track.releases : [];
-      const codes = releases.flatMap((release) =>
-        Array.isArray(release?.versionCodes)
-          ? release.versionCodes
-              .map((value) => Number(value))
-              .filter((value) => Number.isSafeInteger(value) && value > 0)
+      // Le versionCode est propre à l'application, pas à une seule piste.
+      // On prend donc le maximum de toutes les pistes visibles dans l'édition
+      // courante afin d'éviter de réutiliser un numéro présent sur alpha,
+      // beta ou production.
+      const tracks = await this.listTracks(packageName, editId, token);
+      const codes = tracks.flatMap((track) =>
+        Array.isArray(track?.releases)
+          ? track.releases.flatMap((release) =>
+              Array.isArray(release?.versionCodes)
+                ? release.versionCodes
+                    .map((value) => Number(value))
+                    .filter((value) => Number.isSafeInteger(value) && value > 0)
+                : [],
+            )
           : [],
       );
       return {
