@@ -56,6 +56,7 @@ const { installWindowGuards } = require("./window-security.cjs");
 const { SigningSessionRegistry } = require("./signing-session.cjs");
 const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
+const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");
 const {
   AndroidPreparationManager,
   inspectAndroidPreparation,
@@ -466,6 +467,10 @@ const trustStore = new ProjectTrustStore(
 const durableStore = new DurableStore(path.join(app.getPath("userData"), "data", "store-v1.json"));
 const gitProjectManager = new GitProjectManager(
   path.join(app.getPath("userData"), "managed-projects"),
+);
+const publicationWorkspaceManager = new PublicationWorkspaceManager(
+  path.join(app.getPath("userData"), "publication-workspaces"),
+  gitProjectManager,
 );
 const androidPreparationManager = new AndroidPreparationManager(projectAccess);
 const androidCorrectionManager = new AndroidCorrectionManager(projectAccess);
@@ -1300,6 +1305,42 @@ ipcMain.handle("git:sync", async (_e, args) => {
   const safe = resolveWithinAllowed(args?.projectPath);
   if (!safe) throw new Error("La copie locale du projet n’est plus autorisée.");
   return { ...result, detected: detectProjectFiles(safe) };
+});
+
+/* ---------- IPC : workspace de publication jetable ---------- */
+
+ipcMain.handle("publication-workspace:prepare", async (_e, args) => {
+  const source = resolveWithinAllowed(args?.projectPath);
+  if (!source) throw new Error("Le projet source n’est plus autorisé.");
+
+  const result = await publicationWorkspaceManager.prepare(args);
+  const authorized = registerAllowedRoot(result.workspacePath);
+  if (!authorized) {
+    try {
+      await publicationWorkspaceManager.release({
+        projectPath: source,
+        workspacePath: result.workspacePath,
+      });
+    } catch {}
+    throw new Error("Le workspace de publication n’a pas pu être autorisé.");
+  }
+
+  // Le workspace est une copie exacte d'un commit du dépôt déjà approuvé.
+  // Il hérite de la confiance du projet source afin de ne pas redemander
+  // une confirmation technique à chaque publication.
+  if (trustStore.isTrusted(source)) trustStore.trust(authorized);
+
+  return {
+    ...result,
+    workspacePath: authorized,
+    detected: detectProjectFiles(authorized),
+  };
+});
+
+ipcMain.handle("publication-workspace:release", async (_e, args) => {
+  const workspace = resolveWithinAllowed(args?.workspacePath);
+  if (workspace) trustStore.revoke(workspace);
+  return publicationWorkspaceManager.release(args);
 });
 
 /* ---------- IPC : préparation Android guidée ---------- */
