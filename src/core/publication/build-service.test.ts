@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   prepareAndroid: vi.fn(),
   history: vi.fn(),
   log: vi.fn(),
+  latestVersionCode: vi.fn(),
 }));
 
 vi.mock("@/core/publication/workspace-service", () => ({
@@ -41,6 +42,7 @@ vi.mock("@/core/bridge", () => ({
   bridge: () => ({
     runtime: "electron",
     publicationArtifacts: { promote: mocks.promote },
+    googlePlay: { latestVersionCode: mocks.latestVersionCode },
   }),
 }));
 
@@ -139,6 +141,7 @@ describe("PublicationBuildService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.history.mockReturnValue([]);
+    mocks.latestVersionCode.mockReset();
   });
 
   it("builds from the clean workspace, promotes the AAB, then releases the workspace", async () => {
@@ -193,6 +196,90 @@ describe("PublicationBuildService", () => {
     expect(result.aabValidation?.reportPath).toBe(
       "/stable/project-1/app-release.aab.apppublisher-report.json",
     );
+  });
+
+  it("includes the live Google Play versionCode when choosing the next build number", async () => {
+    const p = project();
+    p.publishing = {
+      android: {
+        ...p.publishing?.android,
+        googlePlayConnectionId: "gplay_connection",
+      },
+    };
+    const ws = prepared(false);
+    mocks.latestVersionCode.mockResolvedValue({
+      ok: true,
+      packageName: "app.victorytrack.android",
+      accountEmail: "publisher@example.com",
+      authMode: "oauth",
+      versionCode: 12,
+    });
+    mocks.prepareWorkspace.mockResolvedValue(ws);
+    mocks.buildCore.mockResolvedValue({
+      succeeded: true,
+      durationMs: 100,
+      aabPath: "/workspaces/victorytrack-2/app-release.aab",
+    });
+    mocks.promote.mockResolvedValue({
+      artifactPath: "/stable/app-release.aab",
+      manifestPath: "/stable/publication-manifest.json",
+      artifactSizeBytes: 100,
+      artifactSha256: "A".repeat(64),
+      storedAt: "2026-10-31T21:00:00.000Z",
+    });
+    mocks.releaseWorkspace.mockResolvedValue({ released: true });
+
+    await PublicationBuildService.build(p, { onStep: vi.fn() });
+
+    expect(mocks.latestVersionCode).toHaveBeenCalledWith({
+      projectPath: p.localPath,
+      packageName: "app.victorytrack.android",
+      connectionId: "gplay_connection",
+    });
+    expect(mocks.prepareWorkspace).toHaveBeenCalledWith(
+      p,
+      expect.objectContaining({
+        knownPublishedBuilds: expect.arrayContaining([12]),
+      }),
+    );
+  });
+
+  it("continues with local version knowledge when Google Play is temporarily unavailable", async () => {
+    const p = project();
+    p.publishing = {
+      android: {
+        ...p.publishing?.android,
+        googlePlayConnectionId: "gplay_connection",
+      },
+    };
+    const ws = prepared(false);
+    mocks.latestVersionCode.mockResolvedValue({
+      ok: false,
+      errorCode: "network-error",
+      errorHint: "Google indisponible",
+    });
+    mocks.prepareWorkspace.mockResolvedValue(ws);
+    mocks.buildCore.mockResolvedValue({
+      succeeded: true,
+      durationMs: 100,
+      aabPath: "/workspaces/victorytrack-2/app-release.aab",
+    });
+    mocks.promote.mockResolvedValue({
+      artifactPath: "/stable/app-release.aab",
+      manifestPath: "/stable/publication-manifest.json",
+      artifactSizeBytes: 100,
+      artifactSha256: "A".repeat(64),
+      storedAt: "2026-10-31T21:00:00.000Z",
+    });
+    mocks.releaseWorkspace.mockResolvedValue({ released: true });
+    const onLine = vi.fn();
+
+    await expect(
+      PublicationBuildService.build(p, { onStep: vi.fn(), onLine }),
+    ).resolves.toBeTruthy();
+
+    expect(onLine).toHaveBeenCalledWith(expect.stringMatching(/dernier numéro local connu/));
+    expect(mocks.prepareWorkspace).toHaveBeenCalled();
   });
 
   it("creates Android inside the disposable workspace before reconciling intent", async () => {
