@@ -87,6 +87,18 @@ test("the main process does not register removed generic IPC handlers", () => {
   assert.equal(main.includes('ipcMain.handle("google-play:publishProduction"'), false);
 });
 
+test("startup maintenance and manifest recovery use dedicated business IPC only", () => {
+  assert.match(main, /boot step start: \$\{name\}/);
+  assert.match(main, /safeStep\("publication-maintenance"/);
+  assert.match(main, /googlePlayResumeStore\.prune/);
+  assert.match(main, /publicationWorkspaceManager\s*\.cleanupOrphans/);
+  assert.match(main, /ipcMain\.handle\("publication-artifact:recordPreparation"/);
+  assert.match(main, /ipcMain\.handle\("publication-artifact:recover"/);
+  assert.match(preload, /publication-artifact:recordPreparation/);
+  assert.match(preload, /publication-artifact:recover/);
+  assert.equal(preload.includes("publication-artifact:readArbitraryFile"), false);
+});
+
 test("the packaged page declares a restrictive content security policy", () => {
   assert.match(index, /Content-Security-Policy/);
   assert.match(index, /default-src 'self'/);
