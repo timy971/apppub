@@ -92,18 +92,33 @@ describe("publication intent", () => {
     });
     expect(resolvePublicationApplicationId(p)).toBe("app.cranioscan.android");
 
-    const stalePlay = project({
+    const legacy = project({
       publishing: { android: { applicationId: undefined } },
-      playStoreAppId: "app.old.play",
+      playStoreAppId: undefined,
       detected: { ...project().detected, capacitorAppId: "app.cranioscan.android" },
       packageName: "vite_react_shadcn_ts",
     });
-    expect(resolvePublicationApplicationId(stalePlay)).toBe("app.cranioscan.android");
+    expect(resolvePublicationApplicationId(legacy)).toBe("app.cranioscan.android");
   });
 
-  it("prefers the explicit Android identity over stale detected or npm values", () => {
+  it("keeps the connected Play Console package as the immutable strongest identity", () => {
     const p = project({
-      playStoreAppId: "app.old.play",
+      playStoreAppId: "app.play.immutable",
+      packageName: "vite_react_shadcn_ts",
+      detected: { ...project().detected, capacitorAppId: "app.old.capacitor" },
+      publishing: {
+        android: {
+          applicationId: "app.victorytrack.android",
+          signingProfileId: "signing-victory",
+        },
+      },
+    });
+    expect(resolvePublicationApplicationId(p)).toBe("app.play.immutable");
+  });
+
+  it("prefers explicit Android configuration over Capacitor and npm when Play is not established", () => {
+    const p = project({
+      playStoreAppId: undefined,
       packageName: "vite_react_shadcn_ts",
       detected: { ...project().detected, capacitorAppId: "app.old.capacitor" },
       publishing: {
