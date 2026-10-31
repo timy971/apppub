@@ -1,5 +1,5 @@
 import type { AabValidationReport, Project } from "@/core/types";
-import { BuildService } from "@/core/build/service";
+import { PublicationBuildService } from "@/core/publication/build-service";
 import type { OperationDef } from "./runner";
 import type { StepStatus } from "./types";
 
@@ -44,6 +44,11 @@ export const ANDROID_BUILD_STEPS = [
     title: "Contrôle complet de l'AAB",
     description: "Package, version, SDK, signature, empreinte et bundletool.",
   },
+  {
+    id: "archive",
+    title: "Conservation du fichier final",
+    description: "Copie vérifiée de l'AAB et de son rapport hors du workspace temporaire.",
+  },
 ] as const;
 
 export interface AndroidBuildResult {
@@ -55,6 +60,10 @@ export interface AndroidBuildResult {
   sourceDirty?: boolean;
   aabValidation?: AabValidationReport;
   aabReportPath?: string;
+  versionName?: string;
+  versionCode?: number;
+  applicationId?: string;
+  publicationManifestPath?: string;
 }
 
 /**
@@ -89,9 +98,8 @@ export function createAndroidBuildOperation(project: Project): OperationDef {
         );
       }
       throwIfAborted();
-      ctrl.setStep("prepare", "success", "Projet prêt.");
 
-      const result = await BuildService.build(project, {
+      const result = await PublicationBuildService.build(project, {
         signal: ctrl.signal,
         onStep: (id, status, detail) => {
           ctrl.setStep(id, status as StepStatus, detail);
