@@ -9,6 +9,7 @@ const {
   findSdkmanager,
   inspectAndroidSdk,
   requiredAndroidPackages,
+  resolveAndroidSdkPath,
 } = require("../electron/android-sdk-manager.cjs");
 
 function touch(file) {
@@ -68,4 +69,58 @@ test("installer only accepts Android SDK package identifiers from the allowlist"
   assert.equal(allowedPackage("build-tools;36.0.0"), true);
   assert.equal(allowedPackage("extras;google;m2repository"), false);
   assert.equal(allowedPackage("../../evil"), false);
+});
+
+
+test("real bug regression: ignores stale ANDROID_HOME when the standard SDK exists", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-sdk-stale-env-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const stale = path.join(root, "old-sdk");
+  const home = path.join(root, "home");
+  const standard = path.join(home, "Library", "Android", "sdk");
+  fs.mkdirSync(standard, { recursive: true });
+
+  const resolved = resolveAndroidSdkPath({
+    platform: "darwin",
+    env: { ANDROID_HOME: stale },
+    homedir: home,
+  });
+
+  assert.equal(resolved, fs.realpathSync(standard));
+});
+
+test("real bug regression: prefers a valid ANDROID_HOME before the standard SDK", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-sdk-valid-env-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const configured = path.join(root, "configured-sdk");
+  const home = path.join(root, "home");
+  const standard = path.join(home, "Library", "Android", "sdk");
+  fs.mkdirSync(configured, { recursive: true });
+  fs.mkdirSync(standard, { recursive: true });
+
+  const resolved = resolveAndroidSdkPath({
+    platform: "darwin",
+    env: { ANDROID_HOME: configured },
+    homedir: home,
+  });
+
+  assert.equal(resolved, fs.realpathSync(configured));
+});
+
+test("real bug regression: falls back from stale ANDROID_HOME to valid ANDROID_SDK_ROOT", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-sdk-root-fallback-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const configured = path.join(root, "sdk-root");
+  fs.mkdirSync(configured, { recursive: true });
+
+  const resolved = resolveAndroidSdkPath({
+    platform: "linux",
+    env: {
+      ANDROID_HOME: path.join(root, "stale"),
+      ANDROID_SDK_ROOT: configured,
+    },
+    homedir: path.join(root, "home"),
+  });
+
+  assert.equal(resolved, fs.realpathSync(configured));
 });

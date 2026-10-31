@@ -60,7 +60,7 @@ const { GitProjectManager } = require("./git-projects.cjs");
 const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");
 const { PublicationArtifactManager, hashFile } = require("./publication-artifacts.cjs");
 const { guessJavaHome, javaEnvironment } = require("./android-toolchain.cjs");
-const { inspectAndroidSdk, installAndroidSdkPackages } = require("./android-sdk-manager.cjs");
+const { inspectAndroidSdk, installAndroidSdkPackages, resolveAndroidSdkPath } = require("./android-sdk-manager.cjs");
 const { GooglePlayResumeStore } = require("./google-play-resume-store.cjs");
 const { isAndroidApplicationId, resolveStoredAndroidPackage } = require("./android-package-identity.cjs");
 const {
@@ -1132,7 +1132,7 @@ async function detectSystem() {
     runCapture(javaCommand, ["-version"]),
   ]);
 
-  const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || guessAndroidSdk();
+  const androidHome = resolveAndroidSdkPath();
   const androidStudio = guessAndroidStudio();
   const internet = await pingInternet();
 
@@ -1155,21 +1155,11 @@ async function detectSystem() {
 }
 
 function guessAndroidSdk() {
-  const home = os.homedir();
-  const candidates =
-    process.platform === "darwin"
-      ? [path.join(home, "Library/Android/sdk")]
-      : process.platform === "win32"
-        ? [path.join(process.env.LOCALAPPDATA || "", "Android/Sdk")]
-        : [path.join(home, "Android/Sdk")];
-  return candidates.find((p) => p && fs.existsSync(p));
+  return resolveAndroidSdkPath();
 }
 
 function androidSdkEnvironment() {
-  const sdk =
-    process.env.ANDROID_HOME ||
-    process.env.ANDROID_SDK_ROOT ||
-    guessAndroidSdk();
+  const sdk = resolveAndroidSdkPath();
   if (!sdk) return {};
   return {
     ANDROID_HOME: sdk,
@@ -1224,7 +1214,7 @@ function pingInternet() {
 
 ipcMain.handle("system:detect", detectSystem);
 ipcMain.handle("android-sdk:ensureRequired", async () => {
-  const sdkPath = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || guessAndroidSdk();
+  const sdkPath = resolveAndroidSdkPath();
   const state = inspectAndroidSdk(sdkPath);
   if (state.ready) return { ok: true, installed: [], state };
   if (!state.present) return { ok: false, errorCode: "sdk-missing", state };

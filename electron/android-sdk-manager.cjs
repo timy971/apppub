@@ -1,9 +1,49 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const os = require("node:os");
 
 const DEFAULT_API_LEVEL = 36;
 const DEFAULT_BUILD_TOOLS = "36.0.0";
+
+function androidSdkCandidates(options = {}) {
+  const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
+  const homedir = options.homedir ?? os.homedir();
+  const candidates = [];
+
+  if (env.ANDROID_HOME) candidates.push(env.ANDROID_HOME);
+  if (env.ANDROID_SDK_ROOT) candidates.push(env.ANDROID_SDK_ROOT);
+
+  if (platform === "darwin") {
+    candidates.push(path.join(homedir, "Library", "Android", "sdk"));
+  } else if (platform === "win32") {
+    candidates.push(path.join(env.LOCALAPPDATA || "", "Android", "Sdk"));
+  } else {
+    candidates.push(
+      path.join(homedir, "Android", "Sdk"),
+      path.join(homedir, "Android", "sdk"),
+    );
+  }
+
+  if (Array.isArray(options.extraCandidates)) candidates.push(...options.extraCandidates);
+  return [...new Set(candidates.filter(Boolean))];
+}
+
+function resolveAndroidSdkPath(options = {}) {
+  const fsModule = options.fsModule ?? fs;
+  for (const candidate of androidSdkCandidates(options)) {
+    try {
+      if (!fsModule.statSync(candidate).isDirectory()) continue;
+      try {
+        return fsModule.realpathSync(candidate);
+      } catch {
+        return path.resolve(candidate);
+      }
+    } catch {}
+  }
+  return undefined;
+}
 
 function requiredAndroidPackages(options = {}) {
   const apiLevel = Number.isInteger(options.apiLevel) ? options.apiLevel : DEFAULT_API_LEVEL;
@@ -202,10 +242,12 @@ module.exports = {
   DEFAULT_API_LEVEL,
   DEFAULT_BUILD_TOOLS,
   allowedPackage,
+  androidSdkCandidates,
   findSdkmanager,
   inspectAndroidSdk,
   installAndroidSdkPackages,
   packageInstalled,
   requiredAndroidPackages,
+  resolveAndroidSdkPath,
   sdkmanagerCandidates,
 };

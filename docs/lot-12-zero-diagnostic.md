@@ -227,3 +227,19 @@ Le stockage durable des publications est maintenant entretenu automatiquement au
 - le nettoyage reste silencieux et journalisé, sans exposer Finder ou le stockage technique à l'utilisateur novice.
 
 Des tests vérifient notamment la limite de cinq, la protection d'une version active ancienne, la conservation du dernier artefact et la non-suppression des dossiers inconnus/invalides.
+
+
+### 12.6e — non-régression issue des bugs réels
+
+Un cas réel supplémentaire est désormais couvert : une ancienne variable `ANDROID_HOME` peut rester configurée sur un dossier supprimé alors qu'Android Studio a installé un SDK valide ailleurs.
+
+Avant ce correctif, la présence de cette variable invalide gagnait malgré tout et AppPublisher pouvait afficher à tort « SDK Android introuvable ».
+
+La résolution du SDK applique maintenant cet ordre :
+
+1. `ANDROID_HOME` seulement s'il pointe vers un dossier existant ;
+2. `ANDROID_SDK_ROOT` seulement s'il est valide ;
+3. emplacement Android Studio standard de la plateforme ;
+4. aucun SDK si aucun candidat réel n'existe.
+
+Le chemin retenu est canonicalisé et réutilisé par le diagnostic système, l'environnement Gradle et l'auto-installation des composants. Trois tests permanents couvrent le fallback depuis un `ANDROID_HOME` obsolète, la priorité d'un `ANDROID_HOME` valide et le fallback vers `ANDROID_SDK_ROOT`.
