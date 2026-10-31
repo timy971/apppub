@@ -53,7 +53,7 @@ const { BackupManager } = require("./backup-manager.cjs");
 const { validateExecutionRequest, findProjectRoot } = require("./execution-policy.cjs");
 const { ProjectTrustStore, ensureProjectTrusted } = require("./project-trust.cjs");
 const { installWindowGuards } = require("./window-security.cjs");
-const { SigningSessionRegistry } = require("./signing-session.cjs");
+const { SigningSessionRegistry } = require("./signing-session.cjs");\nconst { resolveSigningProjectContext } = require("./signing-project-context.cjs");
 const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
 const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");\nconst { PublicationArtifactManager } = require("./publication-artifacts.cjs");
@@ -2817,11 +2817,17 @@ ipcMain.handle("signing:validateStored", async (_e, args) => {
 });
 
 ipcMain.handle("signing:prepareBuild", async (event, args) => {
-  const profile = validateStoredProfileArgs(args, true);
+  const profile = validateStoredProfileArgs(args, false);
   if (!profile) return { ok: false, errorCode: "profile-mismatch" };
-  const projectPath = resolveWithinAllowed(args.projectPath);
-  if (!projectPath) return { ok: false, errorCode: "project-not-authorized" };
-  const validated = await validateStoredKeystore(profile, projectPath);
+
+  const context = await resolveSigningProjectContext(args, {
+    resolveAllowed: resolveWithinAllowed,
+    linkedStoredProject,
+    workspaces: publicationWorkspaceManager,
+  });
+  if (!context.ok) return { ok: false, errorCode: context.errorCode };
+
+  const validated = await validateStoredKeystore(profile, context.keystoreProjectPath);
   if (!validated.ok || !validated.resolved?.resolvedPath || !validated.storepass) {
     return {
       ok: false,
@@ -2836,7 +2842,7 @@ ipcMain.handle("signing:prepareBuild", async (event, args) => {
     ORG_GRADLE_PROJECT_APP_KEY_ALIAS: profile.alias,
     ORG_GRADLE_PROJECT_APP_KEY_PASSWORD: keypass,
   };
-  const sessionId = signingSessions.create(event.sender.id, projectPath, env);
+  const sessionId = signingSessions.create(event.sender.id, context.buildProjectPath, env);
   if (!sessionId) return { ok: false, errorCode: "session-failed" };
   return {
     ok: true,
