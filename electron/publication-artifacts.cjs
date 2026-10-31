@@ -93,6 +93,32 @@ class PublicationArtifactManager {
     );
   }
 
+  resolveStableArtifact(inputPath) {
+    if (typeof inputPath !== "string" || inputPath.length > 4096) {
+      throw new PublicationArtifactError("artifact-invalid", "Le fichier Android stable est invalide.");
+    }
+    const candidate = path.resolve(inputPath);
+    if (!isWithin(this.rootPath, candidate)) {
+      throw new PublicationArtifactError(
+        "artifact-outside-storage",
+        "Le fichier Android n’appartient pas au stockage AppPublisher.",
+      );
+    }
+    let real;
+    try {
+      real = this.fs.realpathSync(candidate);
+    } catch {
+      throw new PublicationArtifactError("artifact-missing", "Le fichier Android stable est introuvable.");
+    }
+    if (!isWithin(this.rootPath, real) || !this.fs.statSync(real).isFile()) {
+      throw new PublicationArtifactError(
+        "artifact-outside-storage",
+        "Le fichier Android stable n’est plus autorisé.",
+      );
+    }
+    return real;
+  }
+
   async promote(args) {
     if (!args || typeof args !== "object") {
       throw new PublicationArtifactError("invalid-args", "Promotion de publication invalide.");
@@ -223,6 +249,64 @@ class PublicationArtifactManager {
         if (this.fs.existsSync(temporaryArtifact)) this.fs.unlinkSync(temporaryArtifact);
       } catch {}
     }
+  }
+
+  recordGooglePlayResult(aabPath, result) {
+    const artifactPath = this.resolveStableArtifact(aabPath);
+    const manifestPath = path.join(path.dirname(artifactPath), "publication-manifest.json");
+    let manifest;
+    try {
+      manifest = JSON.parse(this.fs.readFileSync(manifestPath, "utf8"));
+    } catch {
+      throw new PublicationArtifactError(
+        "manifest-missing",
+        "Le manifeste de publication est introuvable ou illisible.",
+      );
+    }
+    if (
+      manifest?.artifact?.fileName !== path.basename(artifactPath) ||
+      manifest?.release?.applicationId !== result?.packageName ||
+      manifest?.release?.versionCode !== result?.versionCode
+    ) {
+      throw new PublicationArtifactError(
+        "manifest-mismatch",
+        "Le résultat Google Play ne correspond pas au manifeste de cet AAB.",
+      );
+    }
+    const committedAt =
+      typeof result.committedAt === "string" && !Number.isNaN(Date.parse(result.committedAt))
+        ? result.committedAt
+        : new Date(this.now()).toISOString();
+    const next = {
+      ...manifest,
+      googlePlay: {
+        provider: "google-play",
+        track: "internal",
+        packageName: result.packageName,
+        versionCode: result.versionCode,
+        releaseStatus: "completed",
+        editId: String(result.editId ?? "").slice(0, 512),
+        accountEmail: String(result.accountEmail ?? "").slice(0, 320),
+        authMode: result.authMode === "service-account" ? "service-account" : "oauth",
+        resumed: result.resumed === true,
+        recoveredCommit: result.recoveredCommit === true,
+        committedAt,
+      },
+    };
+    const temporary = manifestPath + ".tmp-" + process.pid + "-" + this.now();
+    try {
+      this.fs.writeFileSync(temporary, JSON.stringify(next, null, 2) + "\n", {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+      this.fs.renameSync(temporary, manifestPath);
+    } catch (error) {
+      try {
+        this.fs.unlinkSync(temporary);
+      } catch {}
+      throw error;
+    }
+    return { manifestPath, committedAt };
   }
 }
 
