@@ -139,6 +139,8 @@ contextBridge.exposeInMainWorld("appPublisher", {
 
   publicationArtifacts: {
     promote: (args) => inv("publication-artifact:promote", args),
+    recordPreparation: (args) => inv("publication-artifact:recordPreparation", args),
+    recover: (args) => inv("publication-artifact:recover", args),
   },
 
   androidPreparation: {
