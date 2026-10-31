@@ -105,6 +105,7 @@ contextBridge.exposeInMainWorld("appPublisher", {
 
   system: {
     detect: () => inv("system:detect"),
+    ensureAndroidSdk: () => inv("android-sdk:ensureRequired"),
     copyText: (value) => inv("system:copyText", value),
   },
 
@@ -130,6 +131,17 @@ contextBridge.exposeInMainWorld("appPublisher", {
     status: (args) => inv("git:status", args),
     check: (args) => inv("git:check", args),
     sync: (args) => inv("git:sync", args),
+  },
+
+  publicationWorkspace: {
+    prepare: (args) => inv("publication-workspace:prepare", args),
+    release: (args) => inv("publication-workspace:release", args),
+  },
+
+  publicationArtifacts: {
+    promote: (args) => inv("publication-artifact:promote", args),
+    recordPreparation: (args) => inv("publication-artifact:recordPreparation", args),
+    recover: (args) => inv("publication-artifact:recover", args),
   },
 
   androidPreparation: {
@@ -203,6 +215,7 @@ contextBridge.exposeInMainWorld("appPublisher", {
     connectOAuth: (args) => inv("google-play:connectOAuth", args),
     importServiceAccount: (args) => inv("google-play:importServiceAccount", args),
     testConnection: (args) => inv("google-play:testConnection", args),
+    latestVersionCode: (args) => inv("google-play:latestVersionCode", args),
     disconnect: (args) => inv("google-play:disconnect", args),
     publishInternal: (args) => inv("google-play:publishInternal", args),
   },

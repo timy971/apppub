@@ -54,8 +54,15 @@ const { validateExecutionRequest, findProjectRoot } = require("./execution-polic
 const { ProjectTrustStore, ensureProjectTrusted } = require("./project-trust.cjs");
 const { installWindowGuards } = require("./window-security.cjs");
 const { SigningSessionRegistry } = require("./signing-session.cjs");
+const { resolveSigningProjectContext } = require("./signing-project-context.cjs");
 const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
+const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");
+const { PublicationArtifactManager, hashFile } = require("./publication-artifacts.cjs");
+const { guessJavaHome, javaEnvironment } = require("./android-toolchain.cjs");
+const { inspectAndroidSdk, installAndroidSdkPackages, resolveAndroidSdkPath } = require("./android-sdk-manager.cjs");
+const { GooglePlayResumeStore } = require("./google-play-resume-store.cjs");
+const { isAndroidApplicationId, resolveStoredAndroidPackage } = require("./android-package-identity.cjs");
 const {
   AndroidPreparationManager,
   inspectAndroidPreparation,
@@ -467,6 +474,14 @@ const durableStore = new DurableStore(path.join(app.getPath("userData"), "data",
 const gitProjectManager = new GitProjectManager(
   path.join(app.getPath("userData"), "managed-projects"),
 );
+const publicationWorkspaceManager = new PublicationWorkspaceManager(
+  path.join(app.getPath("userData"), "publication-workspaces"),
+  gitProjectManager,
+);
+const publicationArtifactManager = new PublicationArtifactManager(
+  path.join(app.getPath("userData"), "publication-artifacts"),
+  publicationWorkspaceManager,
+);
 const androidPreparationManager = new AndroidPreparationManager(projectAccess);
 const androidCorrectionManager = new AndroidCorrectionManager(projectAccess);
 const googlePlayPublisher = new GooglePlayPublisher();
@@ -475,6 +490,9 @@ const googlePlayOAuth = new GooglePlayOAuth(
     resourcesPath: process.resourcesPath,
     appPath: app.getAppPath(),
   }),
+);
+const googlePlayResumeStore = new GooglePlayResumeStore(
+  path.join(app.getPath("userData"), "data", "google-play-resume-v1.json"),
 );
 
 function registerAllowedRoot(p) {
@@ -492,6 +510,50 @@ function registerAllowedRoot(p) {
 
 function resolveWithinAllowed(inputPath) {
   return projectAccess.resolveExisting(inputPath);
+}
+
+// Les artefacts promus doivent rester accessibles après suppression du
+// workspace et après redémarrage d'AppPublisher.
+registerAllowedRoot(publicationArtifactManager.rootPath);
+
+function publicationMaintenanceBindings() {
+  const stored = durableStore.get("projects");
+  if (!stored.ok || !stored.found || !Array.isArray(stored.value)) {
+    return { projectPaths: [], checkpoints: [], artifacts: [] };
+  }
+  const projectPaths = [];
+  const checkpoints = [];
+  const artifacts = [];
+  for (const project of stored.value) {
+    if (project?.source?.type === "git" && project.source.managed === true) {
+      try {
+        projectPaths.push(gitProjectManager.resolveManagedProject(project.localPath));
+      } catch {}
+    }
+    const connectionId = project?.publishing?.android?.googlePlayConnectionId;
+    const packageName = resolveStoredAndroidPackage(project);
+    if (
+      typeof project?.id === "string" &&
+      isAndroidApplicationId(packageName) &&
+      typeof project?.currentVersion === "string" &&
+      Number.isSafeInteger(project?.currentBuild)
+    ) {
+      artifacts.push({
+        projectId: project.id,
+        applicationId: packageName,
+        versionName: project.currentVersion,
+        versionCode: project.currentBuild,
+      });
+    }
+    if (
+      typeof project?.id === "string" &&
+      validGooglePlayConnectionId(connectionId) &&
+      isAndroidApplicationId(packageName)
+    ) {
+      checkpoints.push({ projectId: project.id, connectionId, packageName });
+    }
+  }
+  return { projectPaths: [...new Set(projectPaths)], checkpoints, artifacts };
 }
 
 async function confirmProjectTrust({ projectPath, projectName }) {
@@ -916,6 +978,49 @@ app
       });
     });
 
+    safeStep("publication-maintenance", () => {
+      const bindings = publicationMaintenanceBindings();
+      const resumeCleanup = googlePlayResumeStore.prune(bindings.checkpoints);
+      const artifactCleanup = publicationArtifactManager.pruneRetention(bindings.artifacts);
+      diagWrite({
+        level: "info",
+        message: "Google Play resume checkpoints cleaned",
+        ctx: {
+          removed: resumeCleanup.removed.length,
+          kept: resumeCleanup.kept.length,
+        },
+      });
+      diagWrite({
+        level: "info",
+        message: "publication artifacts retention applied",
+        ctx: {
+          removed: artifactCleanup.removed.length,
+          kept: artifactCleanup.kept.length,
+          skipped: artifactCleanup.skipped.length,
+          keepPerProject: artifactCleanup.keepPerProject,
+        },
+      });
+      void publicationWorkspaceManager
+        .cleanupOrphans(bindings.projectPaths)
+        .then((result) => {
+          diagWrite({
+            level: "info",
+            message: "publication workspaces cleaned",
+            ctx: {
+              removed: result.removed.length,
+              skipped: result.skipped.length,
+            },
+          });
+        })
+        .catch((error) => {
+          diagWrite({
+            level: "warn",
+            message: "publication workspace cleanup failed",
+            ctx: { error: String(error) },
+          });
+        });
+    });
+
     safeStep("deny-electron-permissions", () => {
       session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
         return permission === "notifications" && trustedWebContentsIds.has(webContents?.id);
@@ -1016,14 +1121,18 @@ function runCapture(cmd, args, timeoutMs = 4000) {
 }
 
 async function detectSystem() {
+  const javaHome = guessJavaHome();
+  const javaCommand = javaHome
+    ? path.join(javaHome, "bin", process.platform === "win32" ? "java.exe" : "java")
+    : "java";
   const [node, npm, git, java] = await Promise.all([
     runCapture("node", ["-v"]),
     runCapture(process.platform === "win32" ? "npm.cmd" : "npm", ["-v"]),
     runCapture("git", ["--version"]),
-    runCapture("java", ["-version"]),
+    runCapture(javaCommand, ["-version"]),
   ]);
 
-  const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || guessAndroidSdk();
+  const androidHome = resolveAndroidSdkPath();
   const androidStudio = guessAndroidStudio();
   const internet = await pingInternet();
 
@@ -1040,27 +1149,17 @@ async function detectSystem() {
     androidSdk: androidHome ? readSdkVersion(androidHome) : undefined,
     androidSdkPath: androidHome,
     androidHome,
-    javaHome: process.env.JAVA_HOME,
+    javaHome,
     internet,
   };
 }
 
 function guessAndroidSdk() {
-  const home = os.homedir();
-  const candidates =
-    process.platform === "darwin"
-      ? [path.join(home, "Library/Android/sdk")]
-      : process.platform === "win32"
-        ? [path.join(process.env.LOCALAPPDATA || "", "Android/Sdk")]
-        : [path.join(home, "Android/Sdk")];
-  return candidates.find((p) => p && fs.existsSync(p));
+  return resolveAndroidSdkPath();
 }
 
 function androidSdkEnvironment() {
-  const sdk =
-    process.env.ANDROID_HOME ||
-    process.env.ANDROID_SDK_ROOT ||
-    guessAndroidSdk();
+  const sdk = resolveAndroidSdkPath();
   if (!sdk) return {};
   return {
     ANDROID_HOME: sdk,
@@ -1114,6 +1213,16 @@ function pingInternet() {
 }
 
 ipcMain.handle("system:detect", detectSystem);
+ipcMain.handle("android-sdk:ensureRequired", async () => {
+  const sdkPath = resolveAndroidSdkPath();
+  const state = inspectAndroidSdk(sdkPath);
+  if (state.ready) return { ok: true, installed: [], state };
+  if (!state.present) return { ok: false, errorCode: "sdk-missing", state };
+  if (!state.installable) {
+    return { ok: false, errorCode: "command-line-tools-missing", state };
+  }
+  return installAndroidSdkPackages(sdkPath, state.missingPackages);
+});
 ipcMain.handle("system:copyText", (_event, value) => {
   if (typeof value !== "string" || value.length > 2_000_000) return false;
   clipboard.writeText(value);
@@ -1300,6 +1409,83 @@ ipcMain.handle("git:sync", async (_e, args) => {
   const safe = resolveWithinAllowed(args?.projectPath);
   if (!safe) throw new Error("La copie locale du projet n’est plus autorisée.");
   return { ...result, detected: detectProjectFiles(safe) };
+});
+
+/* ---------- IPC : workspace de publication jetable ---------- */
+
+ipcMain.handle("publication-workspace:prepare", async (_e, args) => {
+  const source = resolveWithinAllowed(args?.projectPath);
+  if (!source) throw new Error("Le projet source n’est plus autorisé.");
+
+  const result = await publicationWorkspaceManager.prepare(args);
+  const authorized = registerAllowedRoot(result.workspacePath);
+  if (!authorized) {
+    try {
+      await publicationWorkspaceManager.release({
+        projectPath: source,
+        workspacePath: result.workspacePath,
+      });
+    } catch {}
+    throw new Error("Le workspace de publication n’a pas pu être autorisé.");
+  }
+
+  // Le workspace est une copie exacte d'un commit du dépôt déjà approuvé.
+  // Il hérite de la confiance du projet source afin de ne pas redemander
+  // une confirmation technique à chaque publication.
+  if (trustStore.isTrusted(source)) trustStore.trust(authorized);
+
+  return {
+    ...result,
+    workspacePath: authorized,
+    detected: detectProjectFiles(authorized),
+  };
+});
+
+ipcMain.handle("publication-workspace:release", async (_e, args) => {
+  const workspace = resolveWithinAllowed(args?.workspacePath);
+  if (workspace) trustStore.revoke(workspace);
+  return publicationWorkspaceManager.release(args);
+});
+
+ipcMain.handle("publication-artifact:promote", async (_e, args) => {
+  const result = await publicationArtifactManager.promote(args);
+  const authorized =
+    resolveWithinAllowed(result.artifactPath) ??
+    registerAllowedRoot(path.dirname(result.artifactPath));
+  if (!authorized) {
+    throw new Error("L’artefact final n’a pas pu être autorisé par AppPublisher.");
+  }
+  return result;
+});
+
+ipcMain.handle("publication-artifact:recordPreparation", async (_e, args) => {
+  const aabPath = resolveWithinAllowed(args?.aabPath);
+  if (!aabPath || path.extname(aabPath).toLowerCase() !== ".aab") {
+    throw new Error("Fichier Android de préparation non autorisé.");
+  }
+  if (typeof args?.notes !== "string") {
+    throw new Error("Notes de version invalides.");
+  }
+  return publicationArtifactManager.recordPreparation(aabPath, {
+    notes: args.notes,
+    preparedAt: args.preparedAt,
+  });
+});
+
+ipcMain.handle("publication-artifact:recover", async (_e, args) => {
+  if (!args || typeof args.projectId !== "string") return null;
+  const stored = durableStore.get("projects");
+  if (!stored.ok || !stored.found || !Array.isArray(stored.value)) return null;
+  const project = stored.value.find((item) => item?.id === args.projectId);
+  if (!project) return null;
+  const applicationId = resolveStoredAndroidPackage(project);
+  if (!isAndroidApplicationId(applicationId)) return null;
+  return publicationArtifactManager.latestForProject({
+    projectId: project.id,
+    applicationId,
+    versionName: project.currentVersion,
+    versionCode: project.currentBuild,
+  });
 });
 
 /* ---------- IPC : préparation Android guidée ---------- */
@@ -1520,7 +1706,7 @@ ipcMain.handle("exec:run", async (event, opts, channel, executionId) => {
       const command = normalizeSpawnCommand(requestedCommand);
       const child = spawn(command, args, {
         cwd: policy.cwd,
-        env: { ...process.env, ...androidSdkEnvironment(), ...safeEnv },
+        env: { ...process.env, ...androidSdkEnvironment(), ...javaEnvironment(), ...safeEnv },
         shell: false,
         detached: process.platform !== "win32",
       });
@@ -1767,17 +1953,13 @@ function isValidPassword(s) {
  *   2. keytool dans le PATH (résolu par spawn).
  */
 function resolveKeytool() {
-  const home = process.env.JAVA_HOME;
+  const home = guessJavaHome();
   if (home) {
-    const candidate = path.join(
+    return path.join(
       home,
       "bin",
       process.platform === "win32" ? "keytool.exe" : "keytool",
     );
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK);
-      return candidate;
-    } catch {}
   }
   return process.platform === "win32" ? "keytool.exe" : "keytool";
 }
@@ -1792,7 +1974,7 @@ function runKeytool(args, env = {}, timeoutMs = 30_000) {
   return new Promise((resolve) => {
     const bin = resolveKeytool();
     const child = spawn(bin, args, {
-      env: { ...process.env, ...env },
+      env: { ...process.env, ...javaEnvironment(), ...env },
       shell: false,
     });
     let stdout = "";
@@ -2499,14 +2681,14 @@ function storedProjectForGooglePlay(
   requireConnection,
 ) {
   const projectPath = resolveWithinAllowed(projectPathInput);
-  if (!projectPath) return null;
+  if (!projectPath || !isAndroidApplicationId(packageName)) return null;
   const stored = durableStore.get("projects");
   if (!stored.ok || !stored.found || !Array.isArray(stored.value)) return null;
   return (
     stored.value.find((project) => {
       const savedPath = resolveWithinAllowed(project?.localPath);
       const android = project?.publishing?.android ?? {};
-      const savedPackage = android.applicationId ?? project.packageName ?? project.playStoreAppId;
+      const savedPackage = resolveStoredAndroidPackage(project);
       return (
         savedPath === projectPath &&
         savedPackage === packageName &&
@@ -2756,11 +2938,17 @@ ipcMain.handle("signing:validateStored", async (_e, args) => {
 });
 
 ipcMain.handle("signing:prepareBuild", async (event, args) => {
-  const profile = validateStoredProfileArgs(args, true);
+  const profile = validateStoredProfileArgs(args, false);
   if (!profile) return { ok: false, errorCode: "profile-mismatch" };
-  const projectPath = resolveWithinAllowed(args.projectPath);
-  if (!projectPath) return { ok: false, errorCode: "project-not-authorized" };
-  const validated = await validateStoredKeystore(profile, projectPath);
+
+  const context = await resolveSigningProjectContext(args, {
+    resolveAllowed: resolveWithinAllowed,
+    linkedStoredProject,
+    workspaces: publicationWorkspaceManager,
+  });
+  if (!context.ok) return { ok: false, errorCode: context.errorCode };
+
+  const validated = await validateStoredKeystore(profile, context.keystoreProjectPath);
   if (!validated.ok || !validated.resolved?.resolvedPath || !validated.storepass) {
     return {
       ok: false,
@@ -2775,7 +2963,7 @@ ipcMain.handle("signing:prepareBuild", async (event, args) => {
     ORG_GRADLE_PROJECT_APP_KEY_ALIAS: profile.alias,
     ORG_GRADLE_PROJECT_APP_KEY_PASSWORD: keypass,
   };
-  const sessionId = signingSessions.create(event.sender.id, projectPath, env);
+  const sessionId = signingSessions.create(event.sender.id, context.buildProjectPath, env);
   if (!sessionId) return { ok: false, errorCode: "session-failed" };
   return {
     ok: true,
@@ -2969,6 +3157,41 @@ ipcMain.handle("google-play:testConnection", async (_event, args) => {
   }
 });
 
+ipcMain.handle("google-play:latestVersionCode", async (_event, args) => {
+  if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
+    return { ok: false, errorCode: "invalid-args" };
+  }
+  const project = storedProjectForGooglePlay(
+    args.projectPath,
+    args.packageName,
+    args.connectionId,
+    true,
+  );
+  if (!project) return { ok: false, errorCode: "project-mismatch" };
+  const credentials = await getGooglePlayCredentials(args.connectionId);
+  if (!credentials) {
+    return {
+      ok: false,
+      errorCode: "credentials-missing",
+      errorHint: "L'autorisation Google Play est absente du trousseau macOS.",
+    };
+  }
+  try {
+    const result = await googlePlayPublisher.latestInternalVersionCode(
+      credentials,
+      args.packageName,
+    );
+    diagSigning("info", "google-play:latestVersionCode", {
+      projectId: project.id,
+      packageName: args.packageName,
+      versionCode: result.versionCode,
+    });
+    return result;
+  } catch (error) {
+    return publicGooglePlayError(error);
+  }
+});
+
 ipcMain.handle("google-play:disconnect", async (_event, args) => {
   if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
     return false;
@@ -3004,6 +3227,7 @@ ipcMain.handle("google-play:disconnect", async (_event, args) => {
       GOOGLE_PLAY_KEYCHAIN_SERVICE,
     ]);
   }
+  googlePlayResumeStore.clear(project.id);
   diagSigning("info", "google-play:disconnect", {
     projectId: project.id,
     packageName: args.packageName,
@@ -3065,16 +3289,27 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
         "Le package, la version ou le versionCode de l'AAB ne correspond pas au projet actif.",
     };
   }
+  const artifactSha256 = await hashFile(aabPath);
+  const resume = googlePlayResumeStore.get(project.id, {
+    connectionId: args.connectionId,
+    packageName: args.packageName,
+    artifactSha256,
+    versionCode: archive.versionCode,
+  });
   const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
     type: "warning",
-    title: "Publier sur la piste interne ?",
-    message: `Envoyer « ${project.name} » v${project.currentVersion} (build ${project.currentBuild}) à Google Play ?`,
+    title: resume ? "Reprendre la publication ?" : "Publier sur la piste interne ?",
+    message: resume
+      ? `Reprendre l’envoi de « ${project.name} » v${project.currentVersion} (build ${project.currentBuild}) ?`
+      : `Envoyer « ${project.name} » v${project.currentVersion} (build ${project.currentBuild}) à Google Play ?`,
     detail:
       `Application : ${args.packageName}\n` +
       "Piste : internal\n" +
       `Compte : ${credentials.account_email ?? credentials.client_email}\n\n` +
-      "Cette action téléverse l'AAB et valide une nouvelle édition Google Play. Elle ne publie pas en production.",
-    buttons: ["Publier sur internal", "Annuler"],
+      (resume
+        ? "AppPublisher a retrouvé une étape Google Play déjà réussie et la reprendra sans renvoyer inutilement l’AAB."
+        : "Cette action téléverse l'AAB et valide une nouvelle édition Google Play. Elle ne publie pas en production."),
+    buttons: [resume ? "Reprendre" : "Publier sur internal", "Annuler"],
     defaultId: 1,
     cancelId: 1,
     noLink: true,
@@ -3090,6 +3325,7 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
         notes: args.notes,
         language: project.publishing?.android?.primaryLanguage ?? "fr-FR",
         releaseName: `${project.name} ${project.currentVersion} (${project.currentBuild})`,
+        resume,
       },
       (phase) =>
         diagSigning("info", "google-play:publishInternal step", {
@@ -3097,7 +3333,31 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
           packageName: args.packageName,
           phase,
         }),
+      (checkpoint) => {
+        googlePlayResumeStore.save(project.id, {
+          connectionId: args.connectionId,
+          packageName: args.packageName,
+          artifactSha256,
+          versionCode: checkpoint.versionCode,
+          editId: checkpoint.editId,
+          phase: checkpoint.phase,
+        });
+      },
     );
+    const committedAt = new Date().toISOString();
+    try {
+      publicationArtifactManager.recordGooglePlayResult(aabPath, {
+        ...result,
+        committedAt,
+      });
+    } catch (manifestError) {
+      diagSigning("warn", "google-play:manifest update failed", {
+        projectId: project.id,
+        packageName: result.packageName,
+        error: manifestError instanceof Error ? manifestError.message : String(manifestError),
+      });
+    }
+    googlePlayResumeStore.clear(project.id);
     diagSigning("info", "google-play:publishInternal", {
       projectId: project.id,
       packageName: result.packageName,
@@ -3105,9 +3365,12 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
       versionCode: result.versionCode,
       editId: result.editId,
     });
-    return result;
+    return { ...result, committedAt };
   } catch (error) {
     const publicError = publicGooglePlayError(error);
+    if (publicError.errorCode === "version-already-used") {
+      googlePlayResumeStore.clear(project.id);
+    }
     diagSigning("warn", "google-play:publishInternal failed", {
       projectId: project.id,
       packageName: args.packageName,

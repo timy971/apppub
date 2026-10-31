@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   runtime: "electron" as "electron" | "web",
   stat: vi.fn(),
   inspectAab: vi.fn(),
+  recover: vi.fn(),
 }));
 
 vi.mock("@/core/bridge", () => ({
@@ -11,6 +12,7 @@ vi.mock("@/core/bridge", () => ({
     runtime: mocks.runtime,
     fs: { stat: mocks.stat },
     aab: { inspect: mocks.inspectAab },
+    publicationArtifacts: { recover: mocks.recover },
   }),
 }));
 
@@ -44,6 +46,7 @@ describe("verifyPublishArtifact", () => {
   beforeEach(() => {
     mocks.runtime = "electron";
     mocks.stat.mockReset().mockResolvedValue({ size: 2048, isFile: true, isDir: false });
+    mocks.recover.mockReset().mockResolvedValue(null);
     mocks.inspectAab.mockReset().mockResolvedValue({
       schemaVersion: 1,
       inspectedAt: "2026-08-03T00:00:00.000Z",
@@ -61,6 +64,36 @@ describe("verifyPublishArtifact", () => {
     const result = await verifyPublishArtifact(project, [build({ build: 11 })]);
     expect(result.status).toBe("missing");
     expect(mocks.stat).not.toHaveBeenCalled();
+  });
+
+  it("recovers the current prepared release from the stable manifest when history is missing", async () => {
+    mocks.recover.mockResolvedValue({
+      projectId: project.id,
+      projectName: "CranioScan",
+      versionName: project.currentVersion,
+      versionCode: project.currentBuild,
+      applicationId: "app.cranioscan.android",
+      artifactPath: "/stable/project-1/app-release.aab",
+      artifactSizeBytes: 2048,
+      artifactSha256: "A".repeat(64),
+      reportPath: "/stable/project-1/app-release.aab.apppublisher-report.json",
+      manifestPath: "/stable/project-1/publication-manifest.json",
+      sourceCommit: "b".repeat(40),
+      storedAt: "2026-10-31T22:00:00.000Z",
+      notes: "• Correction de stabilité",
+      preparedAt: "2026-10-31T22:10:00.000Z",
+    });
+
+    const result = await verifyPublishArtifact(project, []);
+
+    expect(result.status).toBe("valid");
+    expect(result.path).toBe("/stable/project-1/app-release.aab");
+    expect(result.record).toMatchObject({
+      kind: "release-prepared",
+      notes: "• Correction de stabilité",
+      publicationManifestPath: "/stable/project-1/publication-manifest.json",
+      sourceCommit: "b".repeat(40),
+    });
   });
 
   it("rejects a build whose AAB has disappeared", async () => {

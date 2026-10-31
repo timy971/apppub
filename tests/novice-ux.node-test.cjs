@@ -294,3 +294,16 @@ test("après un envoi Google Play réussi, AppPublisher montre clairement la sui
   assert.match(types, /googlePlayLastTestedBuild\?: number/);
   assert.match(types, /googlePlayLastTestedAt\?: string/);
 });
+
+
+test("le redémarrage reprend l'étape réellement utile sans piéger le bouton Accueil", () => {
+  const dashboard = read("src/routes/index.tsx");
+  const resume = read("src/core/navigation/publication-resume.ts");
+  assert.match(dashboard, /publicationArtifacts\.recover/);
+  assert.match(dashboard, /resolvePublicationResumePath/);
+  assert.match(dashboard, /consumeStartupResume/);
+  assert.match(resume, /returnToJourneyPath/);
+  assert.match(resume, /recovery\?\.artifactPath/);
+  assert.match(resume, /return "\/publish"/);
+  assert.match(resume, /startupResumeConsumed/);
+});

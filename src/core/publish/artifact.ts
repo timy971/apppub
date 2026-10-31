@@ -1,6 +1,7 @@
 import { requireCurrentArtifactSource } from "@/core/projects/release-source";
 import { bridge } from "@/core/bridge";
 import type { AabValidationReport, Project, PublishRecord } from "@/core/types";
+import type { PublicationArtifactRecoveryResult } from "@/core/bridge/types";
 import { AabValidationService } from "@/core/aab/service";
 
 export type PublishArtifactStatus = "valid" | "missing" | "invalid";
@@ -25,6 +26,62 @@ function freshBuild(history: PublishRecord[], project: Project): PublishRecord |
   );
 }
 
+function recordFromRecovery(
+  project: Project,
+  recovered: PublicationArtifactRecoveryResult,
+): PublishRecord {
+  const storeRelease = recovered.googlePlay
+    ? {
+        provider: "google-play" as const,
+        track: "internal" as const,
+        packageName: recovered.googlePlay.packageName,
+        versionCode: recovered.googlePlay.versionCode,
+        releaseStatus: "completed" as const,
+        editId: recovered.googlePlay.editId,
+        accountEmail: recovered.googlePlay.accountEmail,
+        authMode: recovered.googlePlay.authMode,
+        committedAt: recovered.googlePlay.committedAt,
+      }
+    : undefined;
+  return {
+    id: `manifest-${project.id}-${recovered.versionCode}-${recovered.artifactSha256.slice(0, 12)}`,
+    projectId: project.id,
+    projectName: recovered.projectName || project.name,
+    version: recovered.versionName,
+    build: recovered.versionCode,
+    user: "AppPublisher",
+    durationMs: 0,
+    outcome: "success",
+    message: storeRelease
+      ? "Publication restaurée depuis le manifeste AppPublisher"
+      : recovered.notes
+        ? "Publication préparée restaurée depuis le manifeste AppPublisher"
+        : "Build restauré depuis le manifeste AppPublisher",
+    createdAt:
+      storeRelease?.committedAt ??
+      recovered.preparedAt ??
+      recovered.storedAt,
+    kind: storeRelease ? "publish" : recovered.notes ? "release-prepared" : "build",
+    artifactPath: recovered.artifactPath,
+    artifactSizeBytes: recovered.artifactSizeBytes,
+    aabReportPath: recovered.reportPath,
+    publicationManifestPath: recovered.manifestPath,
+    sourceCommit: recovered.sourceCommit,
+    sourceDirty: false,
+    notes: recovered.notes,
+    storeRelease,
+  };
+}
+
+async function recoverCurrentArtifact(project: Project): Promise<PublishRecord | undefined> {
+  const recovered = await bridge().publicationArtifacts.recover({
+    projectId: project.id,
+    versionName: project.currentVersion,
+    versionCode: project.currentBuild,
+  });
+  return recovered ? recordFromRecovery(project, recovered) : undefined;
+}
+
 /**
  * Vérifie l'artefact réel au lieu de faire confiance à la seule trace locale.
  * Un historique de build réussi ne prouve pas que le fichier existe encore
@@ -34,11 +91,12 @@ export async function verifyPublishArtifact(
   project: Project,
   history: PublishRecord[],
 ): Promise<PublishArtifactCheck> {
-  const record = freshBuild(history, project);
+  const record = freshBuild(history, project) ?? (await recoverCurrentArtifact(project));
   if (!record) {
     return {
       status: "missing",
-      detail: "Aucun build réussi ne correspond à la version et au numéro de build actuels.",
+      detail:
+        "Aucun fichier Android vérifié ne correspond à la version et au numéro interne actuels.",
     };
   }
   if (!record.artifactPath) {

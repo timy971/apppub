@@ -55,6 +55,59 @@ export interface GitSyncResult {
   detected: DetectedFiles;
 }
 
+export interface PublicationWorkspaceResult {
+  workspacePath: string;
+  managedProjectPath: string;
+  remoteUrl: string;
+  branch: string;
+  sourceSha: string;
+  shortSha: string;
+  sourceRelation: GitRelation;
+  sourceWorkingTree: "clean" | "dirty";
+  createdAt: string;
+  detected: DetectedFiles;
+}
+
+export interface PublicationArtifactPromotionResult {
+  artifactPath: string;
+  reportPath?: string;
+  manifestPath: string;
+  artifactSizeBytes: number;
+  artifactSha256: string;
+  storedAt: string;
+}
+
+export interface PublicationArtifactRecoveryResult {
+  projectId: string;
+  projectName?: string;
+  versionName: string;
+  versionCode: number;
+  applicationId: string;
+  artifactPath: string;
+  artifactSizeBytes: number;
+  artifactSha256: string;
+  reportPath?: string;
+  manifestPath: string;
+  sourceCommit?: string;
+  sourceBranch?: string;
+  storedAt: string;
+  notes?: string;
+  preparedAt?: string;
+  googlePlay?: {
+    provider: "google-play";
+    track: "internal";
+    packageName: string;
+    versionCode: number;
+    releaseStatus: "completed";
+    editId: string;
+    accountEmail: string;
+    authMode: "oauth" | "service-account";
+    resumed?: boolean;
+    recoveredCommit?: boolean;
+    committedAt: string;
+  };
+}
+
 export type AndroidPreparationStatus = "ready" | "preparable" | "blocked";
 export type SupportedPackageManager = "npm" | "pnpm" | "yarn" | "bun";
 
@@ -256,6 +309,9 @@ export interface GooglePlayPublishResult {
   releaseStatus: "completed";
   accountEmail: string;
   authMode: "oauth" | "service-account";
+  resumed?: boolean;
+  recoveredCommit?: boolean;
+  committedAt?: string;
 }
 
 export interface SystemBridge {
@@ -263,6 +319,12 @@ export interface SystemBridge {
 
   system: {
     detect(): Promise<SystemInfo>;
+    ensureAndroidSdk?(): Promise<{
+      ok: boolean;
+      errorCode?: string;
+      installed?: string[];
+      state: NonNullable<SystemInfo["androidSdkState"]>;
+    }>;
     copyText(value: string): Promise<boolean>;
   };
 
@@ -292,6 +354,49 @@ export interface SystemBridge {
       branch: string;
       backupLocalChanges?: boolean;
     }): Promise<GitSyncResult>;
+  };
+
+  publicationWorkspace: {
+    prepare(args: {
+      projectPath: string;
+      remoteUrl: string;
+      branch: string;
+    }): Promise<PublicationWorkspaceResult>;
+    release(args: {
+      projectPath: string;
+      workspacePath: string;
+    }): Promise<{ released: boolean; workspacePath: string }>;
+  };
+
+  publicationArtifacts: {
+    promote(args: {
+      projectId: string;
+      projectName?: string;
+      projectPath: string;
+      workspacePath: string;
+      aabPath: string;
+      reportPath?: string;
+      sourceSha: string;
+      branch?: string;
+      applicationId: string;
+      versionName: string;
+      versionCode: number;
+      signerSha256?: string;
+      artifactSha256?: string;
+      corrections?: string[];
+      adjustments?: Array<Record<string, unknown>>;
+    }): Promise<PublicationArtifactPromotionResult>;
+    recordPreparation(args: {
+      aabPath: string;
+      notes: string;
+      preparedAt?: string;
+    }): Promise<{ manifestPath: string; preparedAt: string }>;
+    recover(args: {
+      projectId: string;
+      applicationId?: string;
+      versionName?: string;
+      versionCode?: number;
+    }): Promise<PublicationArtifactRecoveryResult | null>;
   };
 
   androidPreparation: {
@@ -402,6 +507,14 @@ export interface SystemBridge {
         packageName: string;
       }>
     >;
+    latestVersionCode(args: GooglePlayConnectionArgs): Promise<
+      GooglePlayResult<{
+        accountEmail: string;
+        authMode: "oauth" | "service-account";
+        packageName: string;
+        versionCode: number;
+      }>
+    >;
     disconnect(args: GooglePlayConnectionArgs): Promise<boolean>;
     publishInternal(
       args: GooglePlayConnectionArgs & {
@@ -452,6 +565,8 @@ export interface SystemBridge {
       keystorePath: string;
       alias: string;
       projectPath: string;
+      /** Projet géré propriétaire lorsqu'on signe depuis un workspace jetable. */
+      sourceProjectPath?: string;
     }): Promise<SigningPrepareBuildResult>;
     /** Scan ciblé : uniquement les racines fournies. Jamais tout le disque. */
     scan(roots: string[]): Promise<SigningScanResult[]>;

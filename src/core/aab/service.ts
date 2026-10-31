@@ -1,5 +1,6 @@
 import { bridge } from "@/core/bridge";
 import { getAndroidConfig } from "@/core/projects/android-config";
+import { resolvePublicationApplicationId } from "@/core/publication/intent";
 import type { AabExpectedIdentity, AabValidationReport, Project } from "@/core/types";
 import { ProfilesStore } from "@/features/android-signing/storage/profiles-store";
 
@@ -14,12 +15,7 @@ export function expectedAabIdentity(project: Project): AabExpectedIdentity {
     ? ProfilesStore.get(android.signingProfileId)
     : undefined;
   return {
-    packageName:
-      project.playStoreAppId ??
-      android.applicationId ??
-      project.detected?.capacitorAppId ??
-      project.packageName ??
-      undefined,
+    packageName: resolvePublicationApplicationId(project),
     versionName: project.currentVersion,
     versionCode: project.currentBuild,
     signerSha256: normalizedFingerprint(profile?.certificate?.sha256),

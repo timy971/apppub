@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { AppStore, useSettings } from "@/core/store/app-store";
+import { bridge } from "@/core/bridge";
 import { DiagnosticService } from "@/core/diagnostic/service";
 import { HistoryService } from "@/core/history/service";
 import { BackupService } from "@/core/backup/service";
@@ -113,10 +114,20 @@ export function PublishCenter({ project }: { project: Project }) {
           record.storeRelease?.provider === "google-play" &&
           record.version === project.currentVersion &&
           record.storeRelease.versionCode === project.currentBuild,
-      ),
-    [history, project],
+      ) ??
+      (artifact?.record?.storeRelease?.provider === "google-play" &&
+      artifact.record.version === project.currentVersion &&
+      artifact.record.storeRelease.versionCode === project.currentBuild
+        ? artifact.record
+        : undefined),
+    [artifact?.record, history, project],
   );
-  const lastPreparation = useMemo(() => findLastPreparation(history, project), [history, project]);
+  const lastPreparation = useMemo(
+    () =>
+      findLastPreparation(history, project) ??
+      (artifact?.record?.kind === "release-prepared" ? artifact.record : undefined),
+    [artifact?.record, history, project],
+  );
   const preparedRelease =
     lastPreparation &&
     lastPreparation.version === project.currentVersion &&
@@ -160,6 +171,27 @@ export function PublishCenter({ project }: { project: Project }) {
           return;
         }
       }
+      let manifestPath = verifiedArtifact.record?.publicationManifestPath;
+      if (manifestPath) {
+        try {
+          const preparedAt = new Date().toISOString();
+          const manifest = await bridge().publicationArtifacts.recordPreparation({
+            aabPath: verifiedArtifact.path,
+            notes: notesFormatted,
+            preparedAt,
+          });
+          manifestPath = manifest.manifestPath;
+        } catch (error) {
+          toast.warning("Publication préparée, mais preuve de reprise incomplète", {
+            description:
+              error instanceof Error
+                ? error.message
+                : "AppPublisher n’a pas pu mettre à jour le manifeste de reprise.",
+            duration: 10_000,
+          });
+        }
+      }
+
       HistoryService.record({
         projectId: project.id,
         projectName: project.name,
@@ -174,6 +206,7 @@ export function PublishCenter({ project }: { project: Project }) {
         artifactSizeBytes: verifiedArtifact.size,
         aabValidation: verifiedArtifact.validation,
         aabReportPath: verifiedArtifact.record?.aabReportPath,
+        publicationManifestPath: manifestPath,
         sourceCommit: verifiedArtifact.record?.sourceCommit,
         sourceDirty: verifiedArtifact.record?.sourceDirty,
         notes: notesFormatted || undefined,

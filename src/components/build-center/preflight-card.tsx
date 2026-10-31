@@ -49,7 +49,7 @@ export function PreflightCard({
     setLoading(true);
     setError(null);
     try {
-      const result = await PreflightService.run(project);
+      const result = await PreflightService.run(project, { autoRepair: true });
       setState(result);
       onReady(result.ok);
       onAndroidInitializationAvailable(
@@ -200,6 +200,16 @@ export function PreflightCard({
 
       {state && (
         <div className="mt-4 space-y-4">
+          {state.autoRepairs.length > 0 && (
+            <div className="rounded-lg border border-success/30 bg-success/5 p-3 text-sm text-success">
+              <div className="font-medium">
+                AppPublisher a corrigé automatiquement {state.autoRepairs.length === 1 ? "un point" : `${state.autoRepairs.length} points`}.
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Aucune action technique n’est nécessaire de votre côté.
+              </div>
+            </div>
+          )}
           {mode === "discovery" && grouped.length === 0 && (
             <div className="rounded-lg bg-success/5 p-3 text-sm text-success">
               Les contrôles essentiels sont réussis. Vous pouvez continuer.

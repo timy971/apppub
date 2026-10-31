@@ -160,6 +160,7 @@ export const SigningInjector = {
    */
   async prepare(
     project: Project,
+    sourceProjectPath?: string,
   ): Promise<
     { ok: true; preparation: SigningPreparation } | { ok: false; error: SigningPrepareError }
   > {
@@ -181,6 +182,7 @@ export const SigningInjector = {
       keystorePath: profile.keystorePath,
       alias: profile.alias,
       projectPath: project.localPath,
+      sourceProjectPath,
     });
     if (!prepared.ok) {
       const messages: Record<string, SigningPrepareError> = {

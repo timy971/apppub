@@ -27,6 +27,7 @@ import { bridge } from "@/core/bridge";
 import { HistoryService } from "@/core/history/service";
 import { patchAndroidConfig } from "@/core/projects/android-config";
 import { ProjectsService } from "@/core/projects/service";
+import { resolvePublicationApplicationId } from "@/core/publication/intent";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import { JourneyProgress } from "@/core/navigation/journey-progress";
 import type { Project, PublishRecord } from "@/core/types";
@@ -54,7 +55,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   const [lastFailure, setLastFailure] = useState<GooglePlayFailure | null>(null);
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const android = project.publishing?.android ?? {};
-  const packageName = android.applicationId ?? project.packageName ?? project.playStoreAppId ?? "";
+  const packageName = resolvePublicationApplicationId(project) ?? "";
   const connectionId = android.googlePlayConnectionId;
   const accountEmail = android.googlePlayAccountEmail ?? android.googlePlayServiceAccountEmail;
   const authMode =
@@ -293,6 +294,49 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     setBusy("publish");
     setLastFailure(null);
     const started = performance.now();
+
+    if (!verified) {
+      try {
+        const access = await bridge().googlePlay.testConnection(connectionArgs);
+        if (!access.ok) {
+          if (access.errorCode === "app-not-found") {
+            ProjectsService.update(
+              project.id,
+              patchAndroidConfig(project, {
+                googlePlayLastCheckedAt: undefined,
+                googlePlaySetupStatus: "required",
+              }),
+            );
+            AppStore.refreshProjects();
+            onChanged();
+          }
+          reportGooglePlayError(access);
+          setBusy(null);
+          return;
+        }
+        ProjectsService.update(
+          project.id,
+          patchAndroidConfig(project, {
+            googlePlayLastCheckedAt: new Date().toISOString(),
+            googlePlayAccountEmail: access.accountEmail,
+            googlePlayAuthMode: access.authMode,
+            googlePlaySetupStatus: "ready",
+            defaultTrack: "internal",
+          }),
+        );
+        AppStore.refreshProjects();
+      } catch {
+        reportGooglePlayError({
+          errorCode: "network-error",
+          errorHint:
+            "AppPublisher n’a pas pu vérifier l’accès Google Play avant l’envoi. Votre connexion reste enregistrée.",
+          phase: "pre-publish-check",
+        });
+        setBusy(null);
+        return;
+      }
+    }
+
     try {
       await requireCurrentArtifactSource(project, release.sourceCommit);
     } catch (error) {
@@ -334,6 +378,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
               kind: "publish",
               artifactPath: release.artifactPath,
               artifactSizeBytes: release.artifactSizeBytes,
+              publicationManifestPath: release.publicationManifestPath,
               notes: release.notes,
             });
           } catch {
@@ -369,6 +414,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           artifactSizeBytes: release.artifactSizeBytes,
           aabValidation: release.aabValidation,
           aabReportPath: release.aabReportPath,
+          publicationManifestPath: release.publicationManifestPath,
           sourceCommit: release.sourceCommit,
           sourceDirty: release.sourceDirty,
           notes: release.notes,
@@ -381,7 +427,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
             editId: result.editId,
             accountEmail: result.accountEmail,
             authMode: result.authMode,
-            committedAt: new Date().toISOString(),
+            committedAt: result.committedAt ?? new Date().toISOString(),
           },
         });
       } catch {
@@ -393,10 +439,17 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         patchAndroidConfig(project, { googlePlayLastKnownBuild: result.versionCode }),
       );
       AppStore.refreshProjects();
-      toast.success("Publication envoyée à Google Play", {
-        description: `${packageName} · piste internal · versionCode ${result.versionCode}`,
-        duration: 10_000,
-      });
+      toast.success(
+        result.recoveredCommit
+          ? "Publication déjà acceptée par Google Play"
+          : result.resumed
+            ? "Publication reprise et terminée"
+            : "Publication envoyée à Google Play",
+        {
+          description: `${packageName} · piste internal · versionCode ${result.versionCode}`,
+          duration: 10_000,
+        },
+      );
       if (!historySaved) {
         toast.warning("Publication réussie, mais historique local non enregistré", {
           description:
@@ -427,8 +480,8 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       ? `Le numéro interne ${project.currentBuild} est inférieur au dernier numéro connu (${highestKnownGooglePlayBuild}). Utilisez au moins ${suggestedNextGooglePlayBuild}.`
       : connected && alreadyPublished
         ? "Cette version a déjà été envoyée. Augmentez uniquement le numéro interne pour republier."
-        : connected && !verified
-          ? "Vérifiez l'accès au compte Google avant l'envoi."
+        : connected && initializationRequired
+          ? "Terminez d’abord l’initialisation de l’application dans Play Console."
           : connected && !release
             ? "Créez puis préparez le fichier Android avant l'envoi."
             : connected && !release?.notes
@@ -501,7 +554,11 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
               <Button
                 onClick={publish}
                 disabled={
-                  busy !== null || !verified || !release?.notes || alreadyPublished || buildTooLow
+                  busy !== null ||
+                  initializationRequired ||
+                  !release?.notes ||
+                  alreadyPublished ||
+                  buildTooLow
                 }
               >
                 {busy === "publish" ? (
@@ -569,7 +626,14 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
         <GooglePlayRecovery
           failure={lastFailure}
           suggestedBuild={suggestedNextGooglePlayBuild}
-          onRetry={lastFailure.phase === "upload-bundle" ? publish : testConnection}
+          onRetry={
+            lastFailure.errorCode === "commit-outcome-unknown" ||
+            ["pre-publish-check", "upload-bundle", "update-track", "validate-edit", "commit-edit"].includes(
+              lastFailure.phase ?? "",
+            )
+              ? publish
+              : testConnection
+          }
         />
       )}
       {unavailableReason && busy === null && (
@@ -820,11 +884,12 @@ function googlePlayRecoveryFor(
       };
     case "commit-outcome-unknown":
       return {
-        title: "Google a peut-être accepté la version",
+        title: "La confirmation finale a été interrompue",
         explanation:
-          "La connexion a été coupée pendant la confirmation finale. Un nouvel essai immédiat risquerait d’utiliser deux fois le même numéro.",
-        solution: "Ouvrez Play Console et vérifiez le test interne avant toute nouvelle tentative.",
-        action: "console",
+          "L’AAB a déjà été envoyé. Google a peut-être aussi validé la publication avant la coupure.",
+        solution:
+          "Cliquez sur Réessayer. AppPublisher vérifiera d’abord si Google a déjà accepté cette version et ne renverra pas l’AAB inutilement.",
+        action: "retry",
       };
     case "credentials-missing":
     case "credentials-rejected":
@@ -836,16 +901,19 @@ function googlePlayRecoveryFor(
           "Déconnectez Google Play, reconnectez le bon compte, puis vérifiez de nouveau l’accès.",
       };
     case "network-timeout":
-    case "network-error":
+    case "network-error": {
+      const publicationPhase = ["pre-publish-check", "upload-bundle", "update-track", "validate-edit", "commit-edit"].includes(
+        failure.phase ?? "",
+      );
       return {
         title: "La communication avec Google a été interrompue",
         explanation: failure.errorHint ?? "La connexion Google enregistrée n’a pas été supprimée.",
-        solution:
-          failure.phase === "upload-bundle"
-            ? "Vérifiez d’abord le test interne dans Play Console. Si la version n’y apparaît pas, vous pourrez réessayer."
-            : "Vérifiez votre accès Internet, puis relancez uniquement cette vérification.",
-        action: failure.phase === "upload-bundle" ? "console" : "retry",
+        solution: publicationPhase
+          ? "Réessayez l’envoi. AppPublisher reprendra les étapes déjà validées lorsqu’il peut les vérifier."
+          : "Vérifiez votre accès Internet, puis relancez la vérification.",
+        action: "retry",
       };
+    }
     default:
       return {
         title: "Google Play a refusé l’opération",

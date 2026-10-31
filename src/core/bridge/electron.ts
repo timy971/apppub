@@ -23,6 +23,8 @@ interface AppPublisherApi {
   };
   projects: SystemBridge["projects"];
   git: SystemBridge["git"];
+  publicationWorkspace: SystemBridge["publicationWorkspace"];
+  publicationArtifacts: SystemBridge["publicationArtifacts"];
   androidPreparation: SystemBridge["androidPreparation"];
   androidCorrections: SystemBridge["androidCorrections"];
   aab: SystemBridge["aab"];
@@ -69,6 +71,7 @@ export const electronBridge: SystemBridge = {
 
   system: {
     detect: () => ensure().system.detect(),
+    ensureAndroidSdk: () => ensure().system.ensureAndroidSdk?.() ?? Promise.reject(new Error("Réparation SDK indisponible")),
     copyText: (value) => ensure().system.copyText(value),
   },
 
@@ -85,6 +88,17 @@ export const electronBridge: SystemBridge = {
     status: (args) => ensure().git.status(args),
     check: (args) => ensure().git.check(args),
     sync: (args) => ensure().git.sync(args),
+  },
+
+  publicationWorkspace: {
+    prepare: (args) => ensure().publicationWorkspace.prepare(args),
+    release: (args) => ensure().publicationWorkspace.release(args),
+  },
+
+  publicationArtifacts: {
+    promote: (args) => ensure().publicationArtifacts.promote(args),
+    recordPreparation: (args) => ensure().publicationArtifacts.recordPreparation(args),
+    recover: (args) => ensure().publicationArtifacts.recover(args),
   },
 
   androidPreparation: {
@@ -166,6 +180,7 @@ export const electronBridge: SystemBridge = {
     connectOAuth: (args) => ensure().googlePlay.connectOAuth(args),
     importServiceAccount: (args) => ensure().googlePlay.importServiceAccount(args),
     testConnection: (args) => ensure().googlePlay.testConnection(args),
+    latestVersionCode: (args) => ensure().googlePlay.latestVersionCode(args),
     disconnect: (args) => ensure().googlePlay.disconnect(args),
     publishInternal: (args) => ensure().googlePlay.publishInternal(args),
   },

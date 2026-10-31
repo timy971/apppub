@@ -64,8 +64,22 @@ export const webBridge: SystemBridge = {
         androidSdkPath: undefined,
         androidHome: undefined,
         javaHome: undefined,
+        androidSdkState: {
+          present: true,
+          ready: true,
+          installable: false,
+          sdkPath: undefined,
+          sdkmanagerPath: undefined,
+          requiredPackages: ["platform-tools", "platforms;android-36", "build-tools;36.0.0"],
+          missingPackages: [],
+          reason: "ready",
+        },
         internet: typeof navigator !== "undefined" ? navigator.onLine : true,
       };
+    },
+    async ensureAndroidSdk() {
+      const info = await webBridge.system.detect();
+      return { ok: true, installed: [], state: info.androidSdkState! };
     },
     async copyText(value) {
       if (typeof navigator === "undefined" || !navigator.clipboard) return false;
@@ -196,6 +210,52 @@ export const webBridge: SystemBridge = {
         status,
         detected,
       };
+    },
+  },
+
+  publicationWorkspace: {
+    async prepare({ projectPath, remoteUrl, branch }) {
+      const detected = await webBridge.projects.detect(projectPath);
+      if (!detected) throw new Error("Projet simulé introuvable.");
+      return {
+        workspacePath: projectPath + "/.apppublisher-publication-snapshot",
+        managedProjectPath: projectPath,
+        remoteUrl,
+        branch,
+        sourceSha: "0123456789abcdef0123456789abcdef01234567",
+        shortSha: "0123456789",
+        sourceRelation: "up-to-date",
+        sourceWorkingTree: "clean",
+        createdAt: new Date().toISOString(),
+        detected,
+      };
+    },
+    async release({ workspacePath }) {
+      return { released: true, workspacePath };
+    },
+  },
+
+  publicationArtifacts: {
+    async promote(args) {
+      return {
+        artifactPath: `/simulation/publication-artifacts/${args.projectId}/app-release.aab`,
+        reportPath: args.reportPath
+          ? `/simulation/publication-artifacts/${args.projectId}/app-release.aab.apppublisher-report.json`
+          : undefined,
+        manifestPath: `/simulation/publication-artifacts/${args.projectId}/publication-manifest.json`,
+        artifactSizeBytes: 42_000_000,
+        artifactSha256: args.artifactSha256 ?? "A".repeat(64),
+        storedAt: new Date().toISOString(),
+      };
+    },
+    async recordPreparation(args) {
+      return {
+        manifestPath: `${args.aabPath}.publication-manifest.json`,
+        preparedAt: args.preparedAt ?? new Date().toISOString(),
+      };
+    },
+    async recover() {
+      return null;
     },
   },
 
@@ -393,6 +453,13 @@ export const webBridge: SystemBridge = {
         ok: false,
         errorCode: "keychain-unavailable",
         errorHint: "La connexion Google Play nécessite l'application de bureau macOS.",
+      };
+    },
+    async latestVersionCode() {
+      return {
+        ok: false,
+        errorCode: "desktop-required",
+        errorHint: "La lecture Google Play nécessite l'application de bureau.",
       };
     },
     async disconnect() {

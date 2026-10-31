@@ -4,13 +4,14 @@ import type { Project } from "@/core/types";
 const mocks = vi.hoisted(() => ({
   profileGet: vi.fn(),
   validate: vi.fn(),
+  exists: vi.fn(),
 }));
 
 vi.mock("@/core/bridge", () => ({
   bridge: () => ({
     runtime: "electron",
     fs: {
-      exists: vi.fn().mockResolvedValue(true),
+      exists: mocks.exists,
       findByExtension: vi.fn().mockResolvedValue([]),
     },
     system: {
@@ -67,6 +68,68 @@ describe("PreflightService — association de signature", () => {
   beforeEach(() => {
     mocks.profileGet.mockReset();
     mocks.validate.mockReset();
+    mocks.exists.mockReset();
+    mocks.exists.mockResolvedValue(true);
+  });
+
+  it("considère Android recréable comme prêt pour un projet Git géré", async () => {
+    const managedProject: Project = {
+      ...project,
+      source: {
+        type: "git",
+        remoteUrl: "https://github.com/example/cranioscan.git",
+        branch: "main",
+        managed: true,
+      },
+      detected: {
+        ...project.detected,
+        hasAndroid: false,
+        androidReadiness: "preparable",
+        capacitorAppId: "app.cranioscan.android",
+      },
+      publishing: {
+        android: {
+          applicationId: "app.cranioscan.android",
+          signingProfileId: "signature-cranioscan",
+        },
+      },
+    };
+
+    mocks.exists.mockImplementation(async (path: string) => {
+      if (path === managedProject.localPath) return true;
+      if (path.endsWith("/package.json")) return true;
+      if (path.includes("/android")) return false;
+      if (path.includes("capacitor.config")) return false;
+      return false;
+    });
+    mocks.profileGet.mockReturnValue({
+      id: "signature-cranioscan",
+      name: "CrânioScan",
+      keystorePath: "/keys/cranioscan.jks",
+      alias: "cranioscan",
+    });
+    mocks.validate.mockResolvedValue({
+      ok: true,
+      message: "Signature valide.",
+      certificate: { sha256: "AA".repeat(32) },
+    });
+
+    const result = await PreflightService.run(managedProject);
+
+    expect(result.ok).toBe(true);
+    expect(result.checks.find((check) => check.id === "android-dir")).toMatchObject({
+      status: "success",
+      fix: undefined,
+    });
+    expect(result.checks.find((check) => check.id === "gradle-wrapper")).toMatchObject({
+      status: "success",
+    });
+    expect(result.checks.find((check) => check.id === "build-gradle")).toMatchObject({
+      status: "success",
+    });
+    expect(result.checks.find((check) => check.id === "capacitor-config")).toMatchObject({
+      status: "success",
+    });
   });
 
   it("bloque un identifiant de profil introuvable sans basculer sur le chemin legacy", async () => {

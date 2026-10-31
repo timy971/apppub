@@ -4,6 +4,8 @@ import { useSettings, useActiveProject, useProjects } from "@/core/store/app-sto
 import { HistoryService } from "@/core/history/service";
 import { BackupService } from "@/core/backup/service";
 import { ProjectStatusService } from "@/core/projects/status";
+import { bridge } from "@/core/bridge";
+import { consumeStartupResume, resolvePublicationResumePath } from "@/core/navigation/publication-resume";
 import { useCopilotPlan } from "@/core/copilot/use-copilot-plan";
 import type { Project, ProjectBackup, PublishRecord } from "@/core/types";
 import { DashboardFocusCard } from "@/components/dashboard/focus-card";
@@ -35,6 +37,36 @@ function Dashboard() {
       navigate({ to: "/setup" });
     }
   }, [hydrated, settings.onboardingCompleted, navigate]);
+
+  useEffect(() => {
+    if (!hydrated || !settings.onboardingCompleted || !activeProject) return;
+    if (!consumeStartupResume()) return;
+
+    let cancelled = false;
+    void bridge()
+      .publicationArtifacts.recover({ projectId: activeProject.id })
+      .catch(() => null)
+      .then((recovery) => {
+        if (cancelled) return;
+        const target = resolvePublicationResumePath({
+          lastJourneyPath: settings.lastJourneyPath,
+          returnToJourneyPath: settings.returnToJourneyPath,
+          recovery,
+        });
+        if (target) void navigate({ to: target });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeProject,
+    hydrated,
+    navigate,
+    settings.lastJourneyPath,
+    settings.onboardingCompleted,
+    settings.returnToJourneyPath,
+  ]);
 
   const [dataReady, setDataReady] = useState(false);
   useEffect(() => {

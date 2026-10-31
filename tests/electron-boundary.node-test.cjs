@@ -76,15 +76,27 @@ test("the main process does not register removed generic IPC handlers", () => {
   assert.match(main, /android-preparation:completeRollbackGuard/);
   assert.match(main, /google-play:publishInternal/);
   assert.match(main, /GOOGLE_PLAY_KEYCHAIN_SERVICE/);
-  assert.match(main, /buttons: \["Publier sur internal", "Annuler"\]/);
+  assert.match(main, /buttons: \[resume \? "Reprendre" : "Publier sur internal", "Annuler"\]/);
   const playIdentityCheck = main.indexOf("archive = inspectAabArchive(aabPath)");
-  const playConfirmation = main.indexOf('title: "Publier sur la piste interne ?"');
+  const playConfirmation = main.indexOf('title: resume ? "Reprendre la publication ?"');
   assert.ok(playIdentityCheck > 0, "Google Play publication must inspect the real AAB identity");
   assert.ok(
     playConfirmation > playIdentityCheck,
     "the real AAB identity must be checked before native confirmation",
   );
   assert.equal(main.includes('ipcMain.handle("google-play:publishProduction"'), false);
+});
+
+test("startup maintenance and manifest recovery use dedicated business IPC only", () => {
+  assert.match(main, /boot step start: \$\{name\}/);
+  assert.match(main, /safeStep\("publication-maintenance"/);
+  assert.match(main, /googlePlayResumeStore\.prune/);
+  assert.match(main, /publicationWorkspaceManager\s*\.cleanupOrphans/);
+  assert.match(main, /ipcMain\.handle\("publication-artifact:recordPreparation"/);
+  assert.match(main, /ipcMain\.handle\("publication-artifact:recover"/);
+  assert.match(preload, /publication-artifact:recordPreparation/);
+  assert.match(preload, /publication-artifact:recover/);
+  assert.equal(preload.includes("publication-artifact:readArbitraryFile"), false);
 });
 
 test("the packaged page declares a restrictive content security policy", () => {
@@ -95,10 +107,15 @@ test("the packaged page declares a restrictive content security policy", () => {
 });
 
 
-test("build subprocesses inherit the detected Android SDK even when Finder did not provide ANDROID_HOME", () => {
+test("build subprocesses inherit detected Android SDK and automatic Java home", () => {
   const main = fs.readFileSync(path.join(root, "electron", "main.cjs"), "utf8");
   assert.match(main, /function androidSdkEnvironment\(\)/);
   assert.match(main, /ANDROID_HOME: sdk/);
   assert.match(main, /ANDROID_SDK_ROOT: sdk/);
-  assert.match(main, /\.\.\.androidSdkEnvironment\(\), \.\.\.safeEnv/);
+  assert.match(main, /require\("\.\/android-toolchain\.cjs"\)/);
+  assert.match(
+    main,
+    /\.\.\.androidSdkEnvironment\(\), \.\.\.javaEnvironment\(\), \.\.\.safeEnv/,
+  );
+  assert.match(main, /const javaHome = guessJavaHome\(\)/);
 });
