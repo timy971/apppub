@@ -4,6 +4,7 @@ import { BuildService, type BuildResult, type BuildRunOptions } from "@/core/bui
 import { CapacitorService } from "@/core/capacitor/service";
 import { HistoryService } from "@/core/history/service";
 import { JournalService } from "@/core/journal/logger";
+import { resolvePublicationApplicationId } from "./intent";
 import {
   PublicationWorkspaceService,
   type PreparedPublicationWorkspace,
@@ -19,6 +20,44 @@ function knownPublishedBuilds(project: Project): number[] {
     )
     .map((record) => record.storeRelease?.versionCode ?? record.build)
     .filter((value): value is number => Number.isSafeInteger(value) && value > 0);
+}
+
+async function liveGooglePlayBuild(
+  project: Project,
+  opts: BuildRunOptions,
+): Promise<number | undefined> {
+  const android = project.publishing?.android;
+  const packageName = resolvePublicationApplicationId(project);
+  if (!android?.googlePlayConnectionId || !packageName) return undefined;
+
+  try {
+    const result = await bridge().googlePlay.latestVersionCode({
+      projectPath: project.localPath,
+      packageName,
+      connectionId: android.googlePlayConnectionId,
+    });
+    if (!result.ok) {
+      opts.onLine?.(
+        `Google Play n’a pas pu être interrogé avant le build : ${result.errorHint ?? result.errorCode}. Le dernier numéro local connu reste utilisé.`,
+      );
+      return undefined;
+    }
+    opts.onLine?.(
+      result.versionCode > 0
+        ? `Google Play : dernier numéro interne détecté = ${result.versionCode}.`
+        : "Google Play : aucune version interne existante détectée.",
+    );
+    return result.versionCode > 0 ? result.versionCode : undefined;
+  } catch (error) {
+    JournalService.log("warn", "Lecture du dernier versionCode Google Play impossible", {
+      projectId: project.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    opts.onLine?.(
+      "Google Play est temporairement inaccessible ; AppPublisher continue avec les informations locales.",
+    );
+    return undefined;
+  }
 }
 
 async function prepareAndroidIfNeeded(
@@ -86,9 +125,14 @@ export const PublicationBuildService = {
 
     let prepared: PreparedPublicationWorkspace | undefined;
     try {
+      opts.onStep("prepare", "running", "Vérification de la prochaine version Android…");
+      const liveBuild = await liveGooglePlayBuild(project, opts);
       opts.onStep("prepare", "running", "Création d’une source de publication propre…");
       prepared = await PublicationWorkspaceService.prepare(project, {
-        knownPublishedBuilds: knownPublishedBuilds(project),
+        knownPublishedBuilds: [
+          ...knownPublishedBuilds(project),
+          ...(liveBuild ? [liveBuild] : []),
+        ],
       });
       const androidWasMissing = prepared.needsAndroidPreparation;
       opts.onLine?.(
