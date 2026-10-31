@@ -196,7 +196,7 @@ test("publishes one AAB only to internal, validates it, then commits without can
   );
 });
 
-test("deletes the uncommitted edit when Google rejects the track update", async (t) => {
+test("preserves an uploaded bundle when Google rejects the track update", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-cleanup-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const aabPath = path.join(root, "release.aab");
@@ -226,8 +226,7 @@ test("deletes the uncommitted edit when Google rejects the track update", async 
     }),
     (error) => error.code === "permission-denied",
   );
-  assert.equal(calls.at(-1).options.method, "DELETE");
-  assert.match(calls.at(-1).url, /\/edits\/edit-cleanup$/);
+  assert.equal(\n    calls.some((call) => call.options.method === "DELETE"),\n    false,\n  );
   assert.equal(
     calls.some((call) => call.url.includes(":commit")),
     false,
@@ -338,7 +337,147 @@ test("marks a network interruption during commit as an unknown outcome", async (
     }),
     (error) => error.code === "commit-outcome-unknown",
   );
-  assert.equal(calls.at(-1).options.method, "DELETE");
+  assert.equal(\n    calls.some((call) => call.options.method === "DELETE"),\n    false,\n  );
+});
+
+
+test("resumes an existing edit without uploading the AAB a second time", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-resume-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const aabPath = path.join(root, "release.aab");
+  fs.writeFileSync(aabPath, "signed-aab-fixture");
+  const calls = [];
+  const checkpoints = [];
+  const api = publisherWith(async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith("/edits/edit-resume") && options.method === "GET") {
+      return response(200, { id: "edit-resume" });
+    }
+    if (url.endsWith("/edits/edit-resume/bundles") && options.method === "GET") {
+      return response(200, { bundles: [{ versionCode: 42 }] });
+    }
+    if (url.endsWith("/tracks/internal") && options.method === "PUT") {
+      return response(200, { track: "internal" });
+    }
+    if (url.endsWith("edit-resume:validate")) return response(200, { id: "edit-resume" });
+    if (url.includes("edit-resume:commit?")) return response(200, { id: "edit-resume" });
+    throw new Error(\`Unexpected URL: \${url}\`);
+  });
+
+  const result = await api.publishInternal(
+    {
+      credentials,
+      packageName: "app.cranioscan.android",
+      aabPath,
+      notes: "Reprise.",
+      language: "fr-FR",
+      releaseName: "CranioScan 1.0.0 (42)",
+      resume: {
+        editId: "edit-resume",
+        versionCode: 42,
+        phase: "bundle-uploaded",
+      },
+    },
+    () => {},
+    (checkpoint) => checkpoints.push(checkpoint),
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.resumed, true);
+  assert.equal(
+    calls.some((call) => call.url.includes("uploadType=media")),
+    false,
+  );
+  assert.equal(
+    calls.some((call) => call.url.endsWith("/edits") && call.options.method === "POST"),
+    false,
+  );
+  assert.equal(checkpoints.length, 0);
+});
+
+test("recovers an ambiguous commit by checking the internal track before retrying", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-recover-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const aabPath = path.join(root, "release.aab");
+  fs.writeFileSync(aabPath, "signed-aab-fixture");
+  const calls = [];
+  const api = publisherWith(async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith("/edits") && options.method === "POST") {
+      return response(200, { id: "edit-check-commit" });
+    }
+    if (url.endsWith("/edits/edit-check-commit/tracks/internal") && options.method === "GET") {
+      return response(200, {
+        track: "internal",
+        releases: [{ versionCodes: ["99"], status: "completed" }],
+      });
+    }
+    if (url.endsWith("/edits/edit-check-commit") && options.method === "DELETE") {
+      return response(204);
+    }
+    throw new Error(\`Unexpected URL: \${url}\`);
+  });
+
+  const result = await api.publishInternal({
+    credentials,
+    packageName: "app.cranioscan.android",
+    aabPath,
+    notes: "Commit ambigu.",
+    language: "fr-FR",
+    releaseName: "CranioScan 1.0.0 (99)",
+    resume: {
+      editId: "edit-original",
+      versionCode: 99,
+      phase: "commit-unknown",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.resumed, true);
+  assert.equal(result.recoveredCommit, true);
+  assert.equal(result.versionCode, 99);
+  assert.equal(
+    calls.some((call) => call.url.includes("uploadType=media")),
+    false,
+  );
+});
+
+test("emits a resumable checkpoint immediately after Google accepts the bundle", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-google-play-checkpoint-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const aabPath = path.join(root, "release.aab");
+  fs.writeFileSync(aabPath, "signed-aab-fixture");
+  const checkpoints = [];
+  const api = publisherWith(async (url, options) => {
+    if (url.endsWith("/edits")) return response(200, { id: "edit-checkpoint" });
+    if (url.includes("uploadType=media")) return response(200, { versionCode: 55 });
+    if (url.endsWith("/tracks/internal")) {
+      const failure = new TypeError("fetch failed");
+      failure.cause = { code: "ECONNRESET" };
+      throw failure;
+    }
+    throw new Error(\`Unexpected URL: \${url}\`);
+  });
+
+  await assert.rejects(
+    api.publishInternal(
+      {
+        credentials,
+        packageName: "app.cranioscan.android",
+        aabPath,
+        notes: "Checkpoint.",
+        language: "fr-FR",
+        releaseName: "CranioScan 1.0.0 (55)",
+      },
+      () => {},
+      (checkpoint) => checkpoints.push(checkpoint),
+    ),
+    (error) => error.code === "network-error" && error.phase === "update-track",
+  );
+
+  assert.deepEqual(checkpoints, [
+    { editId: "edit-checkpoint", versionCode: 55, phase: "bundle-uploaded" },
+  ]);
 });
 
 test("reports an AAB upload interruption without blaming the user's Internet access", async (t) => {
