@@ -251,6 +251,162 @@ class PublicationArtifactManager {
     }
   }
 
+  readStableManifest(manifestPath) {
+    let manifest;
+    try {
+      manifest = JSON.parse(this.fs.readFileSync(manifestPath, "utf8"));
+    } catch {
+      return null;
+    }
+    if (
+      manifest?.schemaVersion !== 1 ||
+      typeof manifest?.project?.id !== "string" ||
+      typeof manifest?.release?.applicationId !== "string" ||
+      typeof manifest?.release?.versionName !== "string" ||
+      !Number.isSafeInteger(manifest?.release?.versionCode) ||
+      manifest.release.versionCode < 1 ||
+      typeof manifest?.artifact?.fileName !== "string" ||
+      typeof manifest?.artifact?.sha256 !== "string" ||
+      !/^[0-9A-Fa-f]{64}$/.test(manifest.artifact.sha256) ||
+      typeof manifest?.storedAt !== "string" ||
+      Number.isNaN(Date.parse(manifest.storedAt))
+    ) {
+      return null;
+    }
+    return manifest;
+  }
+
+  writeStableManifest(manifestPath, manifest) {
+    const temporary = manifestPath + ".tmp-" + process.pid + "-" + this.now();
+    try {
+      this.fs.writeFileSync(temporary, JSON.stringify(manifest, null, 2) + "\n", {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+      this.fs.renameSync(temporary, manifestPath);
+    } catch (error) {
+      try {
+        this.fs.unlinkSync(temporary);
+      } catch {}
+      throw error;
+    }
+  }
+
+  recordPreparation(aabPath, input = {}) {
+    const artifactPath = this.resolveStableArtifact(aabPath);
+    const manifestPath = path.join(path.dirname(artifactPath), "publication-manifest.json");
+    const manifest = this.readStableManifest(manifestPath);
+    if (!manifest || manifest.artifact.fileName !== path.basename(artifactPath)) {
+      throw new PublicationArtifactError(
+        "manifest-mismatch",
+        "Le manifeste ne correspond pas à ce fichier Android.",
+      );
+    }
+    const notes = typeof input.notes === "string" ? input.notes.trim() : "";
+    if (!notes || [...notes].length > 500) {
+      throw new PublicationArtifactError(
+        "release-notes-invalid",
+        "Les notes de version préparées sont absentes ou dépassent 500 caractères.",
+      );
+    }
+    const preparedAt =
+      typeof input.preparedAt === "string" && !Number.isNaN(Date.parse(input.preparedAt))
+        ? input.preparedAt
+        : new Date(this.now()).toISOString();
+    const next = {
+      ...manifest,
+      preparation: {
+        notes,
+        preparedAt,
+      },
+    };
+    this.writeStableManifest(manifestPath, next);
+    return { manifestPath, preparedAt };
+  }
+
+  async latestForProject(input = {}) {
+    const projectId = typeof input.projectId === "string" ? input.projectId : "";
+    if (!projectId) return null;
+    const projectRoot = path.join(this.rootPath, safeSegment(projectId, "project"));
+    if (!isWithin(this.rootPath, projectRoot) || !this.fs.existsSync(projectRoot)) return null;
+
+    let entries;
+    try {
+      entries = this.fs.readdirSync(projectRoot, { withFileTypes: true });
+    } catch {
+      return null;
+    }
+
+    const candidates = [];
+    for (const entry of entries) {
+      if (!entry?.isDirectory?.()) continue;
+      const dir = path.join(projectRoot, entry.name);
+      const manifestPath = path.join(dir, "publication-manifest.json");
+      const manifest = this.readStableManifest(manifestPath);
+      if (!manifest || manifest.project.id !== projectId) continue;
+      if (input.applicationId && manifest.release.applicationId !== input.applicationId) continue;
+      if (input.versionName && manifest.release.versionName !== input.versionName) continue;
+      if (
+        Number.isSafeInteger(input.versionCode) &&
+        manifest.release.versionCode !== input.versionCode
+      ) {
+        continue;
+      }
+      const artifactPath = path.join(dir, manifest.artifact.fileName);
+      let artifactReal;
+      try {
+        artifactReal = this.resolveStableArtifact(artifactPath);
+      } catch {
+        continue;
+      }
+      const stat = this.fs.statSync(artifactReal);
+      if (!stat.isFile() || stat.size !== manifest.artifact.sizeBytes) continue;
+      const actualHash = await hashFile(artifactReal, this.fs);
+      if (actualHash !== manifest.artifact.sha256.toUpperCase()) continue;
+
+      let reportPath;
+      if (typeof manifest.reportFileName === "string") {
+        const candidate = path.join(dir, manifest.reportFileName);
+        try {
+          const real = this.fs.realpathSync(candidate);
+          if (isWithin(dir, real) && this.fs.statSync(real).isFile()) reportPath = real;
+        } catch {}
+      }
+      candidates.push({
+        manifest,
+        manifestPath,
+        artifactPath: artifactReal,
+        artifactSizeBytes: stat.size,
+        artifactSha256: actualHash,
+        reportPath,
+      });
+    }
+
+    candidates.sort(
+      (a, b) => Date.parse(b.manifest.storedAt) - Date.parse(a.manifest.storedAt),
+    );
+    const latest = candidates[0];
+    if (!latest) return null;
+    return {
+      projectId: latest.manifest.project.id,
+      projectName: latest.manifest.project.name,
+      versionName: latest.manifest.release.versionName,
+      versionCode: latest.manifest.release.versionCode,
+      applicationId: latest.manifest.release.applicationId,
+      artifactPath: latest.artifactPath,
+      artifactSizeBytes: latest.artifactSizeBytes,
+      artifactSha256: latest.artifactSha256,
+      reportPath: latest.reportPath,
+      manifestPath: latest.manifestPath,
+      sourceCommit: latest.manifest.source?.commit,
+      sourceBranch: latest.manifest.source?.branch,
+      storedAt: latest.manifest.storedAt,
+      notes: latest.manifest.preparation?.notes,
+      preparedAt: latest.manifest.preparation?.preparedAt,
+      googlePlay: latest.manifest.googlePlay,
+    };
+  }
+
   recordGooglePlayResult(aabPath, result) {
     const artifactPath = this.resolveStableArtifact(aabPath);
     const manifestPath = path.join(path.dirname(artifactPath), "publication-manifest.json");
@@ -293,19 +449,7 @@ class PublicationArtifactManager {
         committedAt,
       },
     };
-    const temporary = manifestPath + ".tmp-" + process.pid + "-" + this.now();
-    try {
-      this.fs.writeFileSync(temporary, JSON.stringify(next, null, 2) + "\n", {
-        encoding: "utf8",
-        mode: 0o600,
-      });
-      this.fs.renameSync(temporary, manifestPath);
-    } catch (error) {
-      try {
-        this.fs.unlinkSync(temporary);
-      } catch {}
-      throw error;
-    }
+    this.writeStableManifest(manifestPath, next);
     return { manifestPath, committedAt };
   }
 }
