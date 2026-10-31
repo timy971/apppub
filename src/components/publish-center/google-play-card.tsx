@@ -628,7 +628,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           suggestedBuild={suggestedNextGooglePlayBuild}
           onRetry={
             lastFailure.errorCode === "commit-outcome-unknown" ||
-            ["upload-bundle", "update-track", "validate-edit", "commit-edit"].includes(
+            ["pre-publish-check", "upload-bundle", "update-track", "validate-edit", "commit-edit"].includes(
               lastFailure.phase ?? "",
             )
               ? publish
@@ -902,7 +902,7 @@ function googlePlayRecoveryFor(
       };
     case "network-timeout":
     case "network-error": {
-      const publicationPhase = ["upload-bundle", "update-track", "validate-edit", "commit-edit"].includes(
+      const publicationPhase = ["pre-publish-check", "upload-bundle", "update-track", "validate-edit", "commit-edit"].includes(
         failure.phase ?? "",
       );
       return {
