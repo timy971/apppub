@@ -75,36 +75,86 @@ Objectif :
 - vérifier le résultat avant toute compilation ;
 - ne jamais demander à l’utilisateur de committer/push manuellement une correction technique AppPublisher.
 
-## Lot 12.3 — préflight auto-réparateur
+## Lot 12.3 — build reproductible dans un workspace jetable
 
-Le préflight devient un moteur de préparation :
+Le build des projets Git gérés ne repose plus sur l'état historique du clone local.
 
-- source distante à jour ;
-- workspace créé ;
-- dépendances cohérentes ;
-- Capacitor Android présent ou recréé ;
-- Gradle wrapper présent/exécutable ;
-- SDK/JDK détectés/configurés ;
-- identité Android alignée ;
-- version/versionCode alignés ;
-- signature attendue disponible ;
-- ancien AAB supprimé ;
-- Google OAuth/Play testés avant l’étape finale.
+AppPublisher :
 
-Chaque correctif sûr est appliqué automatiquement. L’utilisateur ne voit une décision que lorsqu’elle est réellement ambiguë ou sensible.
+- crée un workspace depuis le commit distant exact ;
+- y applique l'intention de publication ;
+- crée Android/Capacitor dans ce workspace si nécessaire ;
+- utilise le profil de signature du projet source uniquement après vérification d'appartenance du worktree ;
+- construit et valide l'AAB dans ce workspace ;
+- copie l'AAB et son rapport dans un stockage AppPublisher durable ;
+- vérifie le SHA-256 avant et après copie ;
+- conserve un manifeste reliant source, identité Android, version, signature et AAB ;
+- détruit ensuite le workspace temporaire.
 
-## Lot 12.4 — publication Google Play autonome
+Le clone Git source n'a donc plus besoin d'accumuler les fichiers techniques générés pour publier.
 
-- interrogation du dernier versionCode connu ;
-- choix automatique du prochain numéro sûr ;
-- upload piste interne ;
-- reprise après erreur sans refaire les étapes valides ;
-- manifeste de publication conservé avec commit source, AAB, signature et résultat Google Play.
+## Lot 12.4 — préflight auto-réparateur et Google Play reprenable
+
+### Préflight
+
+Le préflight reflète désormais le pipeline réellement capable d'auto-réparer :
+
+- l'absence de `android/`, de wrapper Gradle ou de configuration Capacitor ne bloque plus un projet Git géré lorsque ces éléments peuvent être recréés dans le workspace ;
+- les corrections sûres sont appliquées automatiquement lorsqu'elles ne modifient pas la source Git gérée ;
+- les corrections qui toucheraient la source Git sont reportées dans le workspace jetable ;
+- l'identifiant Android est résolu avec la même règle que le build et la publication ;
+- l'utilisateur n'est sollicité que pour une décision réellement sensible ou ambiguë.
+
+### versionCode
+
+Lorsqu'un compte Google Play est déjà connecté, AppPublisher interroge Google avant de figer l'intention de publication.
+
+Il prend en compte le plus grand `versionCode` visible sur les différentes pistes de l'application, puis choisit automatiquement un numéro supérieur si nécessaire. Si Google est temporairement inaccessible, le build reste possible avec les informations locales ; un refus `versionCode already used` reste traité comme filet de sécurité.
+
+### Reprise Google Play
+
+Après qu'un AAB a été accepté par Google, AppPublisher conserve un checkpoint local non secret lié à :
+
+- l'application ;
+- la connexion Google ;
+- le SHA-256 exact de l'AAB ;
+- son versionCode ;
+- l'édition Google Play ;
+- la dernière phase confirmée.
+
+Après une coupure réseau tardive, AppPublisher peut donc réutiliser l'édition et le bundle déjà acceptés au lieu de recommencer l'upload.
+
+Si la coupure survient pendant le commit final, AppPublisher vérifie d'abord si la version est déjà présente sur la piste interne avant de tenter une nouvelle publication.
+
+Les checkpoints expirent et ne peuvent pas être réutilisés pour un autre AAB, un autre package ou une autre connexion.
+
+### Manifeste de publication
+
+Après succès Google Play, le manifeste durable reçoit aussi :
+
+- piste ;
+- versionCode ;
+- identifiant d'édition ;
+- compte public utilisé ;
+- mode d'authentification ;
+- date de commit ;
+- indication de reprise éventuelle ;
+- indication d'une récupération après résultat de commit ambigu.
+
+## Suite — Lot 12.5
+
+Les prochaines priorités sont :
+
+- nettoyage automatique des workspaces/checkpoints orphelins ;
+- toolchain Android encore plus autonome ;
+- diagnostic uniquement en dernier recours et masqué en mode novice ;
+- exploitation du manifeste pour une reprise complète du parcours après redémarrage ;
+- transformation systématique de chaque nouveau bug réel en test de non-régression.
 
 ## Règle de non-régression
 
 Chaque bug réel observé sur VictoryTrack, CrânioScan ou un futur projet devient un test automatisé.
 
-Le critère final du Lot 12 est simple :
+Le critère final du Lot 12 reste :
 
-> un utilisateur novice ne doit jamais avoir besoin d’ouvrir Terminal, Finder dans Application Support, Gradle, Android Studio ou un fichier technique pour comprendre pourquoi une publication ne fonctionne pas.
+> un utilisateur novice ne doit jamais avoir besoin d'ouvrir Terminal, Finder dans Application Support, Gradle, Android Studio ou un fichier technique pour comprendre pourquoi une publication ne fonctionne pas.
