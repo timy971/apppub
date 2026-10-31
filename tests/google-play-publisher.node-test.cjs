@@ -236,17 +236,26 @@ test("preserves an uploaded bundle when Google rejects the track update", async 
   );
 });
 
-test("reads the highest versionCode already present on the internal track", async () => {
+test("reads the highest versionCode across all visible Google Play tracks", async () => {
   const calls = [];
   const api = publisherWith(async (url, options) => {
     calls.push({ url, options });
     if (url.endsWith("/edits")) return response(200, { id: "edit-latest" });
-    if (url.endsWith("/edits/edit-latest/tracks/internal")) {
+    if (url.endsWith("/edits/edit-latest/tracks")) {
       return response(200, {
-        track: "internal",
-        releases: [
-          { versionCodes: ["8", "11"], status: "completed" },
-          { versionCodes: ["4"], status: "completed" },
+        tracks: [
+          {
+            track: "internal",
+            releases: [{ versionCodes: ["8", "11"], status: "completed" }],
+          },
+          {
+            track: "beta",
+            releases: [{ versionCodes: ["14"], status: "completed" }],
+          },
+          {
+            track: "production",
+            releases: [{ versionCodes: ["12"], status: "completed" }],
+          },
         ],
       });
     }
@@ -257,7 +266,7 @@ test("reads the highest versionCode already present on the internal track", asyn
   const result = await api.latestInternalVersionCode(credentials, "app.cranioscan.android");
 
   assert.equal(result.ok, true);
-  assert.equal(result.versionCode, 11);
+  assert.equal(result.versionCode, 14);
   assert.equal(result.packageName, "app.cranioscan.android");
   assert.deepEqual(
     calls.map((call) => call.options.method),
