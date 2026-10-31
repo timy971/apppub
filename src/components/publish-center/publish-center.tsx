@@ -172,22 +172,24 @@ export function PublishCenter({ project }: { project: Project }) {
         }
       }
       let manifestPath = verifiedArtifact.record?.publicationManifestPath;
-      try {
-        const preparedAt = new Date().toISOString();
-        const manifest = await bridge().publicationArtifacts.recordPreparation({
-          aabPath: verifiedArtifact.path,
-          notes: notesFormatted,
-          preparedAt,
-        });
-        manifestPath = manifest.manifestPath;
-      } catch (error) {
-        toast.warning("Publication préparée, mais preuve de reprise incomplète", {
-          description:
-            error instanceof Error
-              ? error.message
-              : "AppPublisher n’a pas pu mettre à jour le manifeste de reprise.",
-          duration: 10_000,
-        });
+      if (manifestPath) {
+        try {
+          const preparedAt = new Date().toISOString();
+          const manifest = await bridge().publicationArtifacts.recordPreparation({
+            aabPath: verifiedArtifact.path,
+            notes: notesFormatted,
+            preparedAt,
+          });
+          manifestPath = manifest.manifestPath;
+        } catch (error) {
+          toast.warning("Publication préparée, mais preuve de reprise incomplète", {
+            description:
+              error instanceof Error
+                ? error.message
+                : "AppPublisher n’a pas pu mettre à jour le manifeste de reprise.",
+            duration: 10_000,
+          });
+        }
       }
 
       HistoryService.record({
