@@ -518,10 +518,11 @@ registerAllowedRoot(publicationArtifactManager.rootPath);
 function publicationMaintenanceBindings() {
   const stored = durableStore.get("projects");
   if (!stored.ok || !stored.found || !Array.isArray(stored.value)) {
-    return { projectPaths: [], checkpoints: [] };
+    return { projectPaths: [], checkpoints: [], artifacts: [] };
   }
   const projectPaths = [];
   const checkpoints = [];
+  const artifacts = [];
   for (const project of stored.value) {
     if (project?.source?.type === "git" && project.source.managed === true) {
       try {
@@ -532,13 +533,26 @@ function publicationMaintenanceBindings() {
     const packageName = resolveStoredAndroidPackage(project);
     if (
       typeof project?.id === "string" &&
+      isAndroidApplicationId(packageName) &&
+      typeof project?.currentVersion === "string" &&
+      Number.isSafeInteger(project?.currentBuild)
+    ) {
+      artifacts.push({
+        projectId: project.id,
+        applicationId: packageName,
+        versionName: project.currentVersion,
+        versionCode: project.currentBuild,
+      });
+    }
+    if (
+      typeof project?.id === "string" &&
       validGooglePlayConnectionId(connectionId) &&
       isAndroidApplicationId(packageName)
     ) {
       checkpoints.push({ projectId: project.id, connectionId, packageName });
     }
   }
-  return { projectPaths: [...new Set(projectPaths)], checkpoints };
+  return { projectPaths: [...new Set(projectPaths)], checkpoints, artifacts };
 }
 
 async function confirmProjectTrust({ projectPath, projectName }) {
@@ -966,12 +980,23 @@ app
     safeStep("publication-maintenance", () => {
       const bindings = publicationMaintenanceBindings();
       const resumeCleanup = googlePlayResumeStore.prune(bindings.checkpoints);
+      const artifactCleanup = publicationArtifactManager.pruneRetention(bindings.artifacts);
       diagWrite({
         level: "info",
         message: "Google Play resume checkpoints cleaned",
         ctx: {
           removed: resumeCleanup.removed.length,
           kept: resumeCleanup.kept.length,
+        },
+      });
+      diagWrite({
+        level: "info",
+        message: "publication artifacts retention applied",
+        ctx: {
+          removed: artifactCleanup.removed.length,
+          kept: artifactCleanup.kept.length,
+          skipped: artifactCleanup.skipped.length,
+          keepPerProject: artifactCleanup.keepPerProject,
         },
       });
       void publicationWorkspaceManager

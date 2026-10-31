@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const test = require("node:test");
 
 const {
@@ -204,4 +205,116 @@ test("refuses a changed AAB when the validated hash no longer matches", async (t
 
   const projectDir = path.join(f.artifacts, "project-1");
   assert.equal(fs.existsSync(projectDir), false);
+});
+
+
+function writeRetentionArtifact(f, {
+  dirName,
+  versionName,
+  versionCode,
+  storedAt,
+  applicationId = "app.victorytrack.android",
+  projectId = "project-1",
+}) {
+  const dir = path.join(f.artifacts, projectId, dirName);
+  fs.mkdirSync(dir, { recursive: true });
+  const bytes = Buffer.from(`${versionName}-${versionCode}-${storedAt}`);
+  const artifactPath = path.join(dir, "app-release.aab");
+  fs.writeFileSync(artifactPath, bytes);
+  const sha256 = crypto.createHash("sha256").update(bytes).digest("hex").toUpperCase();
+  fs.writeFileSync(
+    path.join(dir, "publication-manifest.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      storedAt,
+      project: { id: projectId, name: "VictoryTrack" },
+      source: { commit: "a".repeat(40), branch: "main" },
+      release: { applicationId, versionName, versionCode },
+      artifact: {
+        fileName: "app-release.aab",
+        sizeBytes: bytes.length,
+        sha256,
+      },
+    }),
+  );
+  return dir;
+}
+
+test("retention keeps the five newest artifacts and all artifacts for the active release", (t) => {
+  const f = fixture(t);
+  const dirs = [];
+  for (let i = 1; i <= 8; i += 1) {
+    dirs.push(
+      writeRetentionArtifact(f, {
+        dirName: `release-${i}`,
+        versionName: i === 2 ? "2.3.0" : `2.${i}.0`,
+        versionCode: i === 2 ? 17 : i,
+        storedAt: `2026-10-${String(i).padStart(2, "0")}T12:00:00.000Z`,
+      }),
+    );
+  }
+
+  const result = f.manager.pruneRetention([
+    {
+      projectId: "project-1",
+      applicationId: "app.victorytrack.android",
+      versionName: "2.3.0",
+      versionCode: 17,
+    },
+  ]);
+
+  assert.equal(result.keepPerProject, 5);
+  assert.equal(fs.existsSync(dirs[1]), true, "la version active doit être conservée même ancienne");
+  for (const dir of dirs.slice(3)) {
+    assert.equal(fs.existsSync(dir), true, "les cinq plus récents doivent être conservés");
+  }
+  assert.equal(fs.existsSync(dirs[0]), false);
+  assert.equal(fs.existsSync(dirs[2]), false);
+});
+
+test("retention never deletes the last valid artifact", (t) => {
+  const f = fixture(t);
+  const only = writeRetentionArtifact(f, {
+    dirName: "only",
+    versionName: "1.0.0",
+    versionCode: 1,
+    storedAt: "2026-01-01T12:00:00.000Z",
+  });
+
+  const result = f.manager.pruneRetention(
+    [{ projectId: "project-1", applicationId: "app.victorytrack.android" }],
+    { keepPerProject: 1 },
+  );
+
+  assert.equal(fs.existsSync(only), true);
+  assert.equal(result.removed.length, 0);
+  assert.equal(result.kept.includes(only), true);
+});
+
+test("retention leaves unknown or invalid artifact folders untouched", (t) => {
+  const f = fixture(t);
+  const projectRoot = path.join(f.artifacts, "project-1");
+  const unknown = path.join(projectRoot, "unknown-folder");
+  fs.mkdirSync(unknown, { recursive: true });
+  fs.writeFileSync(path.join(unknown, "notes.txt"), "do not delete");
+
+  const invalid = path.join(projectRoot, "invalid-manifest");
+  fs.mkdirSync(invalid, { recursive: true });
+  fs.writeFileSync(path.join(invalid, "publication-manifest.json"), "{broken");
+
+  const valid = writeRetentionArtifact(f, {
+    dirName: "valid",
+    versionName: "1.0.0",
+    versionCode: 1,
+    storedAt: "2026-01-01T12:00:00.000Z",
+  });
+
+  f.manager.pruneRetention(
+    [{ projectId: "project-1", applicationId: "app.victorytrack.android" }],
+    { keepPerProject: 1 },
+  );
+
+  assert.equal(fs.existsSync(unknown), true);
+  assert.equal(fs.existsSync(invalid), true);
+  assert.equal(fs.existsSync(valid), true);
 });

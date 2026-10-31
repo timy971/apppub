@@ -411,6 +411,101 @@ class PublicationArtifactManager {
     };
   }
 
+  pruneRetention(bindings = [], options = {}) {
+    const keepPerProject =
+      Number.isSafeInteger(options.keepPerProject) && options.keepPerProject > 0
+        ? options.keepPerProject
+        : 5;
+    const byProject = new Map();
+    for (const binding of Array.isArray(bindings) ? bindings : []) {
+      if (!binding || typeof binding.projectId !== "string") continue;
+      byProject.set(binding.projectId, {
+        applicationId:
+          typeof binding.applicationId === "string" ? binding.applicationId : undefined,
+        versionName:
+          typeof binding.versionName === "string" ? binding.versionName : undefined,
+        versionCode: Number.isSafeInteger(binding.versionCode) ? binding.versionCode : undefined,
+      });
+    }
+
+    const removed = [];
+    const kept = [];
+    const skipped = [];
+
+    for (const [projectId, active] of byProject) {
+      const projectRoot = path.join(this.rootPath, safeSegment(projectId, "project"));
+      if (!isWithin(this.rootPath, projectRoot) || !this.fs.existsSync(projectRoot)) continue;
+
+      let entries;
+      try {
+        entries = this.fs.readdirSync(projectRoot, { withFileTypes: true });
+      } catch {
+        skipped.push({ projectId, reason: "project-unreadable" });
+        continue;
+      }
+
+      const valid = [];
+      for (const entry of entries) {
+        if (!entry?.isDirectory?.()) continue;
+        const dir = path.join(projectRoot, entry.name);
+        const manifestPath = path.join(dir, "publication-manifest.json");
+        const manifest = this.readStableManifest(manifestPath);
+        if (!manifest || manifest.project.id !== projectId) {
+          skipped.push({ projectId, dir, reason: "manifest-invalid" });
+          continue;
+        }
+        if (
+          active.applicationId &&
+          manifest.release.applicationId !== active.applicationId
+        ) {
+          skipped.push({ projectId, dir, reason: "application-id-mismatch" });
+          continue;
+        }
+        const artifactPath = path.join(dir, manifest.artifact.fileName);
+        let artifactReal;
+        try {
+          artifactReal = this.fs.realpathSync(artifactPath);
+          const stat = this.fs.statSync(artifactReal);
+          if (!isWithin(dir, artifactReal) || !stat.isFile() || stat.size !== manifest.artifact.sizeBytes) {
+            throw new Error("artifact-invalid");
+          }
+        } catch {
+          skipped.push({ projectId, dir, reason: "artifact-invalid" });
+          continue;
+        }
+        valid.push({
+          dir,
+          manifest,
+          storedAt: Date.parse(manifest.storedAt),
+          active:
+            active.versionName === manifest.release.versionName &&
+            active.versionCode === manifest.release.versionCode,
+        });
+      }
+
+      valid.sort((a, b) => b.storedAt - a.storedAt);
+      const protectedDirs = new Set();
+      for (const item of valid.slice(0, keepPerProject)) protectedDirs.add(item.dir);
+      for (const item of valid) if (item.active) protectedDirs.add(item.dir);
+      if (valid[0]) protectedDirs.add(valid[0].dir);
+
+      for (const item of valid) {
+        if (protectedDirs.has(item.dir)) {
+          kept.push(item.dir);
+          continue;
+        }
+        try {
+          this.fs.rmSync(item.dir, { recursive: true, force: true });
+          removed.push(item.dir);
+        } catch {
+          skipped.push({ projectId, dir: item.dir, reason: "delete-failed" });
+        }
+      }
+    }
+
+    return { removed, kept, skipped, keepPerProject };
+  }
+
   recordGooglePlayResult(aabPath, result) {
     const artifactPath = this.resolveStableArtifact(aabPath);
     const manifestPath = path.join(path.dirname(artifactPath), "publication-manifest.json");

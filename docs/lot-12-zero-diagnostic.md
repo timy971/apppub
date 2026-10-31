@@ -213,3 +213,17 @@ Chaque bug réel observé sur VictoryTrack, CrânioScan ou un futur projet devie
 Le critère final du Lot 12 reste :
 
 > un utilisateur novice ne doit jamais avoir besoin d'ouvrir Terminal, Finder dans Application Support, Gradle, Android Studio ou un fichier technique pour comprendre pourquoi une publication ne fonctionne pas.
+
+
+### 12.6d — rétention sûre des AAB et manifests
+
+Le stockage durable des publications est maintenant entretenu automatiquement au démarrage avec une politique conservatrice :
+
+- conservation des **5 artefacts valides les plus récents** par projet ;
+- conservation de **tous les artefacts correspondant à la version/versionCode actuellement actifs**, même s'ils sont plus anciens ;
+- conservation systématique du **dernier artefact valide** ;
+- aucun nettoyage automatique d'un dossier inconnu, d'un manifeste invalide, d'un artefact dont l'identité Android ne correspond pas au projet, ou d'un fichier dont la structure n'est pas celle attendue ;
+- seuls les projets encore enregistrés dans AppPublisher sont concernés par la rétention automatique ;
+- le nettoyage reste silencieux et journalisé, sans exposer Finder ou le stockage technique à l'utilisateur novice.
+
+Des tests vérifient notamment la limite de cinq, la protection d'une version active ancienne, la conservation du dernier artefact et la non-suppression des dossiers inconnus/invalides.
