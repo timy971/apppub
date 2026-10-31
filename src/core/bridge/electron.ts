@@ -96,6 +96,8 @@ export const electronBridge: SystemBridge = {
 
   publicationArtifacts: {
     promote: (args) => ensure().publicationArtifacts.promote(args),
+    recordPreparation: (args) => ensure().publicationArtifacts.recordPreparation(args),
+    recover: (args) => ensure().publicationArtifacts.recover(args),
   },
 
   androidPreparation: {
