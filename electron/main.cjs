@@ -3042,6 +3042,41 @@ ipcMain.handle("google-play:testConnection", async (_event, args) => {
   }
 });
 
+ipcMain.handle("google-play:latestVersionCode", async (_event, args) => {
+  if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
+    return { ok: false, errorCode: "invalid-args" };
+  }
+  const project = storedProjectForGooglePlay(
+    args.projectPath,
+    args.packageName,
+    args.connectionId,
+    true,
+  );
+  if (!project) return { ok: false, errorCode: "project-mismatch" };
+  const credentials = await getGooglePlayCredentials(args.connectionId);
+  if (!credentials) {
+    return {
+      ok: false,
+      errorCode: "credentials-missing",
+      errorHint: "L'autorisation Google Play est absente du trousseau macOS.",
+    };
+  }
+  try {
+    const result = await googlePlayPublisher.latestInternalVersionCode(
+      credentials,
+      args.packageName,
+    );
+    diagSigning("info", "google-play:latestVersionCode", {
+      projectId: project.id,
+      packageName: args.packageName,
+      versionCode: result.versionCode,
+    });
+    return result;
+  } catch (error) {
+    return publicGooglePlayError(error);
+  }
+});
+
 ipcMain.handle("google-play:disconnect", async (_event, args) => {
   if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
     return false;
@@ -3194,6 +3229,19 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
         });
       },
     );
+    const committedAt = new Date().toISOString();
+    try {
+      publicationArtifactManager.recordGooglePlayResult(aabPath, {
+        ...result,
+        committedAt,
+      });
+    } catch (manifestError) {
+      diagSigning("warn", "google-play:manifest update failed", {
+        projectId: project.id,
+        packageName: result.packageName,
+        error: manifestError instanceof Error ? manifestError.message : String(manifestError),
+      });
+    }
     googlePlayResumeStore.clear(project.id);
     diagSigning("info", "google-play:publishInternal", {
       projectId: project.id,
@@ -3202,7 +3250,7 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
       versionCode: result.versionCode,
       editId: result.editId,
     });
-    return result;
+    return { ...result, committedAt };
   } catch (error) {
     const publicError = publicGooglePlayError(error);
     if (publicError.errorCode === "version-already-used") {
