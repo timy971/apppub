@@ -132,6 +132,11 @@ contextBridge.exposeInMainWorld("appPublisher", {
     sync: (args) => inv("git:sync", args),
   },
 
+  publicationWorkspace: {
+    prepare: (args) => inv("publication-workspace:prepare", args),
+    release: (args) => inv("publication-workspace:release", args),
+  },
+
   androidPreparation: {
     inspect: (projectPath) => inv("android-preparation:inspect", projectPath),
     beginRollbackGuard: (projectPath, request) =>
