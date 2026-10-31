@@ -119,7 +119,6 @@ test("a workspace cannot be released through another managed repository", async 
 
   const otherRemote = path.join(secondRoot, "remote.git");
   const otherSeed = path.join(secondRoot, "seed");
-  const otherManaged = path.join(secondRoot, "managed");
   fs.mkdirSync(otherSeed);
   git(secondRoot, ["init", "--bare", otherRemote]);
   git(otherSeed, ["init", "-b", "main"]);
@@ -132,8 +131,7 @@ test("a workspace cannot be released through another managed repository", async 
   git(otherSeed, ["push", "-u", "origin", "main"]);
   git(otherRemote, ["symbolic-ref", "HEAD", "refs/heads/main"]);
 
-  const otherGit = new GitProjectManager(otherManaged, { allowLocalRemotes: true });
-  const otherClone = await otherGit.clone({ remoteUrl: otherRemote, branch: "main" });
+  const otherClone = await first.gitManager.clone({ remoteUrl: otherRemote, branch: "main" });
 
   await assert.rejects(
     first.workspaceManager.release({
