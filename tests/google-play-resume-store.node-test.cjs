@@ -27,8 +27,8 @@ function checkpoint(overrides = {}) {
   };
 }
 
-test("persists and reloads a resume checkpoint bound to project, account and artifact", () => {
-  const { store } = fixture({ after() {} });
+test("persists and reloads a resume checkpoint bound to project, account and artifact", (t) => {
+  const { store } = fixture(t);
   store.save("project-1", checkpoint());
   const loaded = store.get("project-1", {
     connectionId: "gplay_123",
