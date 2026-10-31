@@ -27,6 +27,7 @@ import { bridge } from "@/core/bridge";
 import { HistoryService } from "@/core/history/service";
 import { patchAndroidConfig } from "@/core/projects/android-config";
 import { ProjectsService } from "@/core/projects/service";
+import { resolvePublicationApplicationId } from "@/core/publication/intent";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import { JourneyProgress } from "@/core/navigation/journey-progress";
 import type { Project, PublishRecord } from "@/core/types";
@@ -54,7 +55,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   const [lastFailure, setLastFailure] = useState<GooglePlayFailure | null>(null);
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const android = project.publishing?.android ?? {};
-  const packageName = android.applicationId ?? project.packageName ?? project.playStoreAppId ?? "";
+  const packageName = resolvePublicationApplicationId(project) ?? "";
   const connectionId = android.googlePlayConnectionId;
   const accountEmail = android.googlePlayAccountEmail ?? android.googlePlayServiceAccountEmail;
   const authMode =
