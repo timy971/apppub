@@ -27,6 +27,7 @@ test("stored Android identity falls back only to valid package-shaped candidates
   assert.equal(
     resolveStoredAndroidPackage({
       packageName: "vite_react_shadcn_ts",
+      playStoreAppId: "app.old.play",
       detected: { capacitorAppId: "app.cranioscan.android" },
       publishing: { android: {} },
     }),
