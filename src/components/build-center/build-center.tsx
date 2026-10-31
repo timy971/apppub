@@ -7,6 +7,8 @@ import { useOperationSnapshot } from "@/core/operations/use-operation";
 import { OperationEstimator } from "@/core/operations/estimator";
 import { createAndroidBuildOperation } from "@/core/operations/android-build";
 import { HistoryService } from "@/core/history/service";
+import { ProjectsService } from "@/core/projects/service";
+import { patchAndroidConfig } from "@/core/projects/android-config";
 import { BackupService } from "@/core/backup/service";
 import { bridge } from "@/core/bridge";
 import { AssistantOrAbove, ExpertOnly } from "@/components/mode-gate";
@@ -79,15 +81,37 @@ export function BuildCenter({ project }: Props) {
           sourceDirty?: boolean;
           aabValidation?: AabValidationReport;
           aabReportPath?: string;
+          versionName?: string;
+          versionCode?: number;
+          applicationId?: string;
+          publicationManifestPath?: string;
         }
       | undefined;
 
     if (snap.status === "success") {
+      const effectiveVersion = artifact?.versionName ?? project.currentVersion;
+      const effectiveBuild = artifact?.versionCode ?? project.currentBuild;
+      const effectiveApplicationId = artifact?.applicationId;
+      if (
+        effectiveVersion !== project.currentVersion ||
+        effectiveBuild !== project.currentBuild ||
+        (effectiveApplicationId &&
+          effectiveApplicationId !== project.publishing?.android?.applicationId)
+      ) {
+        ProjectsService.update(project.id, {
+          ...(effectiveApplicationId
+            ? patchAndroidConfig(project, { applicationId: effectiveApplicationId })
+            : {}),
+          currentVersion: effectiveVersion,
+          currentBuild: effectiveBuild,
+        });
+      }
+
       HistoryService.record({
         projectId: project.id,
         projectName: project.name,
-        version: project.currentVersion,
-        build: project.currentBuild,
+        version: effectiveVersion,
+        build: effectiveBuild,
         user: settings.userName || "vous",
         durationMs,
         outcome: "success",
@@ -104,6 +128,7 @@ export function BuildCenter({ project }: Props) {
         sourceDirty: artifact?.sourceDirty,
         aabValidation: artifact?.aabValidation,
         aabReportPath: artifact?.aabReportPath,
+        publicationManifestPath: artifact?.publicationManifestPath,
       });
       notify(
         "Fichier Android créé",
