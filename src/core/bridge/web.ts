@@ -432,6 +432,13 @@ export const webBridge: SystemBridge = {
         errorHint: "La connexion Google Play nécessite l'application de bureau macOS.",
       };
     },
+    async latestVersionCode() {
+      return {
+        ok: false,
+        errorCode: "desktop-required",
+        errorHint: "La lecture Google Play nécessite l'application de bureau.",
+      };
+    },
     async disconnect() {
       return false;
     },
