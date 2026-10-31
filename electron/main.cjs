@@ -59,6 +59,7 @@ const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
 const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");
 const { PublicationArtifactManager, hashFile } = require("./publication-artifacts.cjs");
+const { guessJavaHome, javaEnvironment } = require("./android-toolchain.cjs");
 const { GooglePlayResumeStore } = require("./google-play-resume-store.cjs");
 const { isAndroidApplicationId, resolveStoredAndroidPackage } = require("./android-package-identity.cjs");
 const {
@@ -1148,73 +1149,6 @@ function androidSdkEnvironment() {
     ANDROID_HOME: sdk,
     ANDROID_SDK_ROOT: sdk,
   };
-}
-
-function validJavaHome(home) {
-  if (typeof home !== "string" || !home.trim()) return false;
-  const javaBin = path.join(
-    home,
-    "bin",
-    process.platform === "win32" ? "java.exe" : "java",
-  );
-  const keytoolBin = path.join(
-    home,
-    "bin",
-    process.platform === "win32" ? "keytool.exe" : "keytool",
-  );
-  try {
-    return fs.statSync(javaBin).isFile() && fs.statSync(keytoolBin).isFile();
-  } catch {
-    return false;
-  }
-}
-
-function guessJavaHome() {
-  const home = os.homedir();
-  const candidates = [];
-  if (process.env.JAVA_HOME) candidates.push(process.env.JAVA_HOME);
-
-  if (process.platform === "darwin") {
-    candidates.push(
-      "/Applications/Android Studio.app/Contents/jbr/Contents/Home",
-      "/Applications/Android Studio.app/Contents/jre/Contents/Home",
-      path.join(home, "Applications/Android Studio.app/Contents/jbr/Contents/Home"),
-    );
-    try {
-      const root = "/Library/Java/JavaVirtualMachines";
-      for (const name of fs.readdirSync(root).sort().reverse()) {
-        candidates.push(path.join(root, name, "Contents/Home"));
-      }
-    } catch {}
-  } else if (process.platform === "win32") {
-    candidates.push(
-      path.join(process.env.LOCALAPPDATA || "", "Programs", "Android Studio", "jbr"),
-      path.join(process.env.ProgramFiles || "", "Android", "Android Studio", "jbr"),
-      path.join(process.env["ProgramFiles(x86)"] || "", "Android", "Android Studio", "jbr"),
-    );
-  } else {
-    candidates.push(
-      path.join(home, "android-studio", "jbr"),
-      "/opt/android-studio/jbr",
-      "/usr/local/android-studio/jbr",
-    );
-  }
-
-  for (const candidate of candidates) {
-    if (validJavaHome(candidate)) {
-      try {
-        return fs.realpathSync(candidate);
-      } catch {
-        return path.resolve(candidate);
-      }
-    }
-  }
-  return undefined;
-}
-
-function javaEnvironment() {
-  const javaHome = guessJavaHome();
-  return javaHome ? { JAVA_HOME: javaHome } : {};
 }
 
 function guessAndroidStudio() {
