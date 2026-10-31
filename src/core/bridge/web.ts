@@ -221,6 +221,21 @@ export const webBridge: SystemBridge = {
     },
   },
 
+  publicationArtifacts: {
+    async promote(args) {
+      return {
+        artifactPath: `/simulation/publication-artifacts/${args.projectId}/app-release.aab`,
+        reportPath: args.reportPath
+          ? `/simulation/publication-artifacts/${args.projectId}/app-release.aab.apppublisher-report.json`
+          : undefined,
+        manifestPath: `/simulation/publication-artifacts/${args.projectId}/publication-manifest.json`,
+        artifactSizeBytes: 42_000_000,
+        artifactSha256: args.artifactSha256 ?? "A".repeat(64),
+        storedAt: new Date().toISOString(),
+      };
+    },
+  },
+
   androidPreparation: {
     async inspect(projectPath) {
       return {
