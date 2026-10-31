@@ -59,7 +59,7 @@ const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
 const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");
 const { PublicationArtifactManager, hashFile } = require("./publication-artifacts.cjs");
-const { guessJavaHome, javaEnvironment } = require("./android-toolchain.cjs");
+const { guessJavaHome, javaEnvironment } = require("./android-toolchain.cjs");\nconst { inspectAndroidSdk, installAndroidSdkPackages } = require("./android-sdk-manager.cjs");
 const { GooglePlayResumeStore } = require("./google-play-resume-store.cjs");
 const { isAndroidApplicationId, resolveStoredAndroidPackage } = require("./android-package-identity.cjs");
 const {
@@ -1197,6 +1197,16 @@ function pingInternet() {
 }
 
 ipcMain.handle("system:detect", detectSystem);
+ipcMain.handle("android-sdk:ensureRequired", async () => {
+  const sdkPath = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || guessAndroidSdk();
+  const state = inspectAndroidSdk(sdkPath);
+  if (state.ready) return { ok: true, installed: [], state };
+  if (!state.present) return { ok: false, errorCode: "sdk-missing", state };
+  if (!state.installable) {
+    return { ok: false, errorCode: "command-line-tools-missing", state };
+  }
+  return installAndroidSdkPackages(sdkPath, state.missingPackages);
+});
 ipcMain.handle("system:copyText", (_event, value) => {
   if (typeof value !== "string" || value.length > 2_000_000) return false;
   clipboard.writeText(value);
