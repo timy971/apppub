@@ -139,12 +139,9 @@ export const PublicationWorkspaceService = {
     prepared: PreparedPublicationWorkspace,
   ): Promise<PreparedPublicationWorkspace> {
     if (!prepared.needsAndroidPreparation) return prepared;
-    try {
-      return await reconcileWorkspace(project, prepared.workspace, prepared.intent);
-    } catch (error) {
-      await safeRelease(project, prepared.workspace.workspacePath);
-      throw error;
-    }
+    // Le caller possède déjà le cycle de vie du workspace à ce stade.
+    // Il garantit sa suppression dans un finally, succès ou échec.
+    return reconcileWorkspace(project, prepared.workspace, prepared.intent);
   },
 
   async release(project: Project, prepared: PreparedPublicationWorkspace) {
