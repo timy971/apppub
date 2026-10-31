@@ -278,6 +278,8 @@ export interface PublishRecord {
   aabValidation?: AabValidationReport;
   /** Copie JSON exportable du rapport, enregistrée à côté de l'AAB. */
   aabReportPath?: string;
+  /** Manifeste AppPublisher liant source, identité Android, signature et AAB stable. */
+  publicationManifestPath?: string;
   /** Commit exact du dépôt ayant servi au build, lorsqu'il existe. */
   sourceCommit?: string;
   /** Signale qu'un build Git contenait aussi des changements non commités. */
