@@ -514,6 +514,32 @@ function resolveWithinAllowed(inputPath) {
 // workspace et après redémarrage d'AppPublisher.
 registerAllowedRoot(publicationArtifactManager.rootPath);
 
+function publicationMaintenanceBindings() {
+  const stored = durableStore.get("projects");
+  if (!stored.ok || !stored.found || !Array.isArray(stored.value)) {
+    return { projectPaths: [], checkpoints: [] };
+  }
+  const projectPaths = [];
+  const checkpoints = [];
+  for (const project of stored.value) {
+    if (project?.source?.type === "git" && project.source.managed === true) {
+      try {
+        projectPaths.push(gitProjectManager.resolveManagedProject(project.localPath));
+      } catch {}
+    }
+    const connectionId = project?.publishing?.android?.googlePlayConnectionId;
+    const packageName = resolveStoredAndroidPackage(project);
+    if (
+      typeof project?.id === "string" &&
+      validGooglePlayConnectionId(connectionId) &&
+      isAndroidApplicationId(packageName)
+    ) {
+      checkpoints.push({ projectId: project.id, connectionId, packageName });
+    }
+  }
+  return { projectPaths: [...new Set(projectPaths)], checkpoints };
+}
+
 async function confirmProjectTrust({ projectPath, projectName }) {
   const result = await dialog.showMessageBox(mainWindow ?? undefined, {
     type: "warning",
@@ -934,6 +960,38 @@ app
           trustedProjects: trusted.length,
         },
       });
+    });
+
+    safeStep("publication-maintenance", () => {
+      const bindings = publicationMaintenanceBindings();
+      const resumeCleanup = googlePlayResumeStore.prune(bindings.checkpoints);
+      diagWrite({
+        level: "info",
+        message: "Google Play resume checkpoints cleaned",
+        ctx: {
+          removed: resumeCleanup.removed.length,
+          kept: resumeCleanup.kept.length,
+        },
+      });
+      void publicationWorkspaceManager
+        .cleanupOrphans(bindings.projectPaths)
+        .then((result) => {
+          diagWrite({
+            level: "info",
+            message: "publication workspaces cleaned",
+            ctx: {
+              removed: result.removed.length,
+              skipped: result.skipped.length,
+            },
+          });
+        })
+        .catch((error) => {
+          diagWrite({
+            level: "warn",
+            message: "publication workspace cleanup failed",
+            ctx: { error: String(error) },
+          });
+        });
     });
 
     safeStep("deny-electron-permissions", () => {
