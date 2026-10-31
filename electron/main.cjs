@@ -57,6 +57,7 @@ const { SigningSessionRegistry } = require("./signing-session.cjs");
 const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
 const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");
+const { isAndroidApplicationId, resolveStoredAndroidPackage } = require("./android-package-identity.cjs");
 const {
   AndroidPreparationManager,
   inspectAndroidPreparation,
@@ -2540,14 +2541,14 @@ function storedProjectForGooglePlay(
   requireConnection,
 ) {
   const projectPath = resolveWithinAllowed(projectPathInput);
-  if (!projectPath) return null;
+  if (!projectPath || !isAndroidApplicationId(packageName)) return null;
   const stored = durableStore.get("projects");
   if (!stored.ok || !stored.found || !Array.isArray(stored.value)) return null;
   return (
     stored.value.find((project) => {
       const savedPath = resolveWithinAllowed(project?.localPath);
       const android = project?.publishing?.android ?? {};
-      const savedPackage = android.applicationId ?? project.packageName ?? project.playStoreAppId;
+      const savedPackage = resolveStoredAndroidPackage(project);
       return (
         savedPath === projectPath &&
         savedPackage === packageName &&
