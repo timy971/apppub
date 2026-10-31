@@ -128,6 +128,35 @@ class GooglePlayResumeStore {
     this.writeAll(all);
     return true;
   }
+
+  prune(bindings = []) {
+    const byProject = new Map(
+      Array.isArray(bindings)
+        ? bindings
+            .filter((item) => item && typeof item.projectId === "string")
+            .map((item) => [item.projectId, item])
+        : [],
+    );
+    const all = this.readAll();
+    const kept = {};
+    const removed = [];
+    for (const [projectId, checkpoint] of Object.entries(all)) {
+      const binding = byProject.get(projectId);
+      const age = this.now() - Date.parse(checkpoint.updatedAt);
+      const expired = !Number.isFinite(age) || age < 0 || age > MAX_AGE_MS;
+      const mismatch =
+        !binding ||
+        (binding.connectionId && checkpoint.connectionId !== binding.connectionId) ||
+        (binding.packageName && checkpoint.packageName !== binding.packageName);
+      if (expired || mismatch) {
+        removed.push(projectId);
+        continue;
+      }
+      kept[projectId] = checkpoint;
+    }
+    if (removed.length) this.writeAll(kept);
+    return { removed, kept: Object.keys(kept) };
+  }
 }
 
 module.exports = {
