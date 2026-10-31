@@ -236,6 +236,35 @@ test("preserves an uploaded bundle when Google rejects the track update", async 
   );
 });
 
+test("reads the highest versionCode already present on the internal track", async () => {
+  const calls = [];
+  const api = publisherWith(async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith("/edits")) return response(200, { id: "edit-latest" });
+    if (url.endsWith("/edits/edit-latest/tracks/internal")) {
+      return response(200, {
+        track: "internal",
+        releases: [
+          { versionCodes: ["8", "11"], status: "completed" },
+          { versionCodes: ["4"], status: "completed" },
+        ],
+      });
+    }
+    if (url.endsWith("/edits/edit-latest") && options.method === "DELETE") return response(204);
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+
+  const result = await api.latestInternalVersionCode(credentials, "app.cranioscan.android");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.versionCode, 11);
+  assert.equal(result.packageName, "app.cranioscan.android");
+  assert.deepEqual(
+    calls.map((call) => call.options.method),
+    ["POST", "GET", "DELETE"],
+  );
+});
+
 test("connection check creates and immediately deletes a disposable edit", async () => {
   const calls = [];
   const api = publisherWith(async (url, options) => {
