@@ -59,7 +59,8 @@ const { buildPatchedGradle } = require("./gradle-signing-patch.cjs");
 const { GitProjectManager } = require("./git-projects.cjs");
 const { PublicationWorkspaceManager } = require("./publication-workspaces.cjs");
 const { PublicationArtifactManager, hashFile } = require("./publication-artifacts.cjs");
-const { guessJavaHome, javaEnvironment } = require("./android-toolchain.cjs");\nconst { inspectAndroidSdk, installAndroidSdkPackages } = require("./android-sdk-manager.cjs");
+const { guessJavaHome, javaEnvironment } = require("./android-toolchain.cjs");
+const { inspectAndroidSdk, installAndroidSdkPackages } = require("./android-sdk-manager.cjs");
 const { GooglePlayResumeStore } = require("./google-play-resume-store.cjs");
 const { isAndroidApplicationId, resolveStoredAndroidPackage } = require("./android-package-identity.cjs");
 const {
