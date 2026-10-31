@@ -234,6 +234,15 @@ export const webBridge: SystemBridge = {
         storedAt: new Date().toISOString(),
       };
     },
+    async recordPreparation(args) {
+      return {
+        manifestPath: `${args.aabPath}.publication-manifest.json`,
+        preparedAt: args.preparedAt ?? new Date().toISOString(),
+      };
+    },
+    async recover() {
+      return null;
+    },
   },
 
   androidPreparation: {
