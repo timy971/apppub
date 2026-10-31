@@ -8,9 +8,9 @@ function isAndroidApplicationId(value) {
 function resolveStoredAndroidPackage(project) {
   const android = project?.publishing?.android ?? {};
   const candidates = [
+    project?.playStoreAppId,
     android.applicationId,
     project?.detected?.capacitorAppId,
-    project?.playStoreAppId,
     project?.packageName,
   ];
   const resolved = candidates.find(isAndroidApplicationId);
