@@ -93,8 +93,8 @@ export const PublicationWorkspaceService = {
           plan.token,
         );
         corrections = {
-          actions: result.actions,
-          changedFiles: result.changedFiles,
+          actions: result.actions ?? plan.actions,
+          changedFiles: result.changedFiles ?? plan.changedFiles,
         };
       }
 
