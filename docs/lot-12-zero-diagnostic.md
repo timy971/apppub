@@ -141,15 +141,70 @@ Après succès Google Play, le manifeste durable reçoit aussi :
 - indication de reprise éventuelle ;
 - indication d'une récupération après résultat de commit ambigu.
 
-## Suite — Lot 12.5
+## Lot 12.5 — redémarrage propre et toolchain plus autonome
+
+### Ménage automatique au démarrage
+
+AppPublisher nettoie maintenant les restes techniques d'une publication interrompue :
+
+- les checkpoints Google Play expirés sont supprimés ;
+- un checkpoint lié à un projet supprimé, un autre compte ou un autre package est supprimé ;
+- les workspaces de publication abandonnés sont recherchés au démarrage ;
+- un workspace n'est supprimé que si Git permet de prouver qu'il appartient à un dépôt situé dans l'espace `managed-projects` ;
+- un dossier inconnu placé dans `publication-workspaces` est volontairement laissé intact.
+
+Même si le projet a été retiré de l'interface, AppPublisher peut retrouver le dépôt propriétaire du worktree grâce à `--git-common-dir`, sans se fier au nom du dossier.
+
+### Reprise après redémarrage depuis le manifeste
+
+Le manifeste durable devient une seconde source de reprise en complément de l'historique local.
+
+Lors de la préparation de la publication, il conserve maintenant :
+
+- les notes de version réellement préparées ;
+- la date de préparation ;
+- l'AAB stable et son SHA-256 ;
+- le rapport AAB ;
+- le commit source ;
+- la version et le versionCode ;
+- l'identifiant Android ;
+- le résultat Google Play lorsqu'il existe.
+
+Au redémarrage, si l'historique ne permet plus de retrouver le build courant, AppPublisher :
+
+1. cherche le manifeste du projet, de la version et du versionCode actifs ;
+2. vérifie que le fichier AAB existe toujours ;
+3. recalcule son SHA-256 et refuse un fichier modifié ;
+4. retrouve le rapport et les notes préparées ;
+5. reconstruit l'état `build`, `release-prepared` ou `publish` nécessaire au Publish Center.
+
+La récupération est bornée côté processus principal au projet réellement enregistré et à son identité Android actuelle. Le renderer ne dispose d'aucune lecture arbitraire du stockage d'artefacts.
+
+### Java / JDK automatique
+
+AppPublisher n'exige plus que l'utilisateur sache configurer `JAVA_HOME` lorsque le JDK est déjà disponible avec Android Studio.
+
+Ordre de résolution :
+
+1. `JAVA_HOME` s'il pointe vers un vrai JDK contenant `java` et `keytool` ;
+2. JBR/JDK embarqué d'Android Studio ;
+3. JDK système connus selon la plateforme ;
+4. repli sur les commandes du PATH seulement si aucun JDK fiable n'a été localisé.
+
+Le `JAVA_HOME` détecté est injecté uniquement dans les sous-processus AppPublisher (Gradle et keytool). AppPublisher ne modifie pas les variables d'environnement système de l'utilisateur.
+
+Cette détection est testée séparément pour éviter qu'une future modification du main process ne réintroduise une dépendance au Terminal.
+
+## Suite — Lot 12.6
 
 Les prochaines priorités sont :
 
-- nettoyage automatique des workspaces/checkpoints orphelins ;
-- toolchain Android encore plus autonome ;
-- diagnostic uniquement en dernier recours et masqué en mode novice ;
-- exploitation du manifeste pour une reprise complète du parcours après redémarrage ;
-- transformation systématique de chaque nouveau bug réel en test de non-régression.
+- rendre l'installation des composants SDK Android manquants plus autonome lorsque le SDK existe déjà ;
+- distinguer clairement « outil absent » de « outil installable automatiquement » ;
+- réduire encore l'accès au diagnostic en mode novice ;
+- restaurer automatiquement l'écran exact où une publication interrompue doit reprendre ;
+- ajouter une politique de rétention des anciens AAB/manifests sans supprimer le dernier artefact utile ;
+- continuer à transformer chaque bug VictoryTrack / CrânioScan en test de non-régression.
 
 ## Règle de non-régression
 
