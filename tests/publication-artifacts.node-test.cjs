@@ -80,6 +80,60 @@ test("promotes AAB, report and manifest into stable AppPublisher storage", async
   assert.deepEqual(manifest.corrections, ["android/app/build.gradle", "version.json"]);
 });
 
+test("records the committed Google Play result in the stable manifest", async (t) => {
+  const f = fixture(t);
+  const a = args(f);
+  fs.mkdirSync(path.dirname(a.aabPath), { recursive: true });
+  fs.writeFileSync(a.aabPath, Buffer.from("signed-aab-fixture"));
+  fs.writeFileSync(a.reportPath, JSON.stringify({ verdict: "ready" }));
+  const promoted = await f.manager.promote(a);
+
+  const recorded = f.manager.recordGooglePlayResult(promoted.artifactPath, {
+    packageName: "app.victorytrack.android",
+    versionCode: 17,
+    editId: "edit-17",
+    accountEmail: "publisher@example.com",
+    authMode: "oauth",
+    resumed: true,
+    recoveredCommit: false,
+    committedAt: "2026-10-31T22:30:00.000Z",
+  });
+
+  assert.equal(recorded.manifestPath, promoted.manifestPath);
+  const manifest = JSON.parse(fs.readFileSync(promoted.manifestPath, "utf8"));
+  assert.deepEqual(manifest.googlePlay, {
+    provider: "google-play",
+    track: "internal",
+    packageName: "app.victorytrack.android",
+    versionCode: 17,
+    releaseStatus: "completed",
+    editId: "edit-17",
+    accountEmail: "publisher@example.com",
+    authMode: "oauth",
+    resumed: true,
+    recoveredCommit: false,
+    committedAt: "2026-10-31T22:30:00.000Z",
+  });
+});
+
+test("refuses to attach a Google Play result to the wrong stable AAB", async (t) => {
+  const f = fixture(t);
+  const a = args(f);
+  fs.mkdirSync(path.dirname(a.aabPath), { recursive: true });
+  fs.writeFileSync(a.aabPath, Buffer.from("signed-aab-fixture"));
+  fs.writeFileSync(a.reportPath, JSON.stringify({ verdict: "ready" }));
+  const promoted = await f.manager.promote(a);
+
+  assert.throws(
+    () =>
+      f.manager.recordGooglePlayResult(promoted.artifactPath, {
+        packageName: "app.other.android",
+        versionCode: 17,
+      }),
+    /ne correspond pas au manifeste/,
+  );
+});
+
 test("refuses to promote an AAB outside the verified workspace", async (t) => {
   const f = fixture(t);
   const outside = path.join(f.root, "outside.aab");
