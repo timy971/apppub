@@ -60,6 +60,47 @@ test("expires stale checkpoints instead of resuming an old Google edit", (t) => 
   assert.equal(store.get("project-1"), null);
 });
 
+test("startup pruning removes checkpoints for missing or changed projects", (t) => {
+  const { store } = fixture(t);
+  store.save("project-1", checkpoint());
+  store.save(
+    "project-2",
+    checkpoint({
+      connectionId: "gplay_other",
+      packageName: "app.other.android",
+      editId: "edit-other",
+    }),
+  );
+
+  const result = store.prune([
+    {
+      projectId: "project-1",
+      connectionId: "gplay_123",
+      packageName: "app.cranioscan.android",
+    },
+    {
+      projectId: "project-2",
+      connectionId: "gplay_changed",
+      packageName: "app.other.android",
+    },
+  ]);
+
+  assert.deepEqual(result.removed, ["project-2"]);
+  assert.deepEqual(result.kept, ["project-1"]);
+  assert.equal(store.get("project-1")?.editId, "edit-42");
+  assert.equal(store.get("project-2"), null);
+});
+
+test("startup pruning removes checkpoints for projects that no longer exist", (t) => {
+  const { store } = fixture(t);
+  store.save("project-1", checkpoint());
+
+  const result = store.prune([]);
+
+  assert.deepEqual(result.removed, ["project-1"]);
+  assert.equal(store.get("project-1"), null);
+});
+
 test("keeps commit-unknown as a resumable checkpoint", (t) => {
   const { store } = fixture(t);
   store.save("project-1", checkpoint({ phase: "commit-unknown" }));
