@@ -126,10 +126,11 @@ export const PreflightService = {
       b.fs.exists(`${projectPath}/package.json`),
     ]);
 
+    const managedGit =
+      project.source?.type === "git" && project.source.managed === true;
     const disposableAndroid =
       !hasAndroidDir &&
-      project.source?.type === "git" &&
-      project.source.managed === true &&
+      managedGit &&
       project.detected.androidReadiness !== "blocked";
 
     checks.push({
@@ -212,7 +213,7 @@ export const PreflightService = {
     // Exécutable sous Unix
     if (gradle.platform !== "win32" && gradle.hasWrapperUnix) {
       let executableReady = true;
-      if (options.autoRepair) {
+      if (options.autoRepair && !managedGit) {
         executableReady = await ensureGradleExecutable(projectPath);
         if (executableReady) {
           autoRepairs.push({
@@ -226,19 +227,22 @@ export const PreflightService = {
         category: "android",
         status: executableReady ? "success" : "error",
         title: "Wrapper Gradle exécutable",
-        message: executableReady
-          ? options.autoRepair
-            ? "AppPublisher a vérifié et corrigé automatiquement les droits de gradlew."
-            : "AppPublisher s'assurera que gradlew est exécutable avant de lancer le build."
-          : "AppPublisher n'a pas pu rendre gradlew exécutable automatiquement.",
+        message: managedGit
+          ? "AppPublisher vérifiera les droits de gradlew dans le workspace jetable, sans modifier la source."
+          : executableReady
+            ? options.autoRepair
+              ? "AppPublisher a vérifié et corrigé automatiquement les droits de gradlew."
+              : "AppPublisher s'assurera que gradlew est exécutable avant de lancer le build."
+            : "AppPublisher n'a pas pu rendre gradlew exécutable automatiquement.",
         technical: `chmod +x ${gradle.expectedWrapperPath}`,
-        fix: executableReady
-          ? undefined
-          : {
-              label: "Réessayer automatiquement",
-              kind: "chmod-gradlew",
-              confirm: false,
-            },
+        fix:
+          managedGit || executableReady
+            ? undefined
+            : {
+                label: "Réessayer automatiquement",
+                kind: "chmod-gradlew",
+                confirm: false,
+              },
       });
     }
 
