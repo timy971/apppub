@@ -16,23 +16,31 @@ export const DiagnosticService = {
     const managedPublicationProject =
       (project?.source?.type === "git" && project.source.managed === true) ||
       Boolean(projectPath?.includes("/Application Support/AppPublisher/managed-projects/"));
-    const disposableAndroid =
-      Boolean(project) &&
-      managedPublicationProject &&
-      has?.androidReadiness !== "blocked";
     const versionManagedByAppPublisher =
       Boolean(project?.currentVersion) && managedPublicationProject;
 
-    const [existsAndroid, existsVersionJson, existsVersionScript] = await Promise.all([
-      projectPath ? b.fs.exists(`${projectPath}/android`) : Promise.resolve(!!has?.hasAndroid),
-      projectPath ? b.fs.exists(`${projectPath}/version.json`) : Promise.resolve(!!has?.hasVersionJson),
-      projectPath
-        ? Promise.all([
-            b.fs.exists(`${projectPath}/scripts/version.mjs`),
-            b.fs.exists(`${projectPath}/scripts/version.js`),
-          ]).then(([mjs, js]) => mjs || js)
-        : Promise.resolve(!!has?.hasVersionScript),
-    ]);
+    const [existsAndroid, existsVersionJson, existsVersionScript, androidPreparation] =
+      await Promise.all([
+        projectPath ? b.fs.exists(`${projectPath}/android`) : Promise.resolve(!!has?.hasAndroid),
+        projectPath ? b.fs.exists(`${projectPath}/version.json`) : Promise.resolve(!!has?.hasVersionJson),
+        projectPath
+          ? Promise.all([
+              b.fs.exists(`${projectPath}/scripts/version.mjs`),
+              b.fs.exists(`${projectPath}/scripts/version.js`),
+            ]).then(([mjs, js]) => mjs || js)
+          : Promise.resolve(!!has?.hasVersionScript),
+        projectPath
+          ? b.androidPreparation.inspect(projectPath).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
+    const liveAndroidStatus = androidPreparation?.status ?? has?.androidReadiness;
+    const liveAndroidReason =
+      androidPreparation?.blockers?.[0] ?? has?.androidReadinessReason;
+    const disposableAndroid =
+      Boolean(project) &&
+      managedPublicationProject &&
+      liveAndroidStatus !== "blocked";
 
     return [
       okOrError({
@@ -105,10 +113,12 @@ export const DiagnosticService = {
             ? "Android sera préparé automatiquement dans une copie de publication propre."
             : "Le projet Android est prêt.",
         koMsg: project
-          ? has?.androidReadiness === "blocked"
-            ? has.androidReadinessReason ||
+          ? liveAndroidStatus === "blocked"
+            ? liveAndroidReason ||
               "Le projet doit être corrigé avant de pouvoir préparer Android."
-            : "Le dossier Android n'a pas encore été préparé pour ce projet."
+            : liveAndroidStatus === "preparable"
+              ? "AppPublisher peut préparer automatiquement Android pour ce projet."
+              : "Le dossier Android n'a pas encore été préparé pour ce projet."
           : "Aucun projet sélectionné.",
         why: disposableAndroid
           ? "AppPublisher peut créer Android au moment de la publication sans modifier votre projet source."

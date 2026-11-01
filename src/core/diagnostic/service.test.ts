@@ -4,12 +4,14 @@ import type { Project } from "@/core/types";
 const mocks = vi.hoisted(() => ({
   exists: vi.fn(),
   detect: vi.fn(),
+  inspectAndroid: vi.fn(),
 }));
 
 vi.mock("@/core/bridge", () => ({
   bridge: () => ({
     fs: { exists: mocks.exists },
     system: { detect: mocks.detect },
+    androidPreparation: { inspect: mocks.inspectAndroid },
   }),
 }));
 
@@ -52,7 +54,26 @@ describe("DiagnosticService — Lot 12", () => {
   beforeEach(() => {
     mocks.exists.mockReset();
     mocks.detect.mockReset();
+    mocks.inspectAndroid.mockReset();
     mocks.exists.mockResolvedValue(false);
+    mocks.inspectAndroid.mockResolvedValue({
+      status: "preparable",
+      blockers: [],
+      warnings: [],
+      changes: ["Synchroniser Android"],
+      packageManager: "npm",
+      buildScript: "vite build",
+      hasCapacitorConfig: true,
+      hasCapacitorCore: true,
+      hasCapacitorCli: false,
+      hasCapacitorAndroid: false,
+      hasAndroid: true,
+      hasGradleWrapper: true,
+      appName: "Victory Track",
+      applicationId: "app.victorytrack.android",
+      webDir: "dist",
+      webOutputReady: true,
+    });
     mocks.detect.mockResolvedValue({
       platform: "darwin",
       node: "22",
@@ -94,4 +115,52 @@ describe("DiagnosticService — Lot 12", () => {
     expect(checks.find((check) => check.id === "version-json")?.status).toBe("warning");
     expect(checks.find((check) => check.id === "version-script")?.status).toBe("warning");
   });
+
+
+  it("ignores a stale blocked snapshot when the live Android analysis is preparable", async () => {
+    const stale = project({
+      detected: {
+        ...project().detected,
+        hasAndroid: true,
+        androidReadiness: "blocked",
+        androidReadinessReason:
+          "Le dossier android/ existe, mais package.json ne déclare pas tous les composants Capacitor nécessaires.",
+      },
+    });
+
+    const checks = await DiagnosticService.run(stale);
+    expect(checks.find((check) => check.id === "project-android")).toMatchObject({
+      status: "ok",
+      detail: "Android sera préparé automatiquement dans une copie de publication propre.",
+    });
+    expect(mocks.inspectAndroid).toHaveBeenCalledWith(stale.localPath);
+  });
+
+  it("uses a real live blocker instead of the cached project snapshot", async () => {
+    mocks.inspectAndroid.mockResolvedValue({
+      status: "blocked",
+      blockers: ["capacitor.config.json ne contient pas d’appId littéral."],
+      warnings: [],
+      changes: [],
+      packageManager: "npm",
+      buildScript: "vite build",
+      hasCapacitorConfig: true,
+      hasCapacitorCore: true,
+      hasCapacitorCli: true,
+      hasCapacitorAndroid: true,
+      hasAndroid: true,
+      hasGradleWrapper: true,
+      appName: "Victory Track",
+      applicationId: "app.victorytrack.android",
+      webDir: "dist",
+      webOutputReady: true,
+    });
+
+    const checks = await DiagnosticService.run(project());
+    expect(checks.find((check) => check.id === "project-android")).toMatchObject({
+      status: "error",
+      detail: "capacitor.config.json ne contient pas d’appId littéral.",
+    });
+  });
+
 });
