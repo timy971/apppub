@@ -280,6 +280,7 @@ export const webBridge: SystemBridge = {
         hasCapacitorAndroid: false,
         hasAndroid: false,
         hasGradleWrapper: false,
+        hasAndroidBuildFile: false,
         appName: inferName(projectPath),
         applicationId: "app.exemple.android",
         webDir: "dist",
