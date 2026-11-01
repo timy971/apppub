@@ -13,6 +13,15 @@ export const DiagnosticService = {
 
     const projectPath = project?.localPath;
     const has = project?.detected;
+    const managedPublicationProject =
+      (project?.source?.type === "git" && project.source.managed === true) ||
+      Boolean(projectPath?.includes("/Application Support/AppPublisher/managed-projects/"));
+    const disposableAndroid =
+      Boolean(project) &&
+      managedPublicationProject &&
+      has?.androidReadiness !== "blocked";
+    const versionManagedByAppPublisher =
+      Boolean(project?.currentVersion) && managedPublicationProject;
 
     const [existsAndroid, existsVersionJson, existsVersionScript] = await Promise.all([
       projectPath ? b.fs.exists(`${projectPath}/android`) : Promise.resolve(!!has?.hasAndroid),
@@ -89,32 +98,53 @@ export const DiagnosticService = {
       okOrError({
         id: "project-android",
         label: "Dossier Android du projet",
-        present: !project ? false : !!existsAndroid,
-        okMsg: "Le projet Android est présent.",
+        present: !project ? false : !!existsAndroid || disposableAndroid,
+        okMsg: existsAndroid
+          ? "Le projet Android est présent."
+          : disposableAndroid
+            ? "Android sera préparé automatiquement dans une copie de publication propre."
+            : "Le projet Android est prêt.",
         koMsg: project
-          ? "Le dossier Android n'a pas encore été préparé pour ce projet."
+          ? has?.androidReadiness === "blocked"
+            ? has.androidReadinessReason ||
+              "Le projet doit être corrigé avant de pouvoir préparer Android."
+            : "Le dossier Android n'a pas encore été préparé pour ce projet."
           : "Aucun projet sélectionné.",
-        why: "Le dossier android/ contient la version mobile de votre application.",
+        why: disposableAndroid
+          ? "AppPublisher peut créer Android au moment de la publication sans modifier votre projet source."
+          : "Le dossier android/ contient la version mobile de votre application.",
         category: "project",
         weight: 3,
       }),
       okOrWarning({
         id: "version-json",
         label: "Fichier de version",
-        present: !project ? false : !!existsVersionJson,
-        okMsg: "Le fichier de version est présent.",
+        present: !project ? false : !!existsVersionJson || versionManagedByAppPublisher,
+        okMsg: existsVersionJson
+          ? "Le fichier de version est présent."
+          : versionManagedByAppPublisher
+            ? "La version est gérée directement par AppPublisher pour la publication."
+            : "La version est disponible.",
         koMsg: "Le fichier de version est manquant.",
-        why: "Ce fichier permet à AppPublisher de connaître et faire évoluer la version.",
+        why: versionManagedByAppPublisher
+          ? "Pour un projet Git géré, AppPublisher conserve l'intention de version et la réapplique dans la copie de publication."
+          : "Ce fichier permet à AppPublisher de connaître et faire évoluer la version.",
         category: "project",
         weight: 2,
       }),
       okOrWarning({
         id: "version-script",
         label: "Script de mise à jour de version",
-        present: !project ? false : !!existsVersionScript,
-        okMsg: "Le script officiel de version est présent.",
+        present: !project ? false : !!existsVersionScript || versionManagedByAppPublisher,
+        okMsg: existsVersionScript
+          ? "Le script officiel de version est présent."
+          : versionManagedByAppPublisher
+            ? "Aucun script n'est requis : AppPublisher applique la version dans la copie de publication."
+            : "La mise à jour de version est prête.",
         koMsg: "Le script scripts/version.mjs ou scripts/version.js est manquant.",
-        why: "AppPublisher utilise ce script pour appliquer la nouvelle version sans risque.",
+        why: versionManagedByAppPublisher
+          ? "Le workspace jetable du Lot 12 permet de préparer la version sans modifier la source Git."
+          : "AppPublisher utilise ce script pour appliquer la nouvelle version sans risque.",
         category: "project",
         weight: 2,
       }),
