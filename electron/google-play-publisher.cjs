@@ -757,6 +757,18 @@ class GooglePlayPublisher {
         );
       }
 
+      const targetState = tracks.find((state) => state?.track === track);
+      const targetReleases = Array.isArray(targetState?.releases) ? targetState.releases : [];
+      const outstanding = targetReleases.find(
+        (release) => typeof release?.status === "string" && release.status !== "completed",
+      );
+      if (outstanding) {
+        throw new GooglePlayError(
+          "track-release-pending",
+          "Une release est déjà en cours sur cette piste. Terminez, arrêtez ou retirez-la dans Play Console avant une nouvelle promotion.",
+        );
+      }
+
       onStep("update-track");
       await this.request(
         `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/tracks/${encode(track)}`,
