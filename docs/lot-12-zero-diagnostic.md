@@ -195,7 +195,7 @@ Le `JAVA_HOME` détecté est injecté uniquement dans les sous-processus AppPubl
 
 Cette détection est testée séparément pour éviter qu'une future modification du main process ne réintroduise une dépendance au Terminal.
 
-## Suite — Lot 12.6
+## Lot 12.6 — consolidation technique et non-régressions
 
 Les prochaines priorités sont :
 
