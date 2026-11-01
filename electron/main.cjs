@@ -3387,6 +3387,27 @@ ipcMain.handle("google-play:promoteVersion", async (_event, args) => {
   if (!aabPath || path.extname(aabPath).toLowerCase() !== ".aab") {
     return { ok: false, errorCode: "aab-invalid", errorHint: "Le fichier AAB n'est pas autorisé." };
   }
+  let promotionArchive;
+  try {
+    promotionArchive = inspectAabArchive(aabPath);
+  } catch {
+    return {
+      ok: false,
+      errorCode: "aab-invalid",
+      errorHint: "L'identité Android du fichier associé à cette promotion est illisible.",
+    };
+  }
+  if (
+    promotionArchive.packageName !== args.packageName ||
+    promotionArchive.versionCode !== args.versionCode
+  ) {
+    return {
+      ok: false,
+      errorCode: "aab-identity-mismatch",
+      errorHint:
+        "Le fichier Android conservé par AppPublisher ne correspond pas à la version que vous souhaitez promouvoir.",
+    };
+  }
   const credentials = await getGooglePlayCredentials(args.connectionId);
   if (!credentials) {
     return {
