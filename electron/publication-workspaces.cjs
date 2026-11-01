@@ -156,6 +156,22 @@ class PublicationWorkspaceManager {
       }
       await this.assertWorkspaceOwner(workspace, managedProjectPath);
 
+      // Un dossier Android partiellement généré ne doit jamais bloquer un projet
+      // Git géré : le workspace est jetable, donc on peut supprimer UNIQUEMENT
+      // cette copie incomplète puis laisser Capacitor la recréer proprement.
+      const androidDir = path.join(workspace, "android");
+      if (this.fs.existsSync(androidDir)) {
+        const hasGradleWrapper =
+          this.fs.existsSync(path.join(androidDir, "gradlew")) ||
+          this.fs.existsSync(path.join(androidDir, "gradlew.bat"));
+        const hasBuildFile =
+          this.fs.existsSync(path.join(androidDir, "app", "build.gradle")) ||
+          this.fs.existsSync(path.join(androidDir, "app", "build.gradle.kts"));
+        if (!hasGradleWrapper || !hasBuildFile) {
+          this.fs.rmSync(androidDir, { recursive: true, force: true });
+        }
+      }
+
       return {
         workspacePath: workspace,
         managedProjectPath,
