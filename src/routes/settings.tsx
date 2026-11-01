@@ -179,21 +179,11 @@ function SettingsPage() {
         </Card>
 
         <Card className="p-6 shadow-soft">
-          <Row label="Langue" hint="D'autres langues seront disponibles prochainement.">
-            <Select
-              value={settings.language}
-              onValueChange={(v) => AppStore.updateSettings({ language: v as "fr" | "en" })}
-            >
-              <SelectTrigger className="max-w-xs" aria-label="Langue">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fr">Français</SelectItem>
-                <SelectItem value="en" disabled>
-                  English (bientôt)
-                </SelectItem>
-              </SelectContent>
-            </Select>
+          <Row
+            label="Langue"
+            hint="Cette version d'AppPublisher est disponible en français."
+          >
+            <span className="rounded-full border bg-muted/60 px-3 py-1 text-xs">Français</span>
           </Row>
         </Card>
 
