@@ -195,8 +195,8 @@ function inspectAndroidPreparation(projectPath, fsModule = fs) {
     );
   }
   if (hasAndroid && (!hasCapacitorCore || !hasCapacitorCli || !hasCapacitorAndroid)) {
-    blockers.push(
-      "Le dossier android/ existe, mais package.json ne déclare pas tous les composants Capacitor nécessaires.",
+    warnings.push(
+      "Le dossier android/ existe, mais des composants Capacitor manquent dans package.json. AppPublisher peut les ajouter automatiquement.",
     );
   }
   if (
@@ -214,8 +214,14 @@ function inspectAndroidPreparation(projectPath, fsModule = fs) {
     );
   }
 
+  const capacitorDependenciesReady =
+    hasCapacitorCore && hasCapacitorCli && hasCapacitorAndroid;
   const status =
-    hasAndroid && hasGradleWrapper && hasAndroidBuildFile && blockers.length === 0
+    hasAndroid &&
+    hasGradleWrapper &&
+    hasAndroidBuildFile &&
+    capacitorDependenciesReady &&
+    blockers.length === 0
       ? "ready"
       : blockers.length
         ? "blocked"
@@ -229,7 +235,11 @@ function inspectAndroidPreparation(projectPath, fsModule = fs) {
     }
     if (!config) changes.push("Créer capacitor.config.json");
     changes.push(`Exécuter le build web vers ${webDir}/`);
-    changes.push("Créer puis synchroniser le dossier android/");
+    changes.push(
+      hasAndroid
+        ? "Synchroniser le dossier android/ existant"
+        : "Créer puis synchroniser le dossier android/",
+    );
     changes.push("Compiler une version Android de contrôle");
   }
 
