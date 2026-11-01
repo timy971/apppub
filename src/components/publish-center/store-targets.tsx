@@ -30,7 +30,7 @@ export function StoreTargetsCard({ project, status }: { project: Project; status
           readiness={android}
           icon={<Smartphone className="h-4 w-4" />}
           title="Android"
-          integrationHint="Envoi direct disponible sur la piste interne Google Play."
+          integrationHint="Envoi initial sur test interne, puis promotion guidée vers test fermé, test ouvert et production."
         />
       </div>
     </Card>
