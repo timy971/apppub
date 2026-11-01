@@ -251,9 +251,9 @@ export function GooglePlayTracksCard({
 
         {onTrack("production") && (
           <div className="rounded-xl border border-success/30 bg-success/5 p-4">
-            <div className="font-medium text-success">Cette version est en production</div>
+            <div className="font-medium text-success">Version envoyée sur la piste production</div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Google Play indique que le nº interne {versionCode} est présent sur la piste production.
+              Google Play indique que le nº interne {versionCode} est présent sur la piste production. Une revue ou une mise en attente de publication peut encore s'appliquer dans Play Console.
             </p>
           </div>
         )}
