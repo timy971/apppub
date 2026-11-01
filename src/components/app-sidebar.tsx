@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ProjectSwitcher } from "./project-switcher";
 import { AppInfo, formatBuildTimestamp } from "@/core/app-info";
+import { useSettings } from "@/core/store/app-store";
 
 const primary = [{ title: "Accueil", url: "/", icon: LayoutDashboard }];
 
@@ -48,6 +49,7 @@ const otherPlatforms = [{ title: "iPhone et iPad — En pause", url: "/apple", i
 
 export function AppSidebar() {
   const { state } = useSidebar();
+  const settings = useSettings();
   const collapsed = state === "collapsed";
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (p: string) => (p === "/" ? currentPath === "/" : currentPath.startsWith(p));
@@ -85,12 +87,14 @@ export function AppSidebar() {
           isActive={isActive}
           collapsed={collapsed}
         />
-        <Section
-          label="Autre plateforme"
-          items={otherPlatforms}
-          isActive={isActive}
-          collapsed={collapsed}
-        />
+        {settings.mode !== "discovery" && (
+          <Section
+            label="Autre plateforme"
+            items={otherPlatforms}
+            isActive={isActive}
+            collapsed={collapsed}
+          />
+        )}
         <Section label="Besoin d'aide ?" items={utils} isActive={isActive} collapsed={collapsed} />
       </SidebarContent>
 
