@@ -33,7 +33,9 @@ function recordFromRecovery(
   const storeRelease = recovered.googlePlay
     ? {
         provider: "google-play" as const,
-        track: "internal" as const,
+        track: (["internal", "alpha", "beta", "production"].includes(recovered.googlePlay.track)
+          ? recovered.googlePlay.track
+          : "internal") as "internal" | "alpha" | "beta" | "production",
         packageName: recovered.googlePlay.packageName,
         versionCode: recovered.googlePlay.versionCode,
         releaseStatus: "completed" as const,
