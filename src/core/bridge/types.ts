@@ -125,6 +125,7 @@ export interface AndroidPreparationAnalysis {
   hasCapacitorAndroid: boolean;
   hasAndroid: boolean;
   hasGradleWrapper: boolean;
+  hasAndroidBuildFile: boolean;
   appName: string;
   applicationId: string;
   webDir: string;
