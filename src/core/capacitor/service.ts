@@ -252,19 +252,23 @@ export const CapacitorService = {
     opts.onStep("web", "success", "Application web compilée.");
 
     abortIfNeeded(signal);
-    opts.onStep("add", "running", "Création du projet Android…");
-    const added = await exec(project, "npx", ["cap", "add", "android"], cwd, opts.onLine, signal);
-    if (added.exitCode !== 0) {
-      return failStep(
-        opts,
-        "add",
-        "La création du dossier Android a échoué.",
-        added,
-        start,
-        request.applicationId,
-      );
+    if (analysis.hasAndroid) {
+      opts.onStep("add", "skipped", "Projet Android existant conservé.");
+    } else {
+      opts.onStep("add", "running", "Création du projet Android…");
+      const added = await exec(project, "npx", ["cap", "add", "android"], cwd, opts.onLine, signal);
+      if (added.exitCode !== 0) {
+        return failStep(
+          opts,
+          "add",
+          "La création du dossier Android a échoué.",
+          added,
+          start,
+          request.applicationId,
+        );
+      }
+      opts.onStep("add", "success", "Projet Android créé.");
     }
-    opts.onStep("add", "success", "Projet Android créé.");
 
     abortIfNeeded(signal);
     opts.onStep("sync", "running", "Synchronisation des ressources web…");
