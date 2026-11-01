@@ -19,6 +19,7 @@ function checkpoint(overrides = {}) {
   return {
     connectionId: "gplay_123",
     packageName: "app.cranioscan.android",
+    track: "internal",
     artifactSha256: "A".repeat(64),
     versionCode: 42,
     editId: "edit-42",
@@ -105,4 +106,23 @@ test("keeps commit-unknown as a resumable checkpoint", (t) => {
   const { store } = fixture(t);
   store.save("project-1", checkpoint({ phase: "commit-unknown" }));
   assert.equal(store.get("project-1").phase, "commit-unknown");
+});
+
+
+test("a checkpoint cannot be reused for another Google Play track", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-play-resume-track-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const store = new GooglePlayResumeStore(path.join(root, "resume.json"));
+  store.save("project-1", checkpoint({ track: "internal" }));
+
+  assert.equal(
+    store.get("project-1", {
+      connectionId: "gplay_123",
+      packageName: "app.cranioscan.android",
+      track: "production",
+      artifactSha256: "A".repeat(64),
+      versionCode: 42,
+    }),
+    null,
+  );
 });

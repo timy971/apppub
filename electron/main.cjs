@@ -3199,6 +3199,41 @@ ipcMain.handle("google-play:testConnection", async (_event, args) => {
   }
 });
 
+ipcMain.handle("google-play:trackStatus", async (_event, args) => {
+  if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
+    return { ok: false, errorCode: "invalid-args" };
+  }
+  const project = storedProjectForGooglePlay(
+    args.projectPath,
+    args.packageName,
+    args.connectionId,
+    true,
+  );
+  if (!project) return { ok: false, errorCode: "project-mismatch" };
+  const credentials = await getGooglePlayCredentials(args.connectionId);
+  if (!credentials) {
+    return {
+      ok: false,
+      errorCode: "credentials-missing",
+      errorHint: "L'autorisation Google Play est absente du trousseau macOS.",
+    };
+  }
+  try {
+    const result = await googlePlayPublisher.trackStatus(credentials, args.packageName);
+    diagSigning("info", "google-play:trackStatus", {
+      projectId: project.id,
+      packageName: args.packageName,
+      tracks: result.tracks.map((track) => ({
+        track: track.track,
+        versionCodes: track.versionCodes,
+      })),
+    });
+    return result;
+  } catch (error) {
+    return publicGooglePlayError(error);
+  }
+});
+
 ipcMain.handle("google-play:latestVersionCode", async (_event, args) => {
   if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
     return { ok: false, errorCode: "invalid-args" };
@@ -3278,6 +3313,194 @@ ipcMain.handle("google-play:disconnect", async (_event, args) => {
   return true;
 });
 
+ipcMain.handle("google-play:promoteVersion", async (_event, args) => {
+  if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
+    return { ok: false, errorCode: "invalid-args" };
+  }
+  if (!["alpha", "beta", "production"].includes(args.track)) {
+    return { ok: false, errorCode: "track-invalid", errorHint: "La piste demandée n'est pas autorisée." };
+  }
+  if (!Number.isSafeInteger(args.versionCode) || args.versionCode < 1) {
+    return { ok: false, errorCode: "version-code-invalid" };
+  }
+  const project = storedProjectForGooglePlay(
+    args.projectPath,
+    args.packageName,
+    args.connectionId,
+    true,
+  );
+  if (!project) return { ok: false, errorCode: "project-mismatch" };
+
+  const android = project.publishing?.android ?? {};
+  if (
+    args.track === "beta" &&
+    android.googlePlayAccountKind === "personal-new" &&
+    android.googlePlayProductionAccess !== "granted"
+  ) {
+    return {
+      ok: false,
+      errorCode: "open-testing-not-ready",
+      errorHint:
+        "Pour un nouveau compte personnel, l'accès au test ouvert dépend de l'accès à la production. Finalisez d'abord le test fermé requis dans Play Console.",
+    };
+  }
+  if (args.track === "production") {
+    if (android.googlePlayDeveloperVerification !== "verified") {
+      return {
+        ok: false,
+        errorCode: "developer-verification-required",
+        errorHint: "Confirmez d'abord la vérification du compte développeur dans le projet.",
+      };
+    }
+    if (android.googlePlayPackageRegistration !== "registered") {
+      return {
+        ok: false,
+        errorCode: "package-registration-required",
+        errorHint: "Confirmez d'abord l'enregistrement du package Android dans Play Console.",
+      };
+    }
+    if (
+      android.googlePlayAccountKind === "personal-new" &&
+      android.googlePlayClosedTestingStatus !== "completed"
+    ) {
+      return {
+        ok: false,
+        errorCode: "closed-testing-required",
+        errorHint:
+          "Ce compte personnel récent doit terminer le test fermé requis avant l'accès à la production.",
+      };
+    }
+    if (
+      android.googlePlayAccountKind === "personal-new" &&
+      android.googlePlayProductionAccess !== "granted"
+    ) {
+      return {
+        ok: false,
+        errorCode: "production-access-required",
+        errorHint:
+          "Confirmez que Google Play a accordé l'accès à la production après votre demande.",
+      };
+    }
+  }
+
+  const aabPath = resolveWithinAllowed(args.aabPath);
+  if (!aabPath || path.extname(aabPath).toLowerCase() !== ".aab") {
+    return { ok: false, errorCode: "aab-invalid", errorHint: "Le fichier AAB n'est pas autorisé." };
+  }
+  let promotionArchive;
+  try {
+    promotionArchive = inspectAabArchive(aabPath);
+  } catch {
+    return {
+      ok: false,
+      errorCode: "aab-invalid",
+      errorHint: "L'identité Android du fichier associé à cette promotion est illisible.",
+    };
+  }
+  if (
+    promotionArchive.packageName !== args.packageName ||
+    promotionArchive.versionCode !== args.versionCode
+  ) {
+    return {
+      ok: false,
+      errorCode: "aab-identity-mismatch",
+      errorHint:
+        "Le fichier Android conservé par AppPublisher ne correspond pas à la version que vous souhaitez promouvoir.",
+    };
+  }
+  const credentials = await getGooglePlayCredentials(args.connectionId);
+  if (!credentials) {
+    return {
+      ok: false,
+      errorCode: "credentials-missing",
+      errorHint: "L'autorisation Google Play est absente du trousseau macOS.",
+    };
+  }
+
+  const labels = {
+    alpha: "test fermé",
+    beta: "test ouvert",
+    production: "production",
+  };
+  const label = labels[args.track];
+  const isProduction = args.track === "production";
+  const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: isProduction ? "warning" : "question",
+    title: isProduction ? "Publier en production ?" : `Promouvoir vers le ${label} ?`,
+    message: isProduction
+      ? `Rendre « ${project.name} » v${project.currentVersion} (build ${args.versionCode}) disponible en production ?`
+      : `Promouvoir « ${project.name} » v${project.currentVersion} (build ${args.versionCode}) vers le ${label} ?`,
+    detail:
+      `Application : ${args.packageName}\n` +
+      `Piste cible : ${args.track}\n` +
+      `Compte : ${credentials.account_email ?? credentials.client_email}\n\n` +
+      (isProduction
+        ? "Cette action peut rendre cette version accessible aux utilisateurs Google Play selon vos pays et paramètres de disponibilité. Vérifiez la fiche Store et les déclarations Play Console avant de continuer."
+        : "Cette action réutilise le bundle déjà présent sur Google Play : aucun nouvel AAB n'est téléversé."),
+    buttons: [isProduction ? "Publier en production" : "Promouvoir", "Annuler"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (confirmation.response !== 0) return { ok: false, errorCode: "cancelled" };
+
+  try {
+    const result = await googlePlayPublisher.promoteVersion(
+      {
+        credentials,
+        packageName: args.packageName,
+        versionCode: args.versionCode,
+        track: args.track,
+        notes: args.notes,
+        language: android.primaryLanguage ?? "fr-FR",
+        releaseName: `${project.name} ${project.currentVersion} (${args.versionCode})`,
+      },
+      (phase) =>
+        diagSigning("info", "google-play:promoteVersion step", {
+          projectId: project.id,
+          packageName: args.packageName,
+          track: args.track,
+          versionCode: args.versionCode,
+          phase,
+        }),
+    );
+    const committedAt = new Date().toISOString();
+    try {
+      publicationArtifactManager.recordGooglePlayResult(aabPath, {
+        ...result,
+        committedAt,
+      });
+    } catch (manifestError) {
+      diagSigning("warn", "google-play:promotion manifest update failed", {
+        projectId: project.id,
+        packageName: result.packageName,
+        track: result.track,
+        error: manifestError instanceof Error ? manifestError.message : String(manifestError),
+      });
+    }
+    diagSigning("info", "google-play:promoteVersion", {
+      projectId: project.id,
+      packageName: result.packageName,
+      track: result.track,
+      versionCode: result.versionCode,
+      editId: result.editId,
+    });
+    return { ...result, committedAt };
+  } catch (error) {
+    const publicError = publicGooglePlayError(error);
+    diagSigning("warn", "google-play:promoteVersion failed", {
+      projectId: project.id,
+      packageName: args.packageName,
+      track: args.track,
+      versionCode: args.versionCode,
+      errorCode: publicError.errorCode,
+      status: publicError.status,
+      phase: publicError.phase,
+    });
+    return publicError;
+  }
+});
+
 ipcMain.handle("google-play:publishInternal", async (_event, args) => {
   if (!args || typeof args !== "object" || !validGooglePlayConnectionId(args.connectionId)) {
     return { ok: false, errorCode: "invalid-args" };
@@ -3335,6 +3558,7 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
   const resume = googlePlayResumeStore.get(project.id, {
     connectionId: args.connectionId,
     packageName: args.packageName,
+    track: "internal",
     artifactSha256,
     versionCode: archive.versionCode,
   });
@@ -3379,6 +3603,7 @@ ipcMain.handle("google-play:publishInternal", async (_event, args) => {
         googlePlayResumeStore.save(project.id, {
           connectionId: args.connectionId,
           packageName: args.packageName,
+          track: "internal",
           artifactSha256,
           versionCode: checkpoint.versionCode,
           editId: checkpoint.editId,

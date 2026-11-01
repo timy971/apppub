@@ -536,7 +536,9 @@ class PublicationArtifactManager {
       ...manifest,
       googlePlay: {
         provider: "google-play",
-        track: "internal",
+        track: ["internal", "alpha", "beta", "production"].includes(result.track)
+          ? result.track
+          : "internal",
         packageName: result.packageName,
         versionCode: result.versionCode,
         releaseStatus: "completed",

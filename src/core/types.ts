@@ -51,6 +51,8 @@ export interface AndroidPublishingConfig {
   googlePlayDeveloperVerification?: "unknown" | "pending" | "verified";
   /** Lot 14 — confirmation que le package est enregistré pour Android developer verification. */
   googlePlayPackageRegistration?: "unknown" | "pending" | "registered";
+  /** Lot 15 — accès aux fonctionnalités production/ouvert pour les nouveaux comptes personnels. */
+  googlePlayProductionAccess?: "unknown" | "requested" | "granted";
 }
 
 /** Phase 3 : configuration iOS — structure posée, publication future. */
@@ -296,7 +298,7 @@ export interface PublishRecord {
   /** Résultat d'un envoi réel à Google Play. Absent pour une simple préparation locale. */
   storeRelease?: {
     provider: "google-play";
-    track: "internal";
+    track: "internal" | "alpha" | "beta" | "production";
     packageName: string;
     versionCode: number;
     releaseStatus: "completed";

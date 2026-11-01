@@ -180,8 +180,10 @@ export const electronBridge: SystemBridge = {
     connectOAuth: (args) => ensure().googlePlay.connectOAuth(args),
     importServiceAccount: (args) => ensure().googlePlay.importServiceAccount(args),
     testConnection: (args) => ensure().googlePlay.testConnection(args),
+    trackStatus: (args) => ensure().googlePlay.trackStatus(args),
     latestVersionCode: (args) => ensure().googlePlay.latestVersionCode(args),
     disconnect: (args) => ensure().googlePlay.disconnect(args),
+    promoteVersion: (args) => ensure().googlePlay.promoteVersion(args),
     publishInternal: (args) => ensure().googlePlay.publishInternal(args),
   },
 

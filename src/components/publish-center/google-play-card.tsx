@@ -498,7 +498,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-semibold">Publication Google Play</h2>
-              <Badge variant="outline">Test interne uniquement</Badge>
+              <Badge variant="outline">Envoi initial : test interne</Badge>
               {verified && (
                 <Badge className="bg-success/15 text-success hover:bg-success/15">
                   Connexion vérifiée

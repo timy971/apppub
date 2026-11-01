@@ -95,7 +95,7 @@ export interface PublicationArtifactRecoveryResult {
   preparedAt?: string;
   googlePlay?: {
     provider: "google-play";
-    track: "internal";
+    track: GooglePlayTrack;
     packageName: string;
     versionCode: number;
     releaseStatus: "completed";
@@ -302,9 +302,22 @@ export type GooglePlayResult<T extends object = Record<string, never>> =
       causeCode?: string;
     };
 
+export type GooglePlayTrack = "internal" | "alpha" | "beta" | "production";
+
+export interface GooglePlayTrackState {
+  track: GooglePlayTrack;
+  versionCodes: number[];
+  releases: Array<{
+    name?: string;
+    status?: string;
+    userFraction?: number;
+    versionCodes: number[];
+  }>;
+}
+
 export interface GooglePlayPublishResult {
   packageName: string;
-  track: "internal";
+  track: GooglePlayTrack;
   editId: string;
   versionCode: number;
   releaseStatus: "completed";
@@ -508,6 +521,14 @@ export interface SystemBridge {
         packageName: string;
       }>
     >;
+    trackStatus(args: GooglePlayConnectionArgs): Promise<
+      GooglePlayResult<{
+        accountEmail: string;
+        authMode: "oauth" | "service-account";
+        packageName: string;
+        tracks: GooglePlayTrackState[];
+      }>
+    >;
     latestVersionCode(args: GooglePlayConnectionArgs): Promise<
       GooglePlayResult<{
         accountEmail: string;
@@ -517,6 +538,14 @@ export interface SystemBridge {
       }>
     >;
     disconnect(args: GooglePlayConnectionArgs): Promise<boolean>;
+    promoteVersion(
+      args: GooglePlayConnectionArgs & {
+        aabPath: string;
+        versionCode: number;
+        track: Exclude<GooglePlayTrack, "internal">;
+        notes: string;
+      },
+    ): Promise<GooglePlayResult<GooglePlayPublishResult & { promoted?: boolean }>>;
     publishInternal(
       args: GooglePlayConnectionArgs & {
         aabPath: string;

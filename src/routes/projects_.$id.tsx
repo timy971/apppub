@@ -1100,6 +1100,31 @@ function AndroidSection({ project, update }: { project: Project; update: UpdateF
               </Select>
             </div>
 
+            <div data-cockpit-field="android.googlePlayProductionAccess">
+              <Label>Accès production Google Play</Label>
+              <Select
+                value={cfg.googlePlayProductionAccess ?? "unknown"}
+                onValueChange={(v) =>
+                  save(
+                    {
+                      googlePlayProductionAccess:
+                        v as NonNullable<typeof cfg.googlePlayProductionAccess>,
+                    },
+                    ["android.googlePlayProductionAccess"],
+                  )
+                }
+              >
+                <SelectTrigger className="mt-1.5" aria-label="État de l'accès production Google Play">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unknown">À confirmer</SelectItem>
+                  <SelectItem value="requested">Demande envoyée</SelectItem>
+                  <SelectItem value="granted">Accès accordé</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div data-cockpit-field="android.googlePlayClosedTestingStatus">
               <Label>Test fermé avant production</Label>
               <Select
