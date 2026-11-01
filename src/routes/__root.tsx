@@ -21,6 +21,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { SetupAssistantProvider } from "@/components/setup-assistant/setup-context";
 import { CommandPalette } from "@/components/command-palette";
 import { PublicationJourney } from "@/components/publication-journey";
+import { UsabilityTestBanner } from "@/components/usability-test-banner";
 import { AppStore } from "@/core/store/app-store";
 import { storage } from "@/core/storage";
 
@@ -188,7 +189,12 @@ function AppShell() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   // Le wizard occupe tout l'écran, sans chrome.
   if (pathname.startsWith("/setup")) {
-    return <Outlet />;
+    return (
+      <>
+        <UsabilityTestBanner />
+        <Outlet />
+      </>
+    );
   }
 
   return (
@@ -211,6 +217,7 @@ function AppShell() {
             </div>
             <ModeBadge />
           </header>
+          <UsabilityTestBanner />
           <PublicationJourney />
           <main id="contenu-principal" tabIndex={-1} className="flex-1">
             <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
