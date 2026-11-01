@@ -16,6 +16,24 @@ export const DiagnosticService = {
     const managedPublicationProject =
       (project?.source?.type === "git" && project.source.managed === true) ||
       Boolean(projectPath?.includes("/Application Support/AppPublisher/managed-projects/"));
+    const versionManagedByAppPublisher =
+      Boolean(project?.currentVersion) && managedPublicationProject;
+
+    const [existsAndroid, existsVersionJson, existsVersionScript, androidPreparation] =
+      await Promise.all([
+        projectPath ? b.fs.exists(`${projectPath}/android`) : Promise.resolve(!!has?.hasAndroid),
+        projectPath ? b.fs.exists(`${projectPath}/version.json`) : Promise.resolve(!!has?.hasVersionJson),
+        projectPath
+          ? Promise.all([
+              b.fs.exists(`${projectPath}/scripts/version.mjs`),
+              b.fs.exists(`${projectPath}/scripts/version.js`),
+            ]).then(([mjs, js]) => mjs || js)
+          : Promise.resolve(!!has?.hasVersionScript),
+        projectPath
+          ? b.androidPreparation.inspect(projectPath).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
     const liveAndroidStatus = androidPreparation?.status ?? has?.androidReadiness;
     const liveAndroidReason =
       androidPreparation?.blockers?.[0] ?? has?.androidReadinessReason;
@@ -23,19 +41,6 @@ export const DiagnosticService = {
       Boolean(project) &&
       managedPublicationProject &&
       liveAndroidStatus !== "blocked";
-    const versionManagedByAppPublisher =
-      Boolean(project?.currentVersion) && managedPublicationProject;
-
-    const [existsAndroid, existsVersionJson, existsVersionScript] = await Promise.all([
-      projectPath ? b.fs.exists(`${projectPath}/android`) : Promise.resolve(!!has?.hasAndroid),
-      projectPath ? b.fs.exists(`${projectPath}/version.json`) : Promise.resolve(!!has?.hasVersionJson),
-      projectPath
-        ? Promise.all([
-            b.fs.exists(`${projectPath}/scripts/version.mjs`),
-            b.fs.exists(`${projectPath}/scripts/version.js`),
-          ]).then(([mjs, js]) => mjs || js)
-        : Promise.resolve(!!has?.hasVersionScript),
-    ]);
 
     return [
       okOrError({
