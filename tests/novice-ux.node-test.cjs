@@ -324,3 +324,23 @@ test("le Lot 14 distingue conformité automatique et confirmations Play Console"
   assert.match(cockpit, /Enregistrement du package/);
   assert.match(cockpit, /12 testeurs \/ 14 jours/);
 });
+
+
+test("le Lot 16 permet un test novice mesurable sans supprimer les données", () => {
+  const route = read("src/routes/usability-test.tsx");
+  const banner = read("src/components/usability-test-banner.tsx");
+  const service = read("src/core/usability-test/service.ts");
+  const settings = read("src/routes/settings.tsx");
+  const root = read("src/routes/__root.tsx");
+
+  assert.match(settings, /Test utilisateur novice/);
+  assert.match(route, /Le testeur doit essayer seul/);
+  assert.match(route, /ne supprime aucun projet, aucune clé de signature et aucun historique/);
+  assert.match(route, /publication Google Play réelle/);
+  assert.match(banner, /Je ne comprends pas/);
+  assert.match(banner, /Je suis bloqué/);
+  assert.match(root, /<UsabilityTestBanner/);
+  assert.match(service, /record\.createdAt/);
+  assert.match(service, />= start/);
+  assert.match(service, /Frottements relevés/);
+});
