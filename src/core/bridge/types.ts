@@ -95,7 +95,7 @@ export interface PublicationArtifactRecoveryResult {
   preparedAt?: string;
   googlePlay?: {
     provider: "google-play";
-    track: "internal";
+    track: GooglePlayTrack;
     packageName: string;
     versionCode: number;
     releaseStatus: "completed";
