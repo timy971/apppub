@@ -307,3 +307,20 @@ test("le redémarrage reprend l'étape réellement utile sans piéger le bouton 
   assert.match(resume, /return "\/publish"/);
   assert.match(resume, /startupResumeConsumed/);
 });
+
+
+test("le Lot 14 distingue conformité automatique et confirmations Play Console", () => {
+  const compliance = read("src/core/play-compliance/service.ts");
+  const checklist = read("src/components/publish-center/shared.ts");
+  const cockpit = read("src/routes/projects_.$id.tsx");
+
+  assert.match(compliance, /mobileTargetSdk: 36/);
+  assert.match(compliance, /closedTestersRequired: 12/);
+  assert.match(compliance, /closedTestDaysRequired: 14/);
+  assert.match(compliance, /AppPublisher ne marque jamais cette étape comme réussie sans confirmation/);
+  assert.match(checklist, /Conformité Google Play/);
+  assert.match(cockpit, /Type de compte développeur/);
+  assert.match(cockpit, /Vérification développeur/);
+  assert.match(cockpit, /Enregistrement du package/);
+  assert.match(cockpit, /12 testeurs \/ 14 jours/);
+});
