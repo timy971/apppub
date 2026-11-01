@@ -12,7 +12,7 @@ import { patchAndroidConfig } from "@/core/projects/android-config";
 import { ProjectsService } from "@/core/projects/service";
 import { resolvePublicationApplicationId } from "@/core/publication/intent";
 import { AppStore, useSettings } from "@/core/store/app-store";
-import type { Project, PublishRecord } from "@/core/types";
+import type { Project } from "@/core/types";
 
 const LABELS: Record<GooglePlayTrack, string> = {
   internal: "Test interne",
@@ -182,7 +182,7 @@ export function GooglePlayTracksCard({
             <h2 className="font-semibold">Cycle de diffusion Google Play</h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Version suivie : {release.version} · nº interne {versionCode}
+            Version suivie : {sourceRelease.version} · nº interne {versionCode}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
