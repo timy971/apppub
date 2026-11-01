@@ -122,8 +122,8 @@ test("build subprocesses inherit detected Android SDK and automatic Java home", 
 
 
 test("les clés de stockage renderer restent synchronisées avec l'allowlist Electron", () => {
-  const renderer = fs.readFileSync(path.join(ROOT, "src/core/storage/index.ts"), "utf8");
-  const nativeStore = fs.readFileSync(path.join(ROOT, "electron/durable-store.cjs"), "utf8");
+  const renderer = fs.readFileSync(path.join(root, "src/core/storage/index.ts"), "utf8");
+  const nativeStore = fs.readFileSync(path.join(root, "electron/durable-store.cjs"), "utf8");
 
   const objectMatch = renderer.match(/export const STORAGE_KEYS = \{([\s\S]*?)\} as const;/);
   assert.ok(objectMatch, "STORAGE_KEYS introuvable");
