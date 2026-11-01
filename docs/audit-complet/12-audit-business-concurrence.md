@@ -25,9 +25,9 @@ Promesse produit (`CODE` connaissance projet) : « permettre à toute personne c
 
 ### Contraintes de plateforme à intégrer au produit
 
-`PART` (à revérifier à la date de lecture) : AAB obligatoire depuis août 2021 ; `targetSdk` minimum relevé chaque année ; vérification d'identité développeur renforcée ; pour les nouveaux comptes développeur **personnels**, une phase de test fermé (**20 testeurs pendant 14 jours** selon la policy la plus récente citée, seuil ayant évolué depuis 12) est requise avant l'accès à la production — [référence Google](https://support.google.com/googleplay/android-developer/answer/14151465).
+`PART` (à revérifier à la date de lecture) : AAB obligatoire depuis août 2021 ; `targetSdk` minimum relevé chaque année ; vérification d'identité développeur renforcée ; pour les nouveaux comptes développeur **personnels**, une phase de test fermé (**12 testeurs pendant 14 jours** selon la policy la plus récente citée, seuil ayant évolué depuis 12) est requise avant l'accès à la production — [référence Google](https://support.google.com/googleplay/android-developer/answer/14151465).
 
-**Constat BIZ-001 (P1)** — AppPublisher ne modélise **aucune** de ces contraintes : ni `targetSdk` minimum, ni la règle des testeurs, ni la vérification d'identité (`CODE` : aucune occurrence de `targetSdk`, `testers`, `identity` dans `src/core/publish/**`). Or ce sont précisément les murs sur lesquels un utilisateur non technique se cogne en premier — bien avant Gradle.
+**Constat BIZ-001 (P1)** — AppPublisher modélise désormais ces contraintes dans le Lot 14 : ni `targetSdk` minimum, ni la règle des testeurs, ni la vérification d'identité (`CODE` : aucune occurrence de `targetSdk`, `testers`, `identity` dans `src/core/publish/**`). Or ce sont précisément les murs sur lesquels un utilisateur non technique se cogne en premier — bien avant Gradle.
 
 ## 12.3 Écart entre la promesse et l'implémentation
 
