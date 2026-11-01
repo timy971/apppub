@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const PHASES = new Set(["bundle-uploaded", "commit-unknown"]);
 
@@ -14,6 +14,7 @@ function normalizeCheckpoint(value) {
   if (!isString(value.projectId, 256)) return null;
   if (!isString(value.connectionId, 256)) return null;
   if (!isString(value.packageName, 255)) return null;
+  if (!["internal", "alpha", "beta", "production"].includes(value.track)) return null;
   if (!isString(value.artifactSha256, 128) || !/^[0-9A-Fa-f]{64}$/.test(value.artifactSha256)) {
     return null;
   }
@@ -26,6 +27,7 @@ function normalizeCheckpoint(value) {
     projectId: value.projectId,
     connectionId: value.connectionId,
     packageName: value.packageName,
+    track: value.track,
     artifactSha256: value.artifactSha256.toUpperCase(),
     versionCode: value.versionCode,
     editId: value.editId,
