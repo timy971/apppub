@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const data = new Map<string, unknown>();
-const history: any[] = [];
+type HistoryFixture = {
+  kind: "publish";
+  outcome: "success";
+  createdAt: string;
+  storeRelease: { provider: "google-play" };
+  projectName: string;
+  version: string;
+  build: number;
+};
+const history: HistoryFixture[] = [];
 
 vi.mock("@/core/storage", () => ({
   STORAGE_KEYS: { usabilityTest: "usability-test" },
