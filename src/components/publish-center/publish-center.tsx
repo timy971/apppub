@@ -113,10 +113,12 @@ export function PublishCenter({ project }: { project: Project }) {
           record.projectId === project.id &&
           record.outcome === "success" &&
           record.storeRelease?.provider === "google-play" &&
+          record.storeRelease?.track === "internal" &&
           record.version === project.currentVersion &&
           record.storeRelease.versionCode === project.currentBuild,
       ) ??
       (artifact?.record?.storeRelease?.provider === "google-play" &&
+      artifact.record.storeRelease?.track === "internal" &&
       artifact.record.version === project.currentVersion &&
       artifact.record.storeRelease.versionCode === project.currentBuild
         ? artifact.record
