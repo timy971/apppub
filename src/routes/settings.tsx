@@ -20,6 +20,8 @@ import { ModeBadge } from "@/components/mode-badge";
 import { isElectron } from "@/core/bridge";
 import { exportDesktopData, importDesktopData } from "@/core/storage";
 import { EXPERIENCE_MODES } from "@/core/i18n/fr";
+import { HistoryService } from "@/core/history/service";
+import { UsabilityTestService } from "@/core/usability-test/service";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -30,6 +32,7 @@ function SettingsPage() {
   const navigate = useNavigate();
   const electron = isElectron();
   const [dataAction, setDataAction] = useState<"export" | "import" | null>(null);
+  const readiness = readPreDistributionReadiness();
 
   async function exportData() {
     setDataAction("export");
@@ -205,11 +208,21 @@ function SettingsPage() {
         <Card className="p-6 shadow-soft">
           <Row
             label="Validation avant distribution"
-            hint="Vérifiez les deux preuves terrain recommandées avant de lancer la distribution macOS."
+            hint={
+              readiness.ready
+                ? "Les deux validations terrain recommandées sont présentes. AppPublisher est prêt pour le Lot 13."
+                : "Deux preuves terrain sont recommandées avant de figer la distribution macOS."
+            }
           >
-            <Button variant="outline" asChild>
-              <Link to="/pre-distribution">Vérifier avant le Lot 13</Link>
-            </Button>
+            <div className="text-right">
+              <div className="text-sm font-semibold">
+                {readiness.completed} / 2 validées
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Test novice {readiness.novice ? "✓" : "—"} · Test fermé{" "}
+                {readiness.closedTrack ? "✓" : "—"}
+              </div>
+            </div>
           </Row>
         </Card>
 
@@ -277,4 +290,33 @@ function Row({
       <div className="shrink-0">{children}</div>
     </div>
   );
+}
+
+
+function readPreDistributionReadiness(): {
+  novice: boolean;
+  closedTrack: boolean;
+  completed: number;
+  ready: boolean;
+} {
+  try {
+    const session = UsabilityTestService.current();
+    const novice = session?.status === "completed" && session.googlePlaySuccess === true;
+    const history = HistoryService.list();
+    const closedTrack =
+      Array.isArray(history) &&
+      history.some(
+        (record) =>
+          record &&
+          typeof record === "object" &&
+          record.kind === "publish" &&
+          record.outcome === "success" &&
+          record.storeRelease?.provider === "google-play" &&
+          record.storeRelease.track === "alpha",
+      );
+    const completed = Number(novice) + Number(closedTrack);
+    return { novice, closedTrack, completed, ready: completed === 2 };
+  } catch {
+    return { novice: false, closedTrack: false, completed: 0, ready: false };
+  }
 }
