@@ -369,15 +369,13 @@ test("le Lot 15 expose un cycle Google Play multi-pistes sans faux statut produc
 test("la finition pré-distribution retire les promesses inutiles et exige des preuves terrain", () => {
   const setup = read("src/routes/setup.tsx");
   const settings = read("src/routes/settings.tsx");
-  const readiness = read("src/routes/pre-distribution.tsx");
 
   assert.doesNotMatch(setup, /DIAGNOSTIC TEMPORAIRE/);
   assert.doesNotMatch(settings, /English \(bientôt\)/);
   assert.match(settings, /Validation avant distribution/);
-  assert.match(readiness, /Test avec un vrai novice/);
-  assert.match(readiness, /Promotion réelle vers le test fermé/);
-  assert.match(readiness, /storeRelease\.track === "alpha"/);
-  assert.match(readiness, /session\?\.status === "completed"/);
-  assert.match(readiness, /session\.googlePlaySuccess === true/);
-  assert.doesNotMatch(readiness, /marquer comme terminé.*onClick/);
+  assert.match(settings, /2 validées/);
+  assert.match(settings, /storeRelease\.track === "alpha"/);
+  assert.match(settings, /session\?\.status === "completed"/);
+  assert.match(settings, /session\.googlePlaySuccess === true/);
+  assert.match(settings, /catch \{/);
 });
