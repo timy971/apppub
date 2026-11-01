@@ -344,3 +344,24 @@ test("le Lot 16 permet un test novice mesurable sans supprimer les données", ()
   assert.match(service, />= start/);
   assert.match(service, /Frottements relevés/);
 });
+
+
+test("le Lot 15 expose un cycle Google Play multi-pistes sans faux statut production", () => {
+  const tracks = read("src/components/publish-center/google-play-tracks-card.tsx");
+  const main = read("electron/main.cjs");
+  const publisher = read("electron/google-play-publisher.cjs");
+  const cockpit = read("src/routes/projects_.$id.tsx");
+
+  for (const label of ["Test interne", "Test fermé", "Test ouvert", "Production"]) {
+    assert.match(tracks, new RegExp(label));
+  }
+  assert.match(tracks, /Une revue ou une mise en attente de publication peut encore s'appliquer/);
+  assert.match(tracks, /Promouvoir vers le test fermé/);
+  assert.match(tracks, /Promouvoir vers le test ouvert/);
+  assert.match(tracks, /Promouvoir vers la production/);
+  assert.match(main, /developer-verification-required/);
+  assert.match(main, /package-registration-required/);
+  assert.match(main, /production-access-required/);
+  assert.match(publisher, /track-release-pending/);
+  assert.match(cockpit, /Accès production Google Play/);
+});
