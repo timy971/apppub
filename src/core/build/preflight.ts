@@ -128,10 +128,22 @@ export const PreflightService = {
 
     const managedGit =
       project.source?.type === "git" && project.source.managed === true;
-    const disposableAndroid =
-      !hasAndroidDir &&
+    const androidAnalysis = managedGit
+      ? await b.androidPreparation.inspect(projectPath).catch(() => null)
+      : null;
+    const incompleteAndroidInManagedGit =
       managedGit &&
-      project.detected.androidReadiness !== "blocked";
+      hasAndroidDir &&
+      Boolean(
+        androidAnalysis &&
+          (!androidAnalysis.hasGradleWrapper || !androidAnalysis.hasAndroidBuildFile),
+      );
+    const disposableAndroid =
+      managedGit &&
+      (
+        (!hasAndroidDir && project.detected.androidReadiness !== "blocked") ||
+        incompleteAndroidInManagedGit
+      );
 
     checks.push({
       id: "project-dir",
@@ -163,10 +175,12 @@ export const PreflightService = {
       category: "project",
       status: hasAndroidDir || disposableAndroid ? "success" : "error",
       title: "Dossier Android",
-      message: hasAndroidDir
-        ? "Dossier android/ détecté."
-        : disposableAndroid
-          ? "Android sera créé automatiquement dans une source de publication propre."
+      message: incompleteAndroidInManagedGit
+        ? "Le dossier Android incomplet sera recréé automatiquement dans une source de publication propre."
+        : hasAndroidDir
+          ? "Dossier android/ détecté."
+          : disposableAndroid
+            ? "Android sera créé automatiquement dans une source de publication propre."
           : project.detected.androidReadiness === "blocked"
             ? project.detected.androidReadinessReason ||
               "Ce projet web doit être corrigé avant la préparation Android."
@@ -248,17 +262,22 @@ export const PreflightService = {
 
     // build.gradle
     const hasAppGradle = hasAndroidDir
-      ? await b.fs.exists(`${androidDir}/app/build.gradle`)
+      ? await Promise.all([
+          b.fs.exists(`${androidDir}/app/build.gradle`),
+          b.fs.exists(`${androidDir}/app/build.gradle.kts`),
+        ]).then(([groovy, kotlin]) => groovy || kotlin)
       : false;
     checks.push({
       id: "build-gradle",
       category: "android",
       status: hasAppGradle || disposableAndroid ? "success" : "error",
       title: "Configuration Android",
-      message: hasAppGradle
+      message: hasAppGradle && !incompleteAndroidInManagedGit
         ? "Fichier de configuration Gradle trouvé."
         : disposableAndroid
-          ? "La configuration Gradle sera créée automatiquement dans le workspace."
+          ? incompleteAndroidInManagedGit
+            ? "La configuration Android incomplète sera recréée automatiquement dans le workspace."
+            : "La configuration Gradle sera créée automatiquement dans le workspace."
           : "android/app/build.gradle est introuvable.",
       technical: disposableAndroid
         ? "Configuration générée dans le workspace jetable."

@@ -257,6 +257,7 @@ function inspectAndroidPreparation(projectPath, fsModule = fs) {
     hasCapacitorAndroid,
     hasAndroid,
     hasGradleWrapper,
+    hasAndroidBuildFile,
     appName: proposedName,
     applicationId: proposedId,
     webDir,

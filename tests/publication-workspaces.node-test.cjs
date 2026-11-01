@@ -163,3 +163,35 @@ test("a workspace cannot be released through another managed repository", async 
   );
   assert.equal(fs.existsSync(prepared.workspacePath), true);
 });
+
+
+test("removes only an incomplete Android copy from the disposable workspace", async (t) => {
+  const { remote, seed, gitManager, workspaceManager } = fixture(t);
+
+  fs.mkdirSync(path.join(seed, "android", "app"), { recursive: true });
+  fs.writeFileSync(path.join(seed, "android", "README.txt"), "incomplete android\n");
+  git(seed, ["add", "android"]);
+  git(seed, ["commit", "-m", "add incomplete android"]);
+  git(seed, ["push"]);
+
+  const cloned = await gitManager.clone({ remoteUrl: remote, branch: "main" });
+  const sourceAndroid = path.join(cloned.localPath, "android");
+  assert.equal(fs.existsSync(sourceAndroid), true);
+
+  const prepared = await workspaceManager.prepare({
+    projectPath: cloned.localPath,
+    remoteUrl: remote,
+    branch: "main",
+  });
+
+  assert.equal(
+    fs.existsSync(path.join(prepared.workspacePath, "android")),
+    false,
+    "la copie Android incomplète doit être retirée du workspace",
+  );
+  assert.equal(
+    fs.existsSync(sourceAndroid),
+    true,
+    "le clone géré source ne doit jamais être modifié",
+  );
+});
