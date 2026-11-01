@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { AlertTriangle, CircleHelp, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,13 +8,17 @@ export function UsabilityTestBanner() {
   const session = useUsabilityTestSession();
   const path = useRouterState({ select: (state) => state.location.pathname });
 
+  useEffect(() => {
+    if (session?.status === "active") UsabilityTestService.visit(path);
+  }, [path, session?.status]);
+
   if (!session || session.status !== "active") return null;
 
   return (
     <div
       role="region"
       aria-label="Session de test utilisateur novice"
-      className="sticky top-14 z-10 border-b border-primary/30 bg-primary/5 px-4 py-2"
+      className="sticky top-0 z-20 border-b border-primary/30 bg-primary/5 px-4 py-2"
     >
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
         <div className="mr-auto flex items-center gap-2 text-sm">
