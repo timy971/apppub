@@ -117,7 +117,7 @@ test("a checkpoint cannot be reused for another Google Play track", (t) => {
 
   assert.equal(
     store.get("project-1", {
-      connectionId: "connection-1",
+      connectionId: "gplay_123",
       packageName: "app.cranioscan.android",
       track: "production",
       artifactSha256: "A".repeat(64),
