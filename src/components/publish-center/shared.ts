@@ -289,7 +289,7 @@ export function buildChecklist(input: {
     action:
       check.id === "play-target-sdk" && check.severity === "error"
         ? { kind: "route" as const, label: "Recréer le fichier Android", to: "/build" as const }
-        : check.id.startsWith("play-") && ["play-package-registration", "play-developer-verification", "play-closed-testing"].includes(check.id)
+        : check.id.startsWith("play-") && ["play-package-registration", "play-developer-verification", "play-closed-testing", "play-production-access"].includes(check.id)
           ? {
               kind: "project" as const,
               label: "Renseigner dans le projet",
@@ -300,7 +300,9 @@ export function buildChecklist(input: {
                   ? "android.googlePlayPackageRegistration"
                   : check.id === "play-developer-verification"
                     ? "android.googlePlayDeveloperVerification"
-                    : "android.googlePlayAccountKind",
+                    : check.id === "play-production-access"
+                      ? "android.googlePlayProductionAccess"
+                      : "android.googlePlayAccountKind",
             }
           : undefined,
   }));
