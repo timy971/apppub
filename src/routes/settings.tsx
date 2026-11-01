@@ -213,6 +213,17 @@ function SettingsPage() {
         </Card>
 
         <Card className="p-6 shadow-soft">
+          <Row
+            label="Test utilisateur novice"
+            hint="Faites essayer AppPublisher à une personne non technique et mesurez les incompréhensions, blocages et la réussite Google Play."
+          >
+            <Button variant="outline" asChild>
+              <Link to="/usability-test">Préparer un test</Link>
+            </Button>
+          </Row>
+        </Card>
+
+        <Card className="p-6 shadow-soft">
           <Row label="Assistance avancée" hint="Uniquement pour le support technique.">
             <Button variant="outline" asChild>
               <Link to="/journal" search={{ view: "summary" }}>
