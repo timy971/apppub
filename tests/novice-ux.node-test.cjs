@@ -76,18 +76,17 @@ test("l'onboarding accepte un lien GitHub ou Lovable sans demander de connaître
   assert.doesNotMatch(setup, /package\.json/);
 });
 
-test("la future publication Apple reste visible sans faux bouton actif", () => {
+test("le mode Découverte masque les plateformes à venir sans supprimer leur accès avancé", () => {
   const sidebar = read("src/components/app-sidebar.tsx");
   const publish = read("src/routes/publish.tsx");
   const apple = read("src/routes/apple.tsx");
   assert.match(sidebar, /Publication Android pas à pas/);
+  assert.match(sidebar, /settings\.mode !== "discovery"/);
   assert.match(sidebar, /iPhone et iPad/);
-  assert.match(sidebar, /En pause/);
   assert.match(sidebar, /url: "\/apple"/);
   assert.doesNotMatch(publish, /iPhone et iPad|Apple Developer|App Store Connect/);
   assert.match(apple, /Publication iPhone et iPad/);
   assert.match(apple, /compte Apple Developer/);
-  assert.match(apple, /Vous n'avez rien à configurer maintenant/);
   assert.doesNotMatch(read("src/components/publish-center/store-targets.tsx"), /title="iOS"/);
   assert.doesNotMatch(read("src/routes/projects_.$id.tsx"), /Team ID|Scheme Xcode|Fastlane/);
 });
@@ -364,4 +363,21 @@ test("le Lot 15 expose un cycle Google Play multi-pistes sans faux statut produc
   assert.match(main, /production-access-required/);
   assert.match(publisher, /track-release-pending/);
   assert.match(cockpit, /Accès production Google Play/);
+});
+
+
+test("la finition pré-distribution retire les promesses inutiles et exige des preuves terrain", () => {
+  const setup = read("src/routes/setup.tsx");
+  const settings = read("src/routes/settings.tsx");
+  const readiness = read("src/routes/pre-distribution.tsx");
+
+  assert.doesNotMatch(setup, /DIAGNOSTIC TEMPORAIRE/);
+  assert.doesNotMatch(settings, /English \(bientôt\)/);
+  assert.match(settings, /Validation avant distribution/);
+  assert.match(readiness, /Test avec un vrai novice/);
+  assert.match(readiness, /Promotion réelle vers le test fermé/);
+  assert.match(readiness, /storeRelease\.track === "alpha"/);
+  assert.match(readiness, /session\?\.status === "completed"/);
+  assert.match(readiness, /session\.googlePlaySuccess === true/);
+  assert.doesNotMatch(readiness, /marquer comme terminé.*onClick/);
 });
