@@ -6,6 +6,7 @@ const API_ROOT = "https://androidpublisher.googleapis.com/androidpublisher/v3";
 const UPLOAD_ROOT = "https://androidpublisher.googleapis.com/upload/androidpublisher/v3";
 const TOKEN_URI = "https://oauth2.googleapis.com/token";
 const INTERNAL_TRACK = "internal";
+const GOOGLE_PLAY_TRACKS = Object.freeze(["internal", "alpha", "beta", "production"]);
 const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
 const AAB_UPLOAD_TIMEOUT_MS = 10 * 60_000;
 
@@ -107,6 +108,14 @@ function normalizePackageName(value) {
   const clean = typeof value === "string" ? value.trim() : "";
   if (!/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/.test(clean)) {
     throw new GooglePlayError("package-invalid", "L'identifiant Android est invalide.");
+  }
+  return clean;
+}
+
+function normalizeTrack(value) {
+  const clean = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!GOOGLE_PLAY_TRACKS.includes(clean)) {
+    throw new GooglePlayError("track-invalid", "La piste Google Play demandée n'est pas prise en charge.");
   }
   return clean;
 }
@@ -365,15 +374,61 @@ class GooglePlayPublisher {
     return Array.isArray(payload?.tracks) ? payload.tracks : [];
   }
 
-  async versionOnInternalTrack(packageName, versionCode, token) {
+  async versionOnTrack(packageName, versionCode, trackName, token) {
+    const track = normalizeTrack(trackName);
     const editId = await this.insertEdit(packageName, token);
     try {
-      const track = await this.getTrack(packageName, editId, INTERNAL_TRACK, token);
-      const releases = Array.isArray(track?.releases) ? track.releases : [];
+      const state = await this.getTrack(packageName, editId, track, token);
+      const releases = Array.isArray(state?.releases) ? state.releases : [];
       return releases.some((release) =>
         Array.isArray(release?.versionCodes) &&
         release.versionCodes.some((value) => Number(value) === versionCode),
       );
+    } finally {
+      await this.deleteEdit(packageName, editId, token);
+    }
+  }
+
+  async versionOnInternalTrack(packageName, versionCode, token) {
+    return this.versionOnTrack(packageName, versionCode, INTERNAL_TRACK, token);
+  }
+
+  async trackStatus(credentialsInput, packageNameInput) {
+    const credentials = validateGooglePlayCredentials(credentialsInput);
+    const packageName = normalizePackageName(packageNameInput);
+    const token = await this.accessToken(credentials);
+    const editId = await this.insertEdit(packageName, token);
+    try {
+      const tracks = await this.listTracks(packageName, editId, token);
+      const byName = new Map(tracks.map((track) => [track.track, track]));
+      return {
+        ok: true,
+        packageName,
+        tracks: GOOGLE_PLAY_TRACKS.map((name) => {
+          const track = byName.get(name);
+          const releases = Array.isArray(track?.releases) ? track.releases : [];
+          const versionCodes = releases
+            .flatMap((release) => Array.isArray(release?.versionCodes) ? release.versionCodes : [])
+            .map((value) => Number(value))
+            .filter((value) => Number.isSafeInteger(value) && value > 0);
+          return {
+            track: name,
+            versionCodes: [...new Set(versionCodes)].sort((a, b) => b - a),
+            releases: releases.map((release) => ({
+              name: typeof release?.name === "string" ? release.name : undefined,
+              status: typeof release?.status === "string" ? release.status : undefined,
+              userFraction:
+                typeof release?.userFraction === "number" ? release.userFraction : undefined,
+              versionCodes: Array.isArray(release?.versionCodes)
+                ? release.versionCodes
+                    .map((value) => Number(value))
+                    .filter((value) => Number.isSafeInteger(value) && value > 0)
+                : [],
+            })),
+          };
+        }),
+        ...credentialIdentity(credentials),
+      };
     } finally {
       await this.deleteEdit(packageName, editId, token);
     }
@@ -448,9 +503,10 @@ class GooglePlayPublisher {
     }
   }
 
-  async publishInternal(input, onStep = () => {}, onCheckpoint = () => {}) {
+  async publishTrack(input, onStep = () => {}, onCheckpoint = () => {}) {
     const credentials = validateGooglePlayCredentials(input.credentials);
     const packageName = normalizePackageName(input.packageName);
+    const track = normalizeTrack(input.track ?? INTERNAL_TRACK);
     const notes = normalizeNotes(input.notes);
     const language = normalizeLocale(input.language);
     const stat = this.fs.statSync(input.aabPath);
@@ -481,9 +537,10 @@ class GooglePlayPublisher {
 
     if (resume?.phase === "commit-unknown") {
       onStep("check-commit");
-      const alreadyCommitted = await this.versionOnInternalTrack(
+      const alreadyCommitted = await this.versionOnTrack(
         packageName,
         resume.versionCode,
+        track,
         token,
       );
       if (alreadyCommitted) {
@@ -491,7 +548,7 @@ class GooglePlayPublisher {
         return {
           ok: true,
           packageName,
-          track: INTERNAL_TRACK,
+          track,
           editId: resume.editId,
           versionCode: resume.versionCode,
           releaseStatus: "completed",
@@ -582,13 +639,13 @@ class GooglePlayPublisher {
 
       onStep("update-track");
       await this.request(
-        `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/tracks/${INTERNAL_TRACK}`,
+        `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/tracks/${encode(track)}`,
         token,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            track: INTERNAL_TRACK,
+            track,
             releases: [
               {
                 name: input.releaseName,
@@ -646,7 +703,7 @@ class GooglePlayPublisher {
       return {
         ok: true,
         packageName,
-        track: INTERNAL_TRACK,
+        track,
         editId,
         versionCode: bundleVersionCode,
         releaseStatus: "completed",
@@ -660,14 +717,117 @@ class GooglePlayPublisher {
       if (!committed && !bundleUploaded) await this.deleteEdit(packageName, editId, token);
     }
   }
+
+  async publishInternal(input, onStep = () => {}, onCheckpoint = () => {}) {
+    return this.publishTrack({ ...input, track: INTERNAL_TRACK }, onStep, onCheckpoint);
+  }
+
+  async promoteVersion(input, onStep = () => {}) {
+    const credentials = validateGooglePlayCredentials(input.credentials);
+    const packageName = normalizePackageName(input.packageName);
+    const track = normalizeTrack(input.track);
+    const notes = normalizeNotes(input.notes);
+    const language = normalizeLocale(input.language);
+    const versionCode = Number(input.versionCode);
+    if (!Number.isSafeInteger(versionCode) || versionCode < 1) {
+      throw new GooglePlayError("version-code-invalid", "Le numéro interne à promouvoir est invalide.");
+    }
+
+    onStep("authenticate");
+    const token = await this.accessToken(credentials);
+    const editId = await this.insertEdit(packageName, token);
+    let committed = false;
+    try {
+      const tracks = await this.listTracks(packageName, editId, token);
+      const knownCodes = new Set(
+        tracks.flatMap((state) =>
+          Array.isArray(state?.releases)
+            ? state.releases.flatMap((release) =>
+                Array.isArray(release?.versionCodes)
+                  ? release.versionCodes.map((value) => Number(value))
+                  : [],
+              )
+            : [],
+        ),
+      );
+      if (!knownCodes.has(versionCode)) {
+        throw new GooglePlayError(
+          "version-not-found",
+          `La version interne ${versionCode} n'existe pas encore sur Google Play.`,
+        );
+      }
+
+      onStep("update-track");
+      await this.request(
+        `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/tracks/${encode(track)}`,
+        token,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            track,
+            releases: [
+              {
+                name: input.releaseName,
+                versionCodes: [String(versionCode)],
+                status: "completed",
+                releaseNotes: [{ language, text: notes }],
+              },
+            ],
+          }),
+          phase: "update-track",
+        },
+      );
+
+      onStep("validate-edit");
+      await this.request(
+        `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}:validate`,
+        token,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+          phase: "validate-edit",
+        },
+      );
+
+      onStep("commit-edit");
+      await this.request(
+        `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW`,
+        token,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+          phase: "commit-edit",
+        },
+      );
+      committed = true;
+      onStep("done");
+      return {
+        ok: true,
+        packageName,
+        track,
+        editId,
+        versionCode,
+        releaseStatus: "completed",
+        promoted: true,
+        ...credentialIdentity(credentials),
+      };
+    } finally {
+      if (!committed) await this.deleteEdit(packageName, editId, token);
+    }
+  }
 }
 
 module.exports = {
   ANDROID_PUBLISHER_SCOPE,
   GooglePlayError,
   GooglePlayPublisher,
+  GOOGLE_PLAY_TRACKS,
   INTERNAL_TRACK,
   normalizeLocale,
+  normalizeTrack,
   normalizeNotes,
   normalizePackageName,
   validateGooglePlayCredentials,
