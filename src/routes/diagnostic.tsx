@@ -10,7 +10,8 @@ import { HealthScoreService } from "@/core/health/service";
 import { HealthScoreCard } from "@/components/health-score-card";
 import { WhyButton } from "@/components/why-button";
 import type { HealthCheck, HealthScore } from "@/core/types";
-import { useActiveProject, useSettings } from "@/core/store/app-store";
+import { AppStore, useActiveProject, useSettings } from "@/core/store/app-store";
+import { ProjectsService } from "@/core/projects/service";
 import { StepPurpose } from "@/components/step-purpose";
 import { JourneyContinuation } from "@/components/journey-continuation";
 import { HelpRequestButton } from "@/components/help-request-button";
@@ -38,7 +39,9 @@ function DiagnosticPage() {
     setRunning(true);
     setError(null);
     try {
-      const c = await DiagnosticService.run(project);
+      const refreshedProject = await ProjectsService.refreshDetection(project.id);
+      if (refreshedProject) AppStore.refreshProjects();
+      const c = await DiagnosticService.run(refreshedProject ?? project);
       setChecks(c);
       setScore(HealthScoreService.from(c));
     } catch (reason) {
