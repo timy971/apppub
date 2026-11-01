@@ -96,9 +96,12 @@ export function GooglePlayTracksCard({
     android.googlePlayDeveloperVerification === "verified" &&
     android.googlePlayPackageRegistration === "registered" &&
     (android.googlePlayAccountKind !== "personal-new" ||
-      android.googlePlayClosedTestingStatus === "completed");
+      (android.googlePlayClosedTestingStatus === "completed" &&
+        android.googlePlayProductionAccess === "granted"));
 
-  const openTestingBlocked = android.googlePlayAccountKind === "personal-new";
+  const openTestingBlocked =
+    android.googlePlayAccountKind === "personal-new" &&
+    android.googlePlayProductionAccess !== "granted";
 
   async function promote(track: Exclude<GooglePlayTrack, "internal">) {
     if (!connectionArgs || !sourceRelease.artifactPath || !sourceRelease.notes) return;
@@ -224,7 +227,7 @@ export function GooglePlayTracksCard({
             title="Étape suivante : test ouvert"
             detail={
               openTestingBlocked
-                ? "Pour un nouveau compte personnel, Google n'ouvre le test ouvert qu'après l'accès à la production."
+                ? "Pour un nouveau compte personnel, Google n'ouvre le test ouvert qu'après l'accord d'accès à la production."
                 : "Le test ouvert rend la version de test visible aux utilisateurs qui souhaitent rejoindre le programme."
             }
             action="Promouvoir vers le test ouvert"
