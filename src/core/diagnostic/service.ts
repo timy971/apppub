@@ -16,10 +16,13 @@ export const DiagnosticService = {
     const managedPublicationProject =
       (project?.source?.type === "git" && project.source.managed === true) ||
       Boolean(projectPath?.includes("/Application Support/AppPublisher/managed-projects/"));
+    const liveAndroidStatus = androidPreparation?.status ?? has?.androidReadiness;
+    const liveAndroidReason =
+      androidPreparation?.blockers?.[0] ?? has?.androidReadinessReason;
     const disposableAndroid =
       Boolean(project) &&
       managedPublicationProject &&
-      has?.androidReadiness !== "blocked";
+      liveAndroidStatus !== "blocked";
     const versionManagedByAppPublisher =
       Boolean(project?.currentVersion) && managedPublicationProject;
 
@@ -105,10 +108,12 @@ export const DiagnosticService = {
             ? "Android sera préparé automatiquement dans une copie de publication propre."
             : "Le projet Android est prêt.",
         koMsg: project
-          ? has?.androidReadiness === "blocked"
-            ? has.androidReadinessReason ||
+          ? liveAndroidStatus === "blocked"
+            ? liveAndroidReason ||
               "Le projet doit être corrigé avant de pouvoir préparer Android."
-            : "Le dossier Android n'a pas encore été préparé pour ce projet."
+            : liveAndroidStatus === "preparable"
+              ? "AppPublisher peut préparer automatiquement Android pour ce projet."
+              : "Le dossier Android n'a pas encore été préparé pour ce projet."
           : "Aucun projet sélectionné.",
         why: disposableAndroid
           ? "AppPublisher peut créer Android au moment de la publication sans modifier votre projet source."
