@@ -58,7 +58,7 @@ Ce que le produit fait objectivement bien, aujourd'hui, et que les concurrents n
 ## 2.5 Ce que le produit devrait être et n'est pas encore
 
 - Un **publieur** : `androidpublisher` v3 (Google Play Developer API) via compte de service, en local. C'est le chaînon manquant et il est réalisable sans serveur.
-- Un **gardien des règles du store** : `targetSdk` minimum, test fermé 20 testeurs / 14 jours, vérification d'identité. Trois règles `ProjectRule` supplémentaires suffiraient à couvrir les murs les plus fréquents.
+- Un **gardien des règles du store** : `targetSdk` minimum, test fermé 12 testeurs / 14 jours, vérification d'identité. Trois règles `ProjectRule` supplémentaires suffiraient à couvrir les murs les plus fréquents.
 - **Multiplateforme sur ses propres promesses** : soit Windows est supporté (coffre-fort DPAPI), soit le produit s'annonce macOS-only.
 
 ## Synthèse

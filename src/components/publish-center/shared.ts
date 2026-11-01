@@ -2,6 +2,7 @@ import type { Project, HealthCheck, PublishRecord } from "@/core/types";
 import type { ProjectStatus, RuleFinding, CockpitTab } from "@/core/projects/status";
 import { getAndroidConfig } from "@/core/projects/android-config";
 import type { PublishArtifactCheck } from "@/core/publish/artifact";
+import { evaluatePlayCompliance } from "@/core/play-compliance/service";
 
 export type PubSeverity = "ok" | "info" | "warn" | "error";
 
@@ -276,6 +277,34 @@ export function buildChecklist(input: {
   const android: ChecklistEntry[] = statusEntries(status, ["android"]);
   const ios: ChecklistEntry[] = statusEntries(status, ["ios"]);
 
+  const playCompliance: ChecklistEntry[] = evaluatePlayCompliance(
+    project,
+    artifact.validation,
+  ).map((check) => ({
+    id: check.id,
+    label: check.label,
+    severity: check.severity,
+    detail: check.detail,
+    explanation: check.explanation,
+    action:
+      check.id === "play-target-sdk" && check.severity === "error"
+        ? { kind: "route" as const, label: "Recréer le fichier Android", to: "/build" as const }
+        : check.id.startsWith("play-") && ["play-package-registration", "play-developer-verification", "play-closed-testing"].includes(check.id)
+          ? {
+              kind: "project" as const,
+              label: "Renseigner dans le projet",
+              tab: "publishing" as const,
+              section: "android",
+              field:
+                check.id === "play-package-registration"
+                  ? "android.googlePlayPackageRegistration"
+                  : check.id === "play-developer-verification"
+                    ? "android.googlePlayDeveloperVerification"
+                    : "android.googlePlayAccountKind",
+            }
+          : undefined,
+  }));
+
   const build: ChecklistEntry[] = statusEntries(status, ["build"]);
   build.unshift({
     id: "build-fresh",
@@ -311,6 +340,7 @@ export function buildChecklist(input: {
     catOf("android", "Android", android),
     catOf("ios", "iOS", ios),
     catOf("build", "Fichier Android", build),
+    catOf("google-play", "Conformité Google Play", playCompliance),
     catOf("notes", "Notes de version", notesCat),
   ];
 

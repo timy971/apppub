@@ -23,7 +23,7 @@ Chaque ligne porte l'identifiant du constat d'origine, sa source et une définit
 | P1-1 | Signature + notarisation macOS, installeur DMG, canal d'auto-update | BUILD-004, REL-002 | Gatekeeper ouvre le paquet sans contournement ; une v+1 s'installe automatiquement |
 | P1-2 | Vider le lint : `eslint --fix` puis traiter les 20 avertissements React | QA-002 | `npm run lint` retourne 0 |
 | P1-3 | Tests du Copilot (9 règles) et du moteur `ProjectStatus` | QA-004 | Chaque règle a au moins un cas positif et un cas négatif |
-| P1-4 | Modéliser les règles Play : `targetSdk` minimum, test fermé 20 testeurs / 14 jours, vérification d'identité, obligation AAB | AND-004, BIZ-001 | Un compte neuf est averti **avant** le build, pas après |
+| P1-4 | Modéliser les règles Play : `targetSdk` minimum, test fermé 12 testeurs / 14 jours, vérification d'identité, obligation AAB | AND-004, BIZ-001 | Un compte neuf est averti **avant** le build, pas après |
 | P1-5 | Étiqueter les 34 champs sans label ; ajouter `aria-live` aux zones de progression de build | A11Y-001, A11Y-002 | Test `axe` vert sur les 14 routes |
 | P1-6 | Navigation arrière dans le wizard de premier lancement | UX-A-001 | Chaque étape ≥ 1 a un retour fonctionnel |
 | P1-7 | Fusionner `/diagnostic`, `/history`, `/journal`, `/logs` en un écran « Activité » à deux niveaux | UX-001 | La sidebar perd 3 entrées, aucune information perdue |

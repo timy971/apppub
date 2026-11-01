@@ -1017,6 +1017,121 @@ function AndroidSection({ project, update }: { project: Project; update: UpdateF
           />
         </div>
 
+        <div className="rounded-lg border bg-muted/20 p-4">
+          <div className="mb-3">
+            <Label>Conformité Play Console</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              AppPublisher vérifie automatiquement ce qu'il peut. Les éléments propres à votre
+              compte restent à confirmer ici pour éviter tout faux statut « conforme ».
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div data-cockpit-field="android.googlePlayAccountKind">
+              <Label>Type de compte développeur</Label>
+              <Select
+                value={cfg.googlePlayAccountKind ?? "unknown"}
+                onValueChange={(v) =>
+                  save(
+                    { googlePlayAccountKind: v as NonNullable<typeof cfg.googlePlayAccountKind> },
+                    ["android.googlePlayAccountKind"],
+                  )
+                }
+              >
+                <SelectTrigger className="mt-1.5" aria-label="Type de compte développeur Google Play">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unknown">À confirmer</SelectItem>
+                  <SelectItem value="organization">Organisation</SelectItem>
+                  <SelectItem value="personal-established">Personnel créé avant le 13/11/2023</SelectItem>
+                  <SelectItem value="personal-new">Personnel créé après le 13/11/2023</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div data-cockpit-field="android.googlePlayDeveloperVerification">
+              <Label>Vérification développeur</Label>
+              <Select
+                value={cfg.googlePlayDeveloperVerification ?? "unknown"}
+                onValueChange={(v) =>
+                  save(
+                    {
+                      googlePlayDeveloperVerification:
+                        v as NonNullable<typeof cfg.googlePlayDeveloperVerification>,
+                    },
+                    ["android.googlePlayDeveloperVerification"],
+                  )
+                }
+              >
+                <SelectTrigger className="mt-1.5" aria-label="État de vérification développeur Google Play">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unknown">À confirmer</SelectItem>
+                  <SelectItem value="pending">En cours</SelectItem>
+                  <SelectItem value="verified">Vérifiée</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div data-cockpit-field="android.googlePlayPackageRegistration">
+              <Label>Enregistrement du package</Label>
+              <Select
+                value={cfg.googlePlayPackageRegistration ?? "unknown"}
+                onValueChange={(v) =>
+                  save(
+                    {
+                      googlePlayPackageRegistration:
+                        v as NonNullable<typeof cfg.googlePlayPackageRegistration>,
+                    },
+                    ["android.googlePlayPackageRegistration"],
+                  )
+                }
+              >
+                <SelectTrigger className="mt-1.5" aria-label="État d'enregistrement du package Android">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unknown">À confirmer</SelectItem>
+                  <SelectItem value="pending">En cours</SelectItem>
+                  <SelectItem value="registered">Enregistré</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div data-cockpit-field="android.googlePlayClosedTestingStatus">
+              <Label>Test fermé avant production</Label>
+              <Select
+                value={cfg.googlePlayClosedTestingStatus ?? "unknown"}
+                onValueChange={(v) =>
+                  save(
+                    {
+                      googlePlayClosedTestingStatus:
+                        v as NonNullable<typeof cfg.googlePlayClosedTestingStatus>,
+                    },
+                    ["android.googlePlayClosedTestingStatus"],
+                  )
+                }
+              >
+                <SelectTrigger className="mt-1.5" aria-label="État du test fermé Google Play">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unknown">À confirmer</SelectItem>
+                  <SelectItem value="not-required">Non requis pour ce compte</SelectItem>
+                  <SelectItem value="pending">En cours — 12 testeurs / 14 jours</SelectItem>
+                  <SelectItem value="completed">Terminé — 12 testeurs / 14 jours</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Le test fermé obligatoire concerne l'accès à la production des comptes personnels
+            créés après le 13 novembre 2023. Il ne bloque pas le test interne.
+          </p>
+        </div>
+
         <ExpertDetails title="Détails Android">
           <ExpertRow label="Application ID" value={cfg.applicationId} />
           <ExpertRow label="Keystore" value={cfg.keystorePath} />

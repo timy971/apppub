@@ -43,6 +43,14 @@ export interface AndroidPublishingConfig {
   googlePlayLastTestedBuild?: number;
   /** Date locale de confirmation du test réel depuis Google Play. */
   googlePlayLastTestedAt?: string;
+  /** Lot 14 — type de compte Play, confirmé par l'utilisateur lorsque l'API ne permet pas de le prouver. */
+  googlePlayAccountKind?: "unknown" | "organization" | "personal-established" | "personal-new";
+  /** Lot 14 — état du prérequis de test fermé pour les nouveaux comptes personnels. */
+  googlePlayClosedTestingStatus?: "unknown" | "not-required" | "pending" | "completed";
+  /** Lot 14 — état de vérification du compte développeur dans Play Console. */
+  googlePlayDeveloperVerification?: "unknown" | "pending" | "verified";
+  /** Lot 14 — confirmation que le package est enregistré pour Android developer verification. */
+  googlePlayPackageRegistration?: "unknown" | "pending" | "registered";
 }
 
 /** Phase 3 : configuration iOS — structure posée, publication future. */
