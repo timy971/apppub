@@ -35,6 +35,7 @@ export type TrackedFieldKey =
   | "android.googlePlayClosedTestingStatus"
   | "android.googlePlayDeveloperVerification"
   | "android.googlePlayPackageRegistration"
+  | "android.googlePlayProductionAccess"
   | "ios.bundleId"
   | "ios.teamId"
   | "ios.scheme"
