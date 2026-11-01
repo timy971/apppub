@@ -243,3 +243,36 @@ La résolution du SDK applique maintenant cet ordre :
 4. aucun SDK si aucun candidat réel n'existe.
 
 Le chemin retenu est canonicalisé et réutilisé par le diagnostic système, l'environnement Gradle et l'auto-installation des composants. Trois tests permanents couvrent le fallback depuis un `ANDROID_HOME` obsolète, la priorité d'un `ANDROID_HOME` valide et le fallback vers `ANDROID_SDK_ROOT`.
+
+
+## Lot 12.7 — consolidation après publication réelle VictoryTrack
+
+Le Lot 12 est désormais validé sur un parcours réel complet avec **VictoryTrack** :
+
+**projet Git géré → diagnostic → préparation Android → AAB signé → préparation de release → envoi Google Play sur la piste interne**.
+
+Cette validation terrain a révélé plusieurs cas qui n'étaient pas suffisamment couverts par les seuls tests synthétiques. Ils sont maintenant figés comme non-régressions permanentes :
+
+- un ancien `ANDROID_HOME` invalide ne masque plus un SDK Android réellement installé ;
+- le diagnostic relit l'état Android réel au lieu de dépendre d'un snapshot obsolète ;
+- un projet Git géré peut publier sans `version.json` ni `scripts/version.*` dans sa source ;
+- des dépendances Capacitor manquantes peuvent être ajoutées automatiquement dans le flux prévu ;
+- les autorisations des projets Git gérés sont restaurées au redémarrage sans écraser `known-roots.json` ;
+- un dossier `android/` présent mais incomplet n'est jamais réparé dans le clone source : seule sa copie dans le workspace jetable est supprimée puis recréée ;
+- le préflight, le diagnostic et le Copilot partagent désormais le même verdict sur ce cas auto-réparable ;
+- la publication Google Play réelle enregistre une preuve `storeRelease` et affiche une fin de parcours explicite ;
+- après publication, l'utilisateur est guidé vers la vérification Play Console, l'installation depuis Google Play et le test réel de la version.
+
+### Certification VictoryTrack
+
+Le fichier `tests/victorytrack-publication-journey.node-test.cjs` sert de garde-fou transversal. Il ne remplace pas les tests unitaires détaillés, mais vérifie que les briques indispensables du parcours réel restent reliées entre elles.
+
+Le Lot 12.7 n'ajoute pas de nouvelle architecture. Il consolide le pipeline validé et transforme les erreurs rencontrées en garanties permanentes.
+
+### Critère de sortie du Lot 12
+
+Le critère suivant est désormais atteint sur VictoryTrack :
+
+> un utilisateur peut aller d'un projet Git géré à une publication Google Play interne sans ouvrir Terminal, Android Studio, Gradle ni les dossiers techniques d'Application Support.
+
+Le prochain travail doit donc privilégier la robustesse produit, la distribution d'AppPublisher et les règles de plateforme, plutôt que modifier de nouveau le pipeline Android validé.
