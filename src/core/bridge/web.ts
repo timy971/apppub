@@ -456,6 +456,13 @@ export const webBridge: SystemBridge = {
         errorHint: "La connexion Google Play nécessite l'application de bureau macOS.",
       };
     },
+    async trackStatus() {
+      return {
+        ok: false,
+        errorCode: "desktop-required",
+        errorHint: "La lecture des pistes Google Play nécessite l'application de bureau.",
+      };
+    },
     async latestVersionCode() {
       return {
         ok: false,
@@ -465,6 +472,13 @@ export const webBridge: SystemBridge = {
     },
     async disconnect() {
       return false;
+    },
+    async promoteVersion() {
+      return {
+        ok: false,
+        errorCode: "desktop-required",
+        errorHint: "La promotion Google Play nécessite l'application de bureau macOS.",
+      };
     },
     async publishInternal() {
       return {
