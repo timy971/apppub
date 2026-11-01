@@ -235,3 +235,24 @@ test("a successful build hands off to a real publish action", () => {
   assert.match(publishCenter, /getElementById\("release-notes-input"\)\?\.focus\(\)/);
   assert.match(publishCenter, /getElementById\("google-play-publication"\)/);
 });
+
+
+test("chaque route fichier est présente dans l'arbre TanStack embarqué", () => {
+  const routesDir = path.join(ROOT, "src/routes");
+  const tree = fs.readFileSync(path.join(ROOT, "src/routeTree.gen.ts"), "utf8");
+  const missing = [];
+
+  for (const entry of fs.readdirSync(routesDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".tsx") || entry.name === "__root.tsx") continue;
+    const source = fs.readFileSync(path.join(routesDir, entry.name), "utf8");
+    const match = source.match(/createFileRoute\("([^"]+)"\)/);
+    if (!match) continue;
+    if (!tree.includes(`'${match[1]}'`)) missing.push(`${entry.name}: ${match[1]}`);
+  }
+
+  assert.deepEqual(
+    missing,
+    [],
+    `routes absentes de src/routeTree.gen.ts : ${missing.join(", ")}`,
+  );
+});

@@ -14,6 +14,7 @@ import { Route as SigningRouteImport } from './routes/signing'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PublishRouteImport } from './routes/publish'
+import { Route as PreDistributionRouteImport } from './routes/pre-distribution'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as JournalRouteImport } from './routes/journal'
@@ -47,6 +48,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const PublishRoute = PublishRouteImport.update({
   id: '/publish',
   path: '/publish',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreDistributionRoute = PreDistributionRouteImport.update({
+  id: '/pre-distribution',
+  path: '/pre-distribution',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsRoute = ProjectsRouteImport.update({
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/logs': typeof LogsRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
+  '/pre-distribution': typeof PreDistributionRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/signing': typeof SigningRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/logs': typeof LogsRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
+  '/pre-distribution': typeof PreDistributionRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/signing': typeof SigningRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/logs': typeof LogsRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
+  '/pre-distribution': typeof PreDistributionRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/signing': typeof SigningRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/projects'
     | '/publish'
+    | '/pre-distribution'
     | '/settings'
     | '/setup'
     | '/signing'
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/projects'
     | '/publish'
+    | '/pre-distribution'
     | '/settings'
     | '/setup'
     | '/signing'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/projects'
     | '/publish'
+    | '/pre-distribution'
     | '/settings'
     | '/setup'
     | '/signing'
@@ -205,6 +217,7 @@ export interface RootRouteChildren {
   LogsRoute: typeof LogsRoute
   ProjectsRoute: typeof ProjectsRoute
   PublishRoute: typeof PublishRoute
+  PreDistributionRoute: typeof PreDistributionRoute
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
   SigningRoute: typeof SigningRoute
@@ -247,6 +260,13 @@ declare module '@tanstack/react-router' {
       path: '/publish'
       fullPath: '/publish'
       preLoaderRoute: typeof PublishRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pre-distribution': {
+      id: '/pre-distribution'
+      path: '/pre-distribution'
+      fullPath: '/pre-distribution'
+      preLoaderRoute: typeof PreDistributionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects': {
@@ -325,6 +345,7 @@ const rootRouteChildren: RootRouteChildren = {
   LogsRoute: LogsRoute,
   ProjectsRoute: ProjectsRoute,
   PublishRoute: PublishRoute,
+  PreDistributionRoute: PreDistributionRoute,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,
   SigningRoute: SigningRoute,
