@@ -3332,7 +3332,11 @@ ipcMain.handle("google-play:promoteVersion", async (_event, args) => {
   if (!project) return { ok: false, errorCode: "project-mismatch" };
 
   const android = project.publishing?.android ?? {};
-  if (args.track === "beta" && android.googlePlayAccountKind === "personal-new") {
+  if (
+    args.track === "beta" &&
+    android.googlePlayAccountKind === "personal-new" &&
+    android.googlePlayProductionAccess !== "granted"
+  ) {
     return {
       ok: false,
       errorCode: "open-testing-not-ready",
@@ -3364,6 +3368,17 @@ ipcMain.handle("google-play:promoteVersion", async (_event, args) => {
         errorCode: "closed-testing-required",
         errorHint:
           "Ce compte personnel récent doit terminer le test fermé requis avant l'accès à la production.",
+      };
+    }
+    if (
+      android.googlePlayAccountKind === "personal-new" &&
+      android.googlePlayProductionAccess !== "granted"
+    ) {
+      return {
+        ok: false,
+        errorCode: "production-access-required",
+        errorHint:
+          "Confirmez que Google Play a accordé l'accès à la production après votre demande.",
       };
     }
   }
