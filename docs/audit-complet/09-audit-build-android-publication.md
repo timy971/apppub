@@ -64,7 +64,7 @@ Chemin recommandé, sans serveur et compatible avec la promesse « rien ne quitt
 
 ## 9.6 Règles de plateforme non modélisées
 
-**Constat AND-004 (P1)** — Aucune modélisation de : `targetSdk` minimum annuel, test fermé obligatoire pour les nouveaux comptes personnels (20 testeurs / 14 jours selon la policy citée en [12](12-audit-business-concurrence.md)), vérification d'identité développeur, obligation AAB.
+**Constat AND-004 (P1)** — Le Lot 14 modélise désormais : `targetSdk` minimum annuel, test fermé obligatoire pour les nouveaux comptes personnels (12 testeurs / 14 jours selon la policy Google actuelle), vérification développeur, enregistrement du package et obligation AAB.
 
 Ce sont les murs sur lesquels la cible non technique se cogne **en premier**, avant Gradle. Le moteur `ProjectRule` existe déjà : trois à quatre règles supplémentaires couvrent l'essentiel, pour un coût faible et un gain produit élevé.
 
