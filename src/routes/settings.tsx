@@ -204,6 +204,17 @@ function SettingsPage() {
 
         <Card className="p-6 shadow-soft">
           <Row
+            label="Validation avant distribution"
+            hint="Vérifiez les deux preuves terrain recommandées avant de lancer la distribution macOS."
+          >
+            <Button variant="outline" asChild>
+              <Link to="/pre-distribution">Vérifier avant le Lot 13</Link>
+            </Button>
+          </Row>
+        </Card>
+
+        <Card className="p-6 shadow-soft">
+          <Row
             label="Test utilisateur novice"
             hint="Faites essayer AppPublisher à une personne non technique et mesurez les incompréhensions, blocages et la réussite Google Play."
           >
