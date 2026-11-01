@@ -16,6 +16,8 @@ export interface UsabilitySession {
   id: string;
   testerAlias: string;
   startedAt: string;
+  previousMode?: "discovery" | "assistant" | "expert";
+  previousOnboardingCompleted?: boolean;
   finishedAt?: string;
   status: "active" | "completed";
   events: UsabilityEvent[];
@@ -35,22 +37,30 @@ function id(): string {
     : Math.random().toString(36).slice(2);
 }
 
+let cachedSession: UsabilitySession | null | undefined;
+
 function load(): UsabilitySession | null {
-  return storage.get<UsabilitySession | null>(STORAGE_KEYS.usabilityTest, null);
+  if (cachedSession === undefined) {
+    cachedSession = storage.get<UsabilitySession | null>(STORAGE_KEYS.usabilityTest, null);
+  }
+  return cachedSession;
 }
 
 function save(session: UsabilitySession | null): void {
+  cachedSession = session;
   if (session) storage.set(STORAGE_KEYS.usabilityTest, session);
   else storage.remove(STORAGE_KEYS.usabilityTest);
   emit();
 }
 
-function successFromHistory() {
+function successFromHistory(startedAt: string) {
+  const start = new Date(startedAt).getTime();
   return HistoryService.list().find(
     (record) =>
       record.kind === "publish" &&
       record.outcome === "success" &&
-      record.storeRelease?.provider === "google-play",
+      record.storeRelease?.provider === "google-play" &&
+      new Date(record.createdAt).getTime() >= start,
   );
 }
 
@@ -59,11 +69,16 @@ export const UsabilityTestService = {
     return load();
   },
 
-  start(testerAlias: string): UsabilitySession {
+  start(
+    testerAlias: string,
+    previous?: { mode?: "discovery" | "assistant" | "expert"; onboardingCompleted?: boolean },
+  ): UsabilitySession {
     const session: UsabilitySession = {
       id: id(),
       testerAlias: testerAlias.trim() || "Testeur",
       startedAt: new Date().toISOString(),
+      previousMode: previous?.mode,
+      previousOnboardingCompleted: previous?.onboardingCompleted,
       status: "active",
       events: [],
       googlePlaySuccess: false,
@@ -91,7 +106,7 @@ export const UsabilityTestService = {
   finish(): UsabilitySession | null {
     const session = load();
     if (!session) return null;
-    const success = successFromHistory();
+    const success = successFromHistory(session.startedAt);
     session.status = "completed";
     session.finishedAt = new Date().toISOString();
     session.googlePlaySuccess = Boolean(success);
