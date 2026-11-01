@@ -110,3 +110,33 @@ test("refuses prototypes, cycles and oversized documents", (t) => {
     false,
   );
 });
+
+
+test("persists the novice usability session used by the renderer", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apppublisher-usability-store-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const filePath = path.join(root, "store.json");
+  const store = new DurableStore(filePath);
+  const session = {
+    id: "session-1",
+    testerAlias: "Novice",
+    startedAt: "2026-11-01T12:00:00.000Z",
+    status: "active",
+    events: [
+      {
+        id: "event-1",
+        at: "2026-11-01T12:00:10.000Z",
+        kind: "route",
+        path: "/setup",
+      },
+    ],
+    googlePlaySuccess: false,
+  };
+
+  assert.deepEqual(store.set("usability-test", session), { ok: true });
+  assert.deepEqual(store.get("usability-test"), {
+    ok: true,
+    found: true,
+    value: session,
+  });
+});
