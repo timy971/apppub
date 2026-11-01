@@ -1,12 +1,37 @@
 import type { ProjectRule } from "../types";
 import { getAndroidConfig } from "@/core/projects/android-config";
 
+function isManagedGit(project: Parameters<ProjectRule["evaluate"]>[0]["project"]) {
+  return project.source?.type === "git" && project.source.managed === true;
+}
+
+function isDisposableAndroidRebuild(project: Parameters<ProjectRule["evaluate"]>[0]["project"]) {
+  return (
+    isManagedGit(project) &&
+    project.detected.hasAndroid &&
+    project.detected.androidReadiness === "blocked" &&
+    !project.detected.hasGradleWrapper &&
+    /android\/.*incomplet|wrapper Gradle|build\.gradle/i.test(
+      project.detected.androidReadinessReason || "",
+    )
+  );
+}
+
 export const androidRules: ProjectRule[] = [
   {
     id: "android.folder",
     domain: "android",
     evaluate: ({ project }) => {
       if (project.detected.androidReadiness === "blocked") {
+        if (isDisposableAndroidRebuild(project)) {
+          return {
+            severity: "info",
+            message: "Android sera reconstruit automatiquement lors de la publication.",
+            explanation:
+              "La copie Android actuelle est incomplète, mais AppPublisher la recréera uniquement dans un workspace temporaire sans modifier le projet source.",
+            hint: "Vous pouvez continuer vers la création du fichier Android.",
+          };
+        }
         return {
           severity: "error",
           message: "Ce projet web ne peut pas encore être préparé automatiquement pour Android.",
@@ -30,7 +55,7 @@ export const androidRules: ProjectRule[] = [
     id: "android.gradle",
     domain: "android",
     evaluate: ({ project }) => {
-      if (!project.detected.hasAndroid) return null;
+      if (!project.detected.hasAndroid || isDisposableAndroidRebuild(project)) return null;
       return project.detected.hasGradleWrapper
         ? null
         : {
