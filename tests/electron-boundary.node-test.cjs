@@ -119,3 +119,24 @@ test("build subprocesses inherit detected Android SDK and automatic Java home", 
   );
   assert.match(main, /const javaHome = guessJavaHome\(\)/);
 });
+
+
+test("les clés de stockage renderer restent synchronisées avec l'allowlist Electron", () => {
+  const renderer = fs.readFileSync(path.join(root, "src/core/storage/index.ts"), "utf8");
+  const nativeStore = fs.readFileSync(path.join(root, "electron/durable-store.cjs"), "utf8");
+
+  const objectMatch = renderer.match(/export const STORAGE_KEYS = \{([\s\S]*?)\} as const;/);
+  assert.ok(objectMatch, "STORAGE_KEYS introuvable");
+  const rendererKeys = [...objectMatch[1].matchAll(/:\s*"([^"]+)"/g)].map((match) => match[1]);
+
+  const allowlistMatch = nativeStore.match(/const ALLOWED_KEYS = new Set\(\[([\s\S]*?)\]\);/);
+  assert.ok(allowlistMatch, "ALLOWED_KEYS introuvable");
+  const allowedKeys = [...allowlistMatch[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+
+  const missing = rendererKeys.filter((key) => !allowedKeys.includes(key));
+  assert.deepEqual(
+    missing,
+    [],
+    `clés renderer absentes de l'allowlist Electron : ${missing.join(", ")}`,
+  );
+});

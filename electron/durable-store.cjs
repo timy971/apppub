@@ -17,6 +17,7 @@ const ALLOWED_KEYS = new Set([
   "journal",
   "projects",
   "settings",
+  "usability-test",
 ]);
 
 function emptyDocument() {
@@ -205,6 +206,58 @@ function validateStoredValue(key, value) {
         hasString(entry, "createdAt") &&
         ["info", "warn", "error", "command"].includes(entry.level),
     );
+  }
+  if (key === "usability-test") {
+    if (value === null) return true;
+    if (!isPlainObject(value)) return false;
+    if (
+      !hasString(value, "id") ||
+      !hasString(value, "testerAlias") ||
+      !hasString(value, "startedAt") ||
+      !["active", "completed"].includes(value.status) ||
+      typeof value.googlePlaySuccess !== "boolean" ||
+      !Array.isArray(value.events)
+    ) {
+      return false;
+    }
+    if (value.finishedAt != null && typeof value.finishedAt !== "string") return false;
+    if (
+      value.previousMode != null &&
+      !["discovery", "assistant", "expert"].includes(value.previousMode)
+    ) {
+      return false;
+    }
+    if (
+      value.previousOnboardingCompleted != null &&
+      typeof value.previousOnboardingCompleted !== "boolean"
+    ) {
+      return false;
+    }
+    if (
+      !validArray(
+        value.events,
+        5000,
+        (event) =>
+          isPlainObject(event) &&
+          hasString(event, "id") &&
+          hasString(event, "at") &&
+          hasString(event, "path") &&
+          ["route", "confusion", "blocked"].includes(event.kind) &&
+          (event.note == null || typeof event.note === "string"),
+      )
+    ) {
+      return false;
+    }
+    for (const field of ["successfulProjectName", "successfulVersion"]) {
+      if (value[field] != null && typeof value[field] !== "string") return false;
+    }
+    if (
+      value.successfulBuild != null &&
+      (!Number.isSafeInteger(value.successfulBuild) || value.successfulBuild < 1)
+    ) {
+      return false;
+    }
+    return true;
   }
   if (key === "backups") {
     return validateBackupValue(value) === null;
