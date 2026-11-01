@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { bridge } from "@/core/bridge";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import {
   UsabilityTestService,
@@ -56,7 +57,8 @@ function UsabilityTestPage() {
   async function copyReport() {
     const report = UsabilityTestService.report();
     try {
-      await navigator.clipboard.writeText(report);
+      const copied = await bridge().system.copyText(report);
+      if (!copied) throw new Error("Le presse-papiers n'est pas disponible.");
       toast.success("Rapport copié");
     } catch {
       toast.error("Impossible de copier le rapport");
