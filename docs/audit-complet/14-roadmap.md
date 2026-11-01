@@ -23,13 +23,13 @@ Tant que ce critère n'est pas atteint, aucune fonctionnalité nouvelle. C'est l
 
 Objectif : livrer le chaînon manquant et rendre le produit distribuable.
 
-1. **Publication Google Play réelle** (P0-5) — API v3, compte de service au trousseau, piste `internal` seule, confirmation explicite, historique de release enrichi du résultat store. C'est le jalon qui transforme le produit.
-2. **Distribution** (P1-1) — signature et notarisation macOS, DMG, canal d'auto-update. Prérequis absolu de toute monétisation : on ne facture pas un logiciel que Gatekeeper refuse d'ouvrir.
+1. **Publication Google Play réelle — ATTEINTE** (P0-5) — piste `internal`, OAuth / compte de service, reprise, historique store et publication terrain VictoryTrack validés.
+2. **Distribution** (P1-1) — signature et notarisation macOS, DMG, canal d'auto-update. C'est désormais le principal prérequis restant avant toute diffusion commerciale : on ne facture pas un logiciel que Gatekeeper refuse d'ouvrir.
 3. **Règles de plateforme** (P1-4) — `targetSdk`, test fermé, vérification d'identité. C'est ce qui fait la différence pour la cible non technique, et le moteur de règles existe déjà.
 4. **Accessibilité et simplification** (P1-5, P1-6, P1-7) — 34 étiquettes, `aria-live`, retour arrière du wizard, fusion des 4 écrans d'activité.
 5. **Nettoyage de dette** (P2-2 à P2-8) — dont la décision iOS : livrer ou retirer, jamais laisser un champ qui ne mène à rien.
 
-**Critère de sortie d'horizon 2** : un utilisateur non technique dépose une mise à jour sur la piste interne de Google Play depuis AppPublisher, sans ouvrir de navigateur ni de Terminal, sur un paquet installé via DMG signé, et reçoit la mise à jour suivante d'AppPublisher automatiquement.
+**Critère de sortie d'horizon 2** : la partie « publier une mise à jour sur la piste interne sans Terminal » est désormais validée sur VictoryTrack. Restent principalement la distribution macOS signée/notarisée et le canal d'auto-update pour fermer complètement cet horizon.
 
 C'est la première fois que la définition du succès énoncée dans la vision produit serait intégralement satisfaite. **C'est le point de départ possible d'une commercialisation.**
 
@@ -56,4 +56,4 @@ Uniquement si les horizons 1 à 3 sont tenus. Aucune de ces pistes ne doit être
 - Ajouter un huitième widget au Dashboard avant P3-1.
 - Ouvrir iOS avant que la chaîne Android soit prouvée et publiée.
 - Monétiser avant P1-1 (paquet signé, notarisé, mis à jour).
-- Communiquer sur « publier sans devenir développeur » avant P0-5.
+- Communiquer largement sur « publier sans devenir développeur » avant d'avoir également une distribution macOS signée/notarisée et un onboarding externe testé.

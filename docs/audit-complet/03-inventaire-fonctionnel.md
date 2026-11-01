@@ -77,7 +77,7 @@ Colonnes : **Promesse UI** (ce que l'écran laisse croire), **Réalité code** (
 | Vérifier l'artefact | « AAB vérifié » | Réel : `fs.stat` + `jarsigner -verify` | `CODE` | `src/core/publish/artifact.ts:30-98` | — |
 | « Préparer la release » | Bouton principal du Publish Center | Enregistre un `PublishRecord` local + sauvegarde optionnelle. **N'envoie rien** | `CODE` | `publish-center.tsx:96-145` | Moyen : l'historique enregistre `kind:"publish", outcome:"success"` — vocabulaire ambigu pour un non-technicien |
 | Notes de version | Générateur de notes | Réel, local | `CODE` | `src/core/release-notes/service.ts` | — |
-| Envoi vers Google Play | « Ouvrir Play Console » + « Prochainement… » | `shell.openExternal("https://play.google.com/console/")`. Aucun appel d'API store | `NI` (assumé) | `handoff-card.tsx:9,34-41` ; `EXEC` recherche `androidpublisher|googleapis|appstoreconnect` → 0 résultat | Honnête, mais c'est **le cœur de la promesse produit** qui manque |
+| Envoi vers Google Play | Publication guidée sur la piste interne | Réel : connexion OAuth ou compte de service, vérification d'accès, upload AAB, commit de release, reprise après interruption, historique `storeRelease` | `CODE + VALIDÉ TERRAIN` | `google-play-card.tsx`, `electron/google-play-*.cjs`, tests Quality Gate, publication réelle VictoryTrack | Limité volontairement à la piste interne ; création de fiche et déclarations réglementaires restent dans Play Console |
 | App Store Connect / TestFlight | « Intégration prévue » | Inexistant | `NI` | `store-targets.tsx:41-48` | — |
 | Historique / journal / logs / diagnostic | Traçabilité + export | Réel, avec redaction | `CODE` | `src/core/history/service.ts`, `journal/logger.ts`, `diag/*` | — |
 
@@ -115,8 +115,8 @@ Correction attendue : bandeau persistant en mode web (`isElectron() === false`) 
 | Gestion de projets, cockpit, santé, copilote | **Solide** (`CODE`, testé en partie) |
 | Import Git | **Solide et durci**, deux trous connus (sous-modules, LFS) |
 | Préflight & création `android/` | **Solide** |
-| Build Android signé (macOS) | **Plausible mais non prouvé** (`NV`) — aucune exécution réelle nulle part, ni en test, ni dans cet audit |
+| Build Android signé (macOS) | **Prouvé** — Quality Gate certifie deux AAB signés consécutifs et le parcours VictoryTrack a produit un AAB réellement publié |
 | Build Android signé (Windows/Linux) | **Impossible** (`BROKEN`) — pas de coffre-fort de mots de passe |
-| Gestion de version | **Cassée sur les projets réels** (`BROKEN`) et **jamais propagée à Android** (`NI`) |
-| Publication store | **Inexistante** (`NI`), assumée dans les textes |
+| Gestion de version | **Opérationnelle pour le pipeline géré** — l'intention de publication fixe version/versionCode et ajuste automatiquement le numéro interne si nécessaire |
+| Publication store | **Réelle sur Google Play / piste interne** — validée par une publication VictoryTrack |
 | iOS | **Inexistante** (`NI`), présente visuellement |
