@@ -296,7 +296,7 @@ export interface PublishRecord {
   /** Résultat d'un envoi réel à Google Play. Absent pour une simple préparation locale. */
   storeRelease?: {
     provider: "google-play";
-    track: "internal";
+    track: "internal" | "alpha" | "beta" | "production";
     packageName: string;
     versionCode: number;
     releaseStatus: "completed";
