@@ -1,3 +1,5 @@
+const fs = require("node:fs");
+const path = require("node:path");
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 const STARTUP_DELAY_MS = 12 * 1000;
 
@@ -19,6 +21,9 @@ class MacUpdateManager {
     this.clearInterval = options.clearIntervalFn ?? clearInterval;
     this.startupDelayMs = options.startupDelayMs ?? STARTUP_DELAY_MS;
     this.intervalMs = options.intervalMs ?? SIX_HOURS_MS;
+    this.resourcesPath = options.resourcesPath ?? process.resourcesPath ?? process.cwd();
+    this.updateConfigAvailable =
+      options.updateConfigAvailable ?? (() => fs.existsSync(this.updateConfigPath()));
     this.started = false;
     this.checking = false;
     this.manualCheck = false;
@@ -27,12 +32,29 @@ class MacUpdateManager {
     this.interval = null;
   }
 
+  updateConfigPath() {
+    return path.join(this.resourcesPath, "app-update.yml");
+  }
+
   isSupported() {
-    return this.platform === "darwin" && this.app.isPackaged === true;
+    return (
+      this.platform === "darwin" &&
+      this.app.isPackaged === true &&
+      this.updateConfigAvailable()
+    );
   }
 
   start() {
-    if (!this.isSupported() || this.started) return false;
+    if (!this.isSupported() || this.started) {
+      if (
+        this.platform === "darwin" &&
+        this.app.isPackaged === true &&
+        !this.updateConfigAvailable()
+      ) {
+        this.write("info", "Mises à jour automatiques désactivées sur ce build local");
+      }
+      return false;
+    }
     this.started = true;
     this.updater.autoDownload = false;
     this.updater.autoInstallOnAppQuit = true;

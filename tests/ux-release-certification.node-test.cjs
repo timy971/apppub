@@ -121,3 +121,11 @@ test("le navigateur reste une démonstration sans faux succès métier", () => {
   assert.match(webBridge, /runtime: "web"/);
   assert.doesNotMatch(webBridge, /runtime: "electron"/);
 });
+
+
+test("l'Error Boundary racine journalise l'exception React dans le diagnostic", () => {
+  const root = read("src/routes/__root.tsx");
+  assert.match(root, /Logger\.error\("router", "root error boundary"/);
+  assert.match(root, /error\.message/);
+  assert.match(root, /error\.stack/);
+});

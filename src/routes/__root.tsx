@@ -24,6 +24,7 @@ import { PublicationJourney } from "@/components/publication-journey";
 import { UsabilityTestBanner } from "@/components/usability-test-banner";
 import { AppStore } from "@/core/store/app-store";
 import { storage } from "@/core/storage";
+import { Logger } from "@/core/diag/logger";
 
 function NotFoundComponent() {
   return (
@@ -51,6 +52,12 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
+    Logger.error("router", "root error boundary", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      pathname: typeof window !== "undefined" ? window.location.hash : undefined,
+    });
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 

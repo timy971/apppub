@@ -24,6 +24,7 @@ function fixture(overrides = {}) {
     clearTimeoutFn: () => {},
     setIntervalFn: () => 2,
     clearIntervalFn: () => {},
+    updateConfigAvailable: () => true,
     ...overrides,
   });
   return { manager, updater, dialogs };
@@ -88,4 +89,23 @@ test("une erreur émise puis rejetée n'affiche pas deux dialogues", async () =>
   };
   await manager.checkNow();
   assert.equal(dialogs.length, 1);
+});
+
+
+test("un build local packagé sans app-update.yml ne lance aucune vérification", async () => {
+  const logs = [];
+  const { manager, updater } = fixture({
+    updateConfigAvailable: () => false,
+    log: (entry) => logs.push(entry),
+  });
+  let checks = 0;
+  updater.checkForUpdates = async () => checks++;
+
+  assert.equal(manager.start(), false);
+  assert.equal(checks, 0);
+  assert.ok(
+    logs.some((entry) =>
+      String(entry.message).includes("désactivées sur ce build local"),
+    ),
+  );
 });
