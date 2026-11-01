@@ -1325,7 +1325,24 @@ function detectProjectFiles(projectPath) {
 ipcMain.handle("projects:detect", (_e, projectPath) => {
   const safe = resolveWithinAllowed(projectPath);
   if (!safe) return null;
-  return detectProjectFiles(safe);
+  const detected = detectProjectFiles(safe);
+  let androidPreparation;
+  try {
+    androidPreparation = inspectAndroidPreparation(safe);
+  } catch {}
+  diag("main", "projects:detect android readiness", {
+    hasAndroid: detected.hasAndroid,
+    androidReadiness: detected.androidReadiness,
+    androidReadinessReason: detected.androidReadinessReason,
+    hasCapacitorConfig: androidPreparation?.hasCapacitorConfig,
+    hasCapacitorCore: androidPreparation?.hasCapacitorCore,
+    hasCapacitorCli: androidPreparation?.hasCapacitorCli,
+    hasCapacitorAndroid: androidPreparation?.hasCapacitorAndroid,
+    hasGradleWrapper: androidPreparation?.hasGradleWrapper,
+    blockers: androidPreparation?.blockers ?? [],
+    warnings: androidPreparation?.warnings ?? [],
+  });
+  return detected;
 });
 
 ipcMain.handle("projects:scan", (_e, rootPath) => {
