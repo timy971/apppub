@@ -10,7 +10,7 @@ import type { GooglePlayTrack, GooglePlayTrackState } from "@/core/bridge/types"
 import { HistoryService } from "@/core/history/service";
 import { patchAndroidConfig } from "@/core/projects/android-config";
 import { ProjectsService } from "@/core/projects/service";
-import { resolvePublicationApplicationId } from "@/core/projects/release-identity";
+import { resolvePublicationApplicationId } from "@/core/publication/intent";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import type { Project, PublishRecord } from "@/core/types";
 
@@ -104,16 +104,18 @@ export function GooglePlayTracksCard({
     android.googlePlayProductionAccess !== "granted";
 
   async function promote(track: Exclude<GooglePlayTrack, "internal">) {
-    if (!connectionArgs || !sourceRelease.artifactPath || !sourceRelease.notes) return;
+    const release = sourceRelease;
+    const code = versionCode;
+    if (!connectionArgs || !release?.artifactPath || !release.notes || !code) return;
     setPromoting(track);
     const started = performance.now();
     try {
       const result = await bridge().googlePlay.promoteVersion({
         ...connectionArgs,
-        aabPath: sourceRelease.artifactPath,
-        versionCode,
+        aabPath: release.artifactPath,
+        versionCode: code,
         track,
-        notes: sourceRelease.notes,
+        notes: release.notes,
       });
       if (!result.ok) {
         if (result.errorCode !== "cancelled") {
@@ -128,21 +130,21 @@ export function GooglePlayTracksCard({
       HistoryService.record({
         projectId: project.id,
         projectName: project.name,
-        version: sourceRelease.version,
+        version: release.version,
         build: result.versionCode,
         user: settings.userName || "vous",
         durationMs: Math.round(performance.now() - started),
         outcome: "success",
         message: `Promue sur Google Play · ${LABELS[result.track]} · versionCode ${result.versionCode}`,
         kind: "publish",
-        artifactPath: sourceRelease.artifactPath,
-        artifactSizeBytes: sourceRelease.artifactSizeBytes,
-        aabValidation: sourceRelease.aabValidation,
-        aabReportPath: sourceRelease.aabReportPath,
-        publicationManifestPath: sourceRelease.publicationManifestPath,
-        sourceCommit: sourceRelease.sourceCommit,
-        sourceDirty: sourceRelease.sourceDirty,
-        notes: sourceRelease.notes,
+        artifactPath: release.artifactPath,
+        artifactSizeBytes: release.artifactSizeBytes,
+        aabValidation: release.aabValidation,
+        aabReportPath: release.aabReportPath,
+        publicationManifestPath: release.publicationManifestPath,
+        sourceCommit: release.sourceCommit,
+        sourceDirty: release.sourceDirty,
+        notes: release.notes,
         storeRelease: {
           provider: "google-play",
           track: result.track,
@@ -180,7 +182,7 @@ export function GooglePlayTracksCard({
             <h2 className="font-semibold">Cycle de diffusion Google Play</h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Version suivie : {sourceRelease.version} · nº interne {versionCode}
+            Version suivie : {release.version} · nº interne {versionCode}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
