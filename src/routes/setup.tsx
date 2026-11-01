@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -39,8 +39,6 @@ function SetupWizard() {
   const [inspectingRemote, setInspectingRemote] = useState(false);
   const [importingRemote, setImportingRemote] = useState(false);
   const [importedProjectName, setImportedProjectName] = useState<string | null>(null);
-  const nameInputRef = useRef<HTMLInputElement>(null);
-  const projectPathInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,24 +50,15 @@ function SetupWizard() {
     diag("wizard", "step:changed", { step });
   }, [step]);
 
-  // Focus différé après le commit (via requestAnimationFrame), au lieu de
-  // autoFocus natif : autoFocus déclenche en interne un `.focus()` synchrone
-  // pendant commitHostMount, qui provoque un événement selectionchange
-  // traité par React en pleine phase de commit — cause du freeze renderer.
+  // À chaque changement d'étape, le titre reçoit le focus après le rendu.
+  // On évite volontairement l'autoFocus des champs : sur Electron, cela a déjà
+  // provoqué des freezes lors du commit React. Le parcours reste entièrement
+  // utilisable au clavier via Tab et Entrée.
   useEffect(() => {
-    // DIAGNOSTIC TEMPORAIRE — focus désactivé pour isoler la cause du freeze
-    const headingFrame = window.requestAnimationFrame(() => {
+    const frame = window.requestAnimationFrame(() => {
       document.querySelector<HTMLElement>("[data-page-heading]")?.focus();
     });
-    if (step === 1) {
-      // const raf = requestAnimationFrame(() => nameInputRef.current?.focus());
-      // return () => cancelAnimationFrame(raf);
-    }
-    if (step === 2 && !detected) {
-      // const raf = requestAnimationFrame(() => projectPathInputRef.current?.focus());
-      // return () => cancelAnimationFrame(raf);
-    }
-    return () => window.cancelAnimationFrame(headingFrame);
+    return () => window.cancelAnimationFrame(frame);
   }, [step, detected]);
 
   function go(next: Step, reason: string) {
@@ -259,7 +248,6 @@ function SetupWizard() {
                 </label>
                 <Input
                   id="setup-first-name"
-                  ref={nameInputRef}
                   type="text"
                   name="given-name"
                   autoComplete="off"
@@ -404,7 +392,6 @@ function SetupWizard() {
                       </label>
                       <Input
                         id="setup-local-path"
-                        ref={projectPathInputRef}
                         placeholder="Exemple : /Users/tim/Projets/CranioScan"
                         value={projectPath}
                         onChange={(e) => {
