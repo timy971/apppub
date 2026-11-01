@@ -205,3 +205,34 @@ test("completed rollback guards cannot later delete a successful Android project
   assert.throws(() => manager.rollbackCreatedArtifacts(project, token), /invalide ou expirée/);
   assert.equal(fs.existsSync(path.join(project, "android")), true);
 });
+
+
+test("real VictoryTrack regression: complete existing Android with missing Capacitor deps is auto-repairable", (t) => {
+  const { project } = projectFixture(t, {
+    name: "victorytrack",
+    scripts: { build: "vite build" },
+    dependencies: { react: "18.3.1", "@capacitor/core": "^7.0.0" },
+    devDependencies: { vite: "8.0.16" },
+  });
+  fs.mkdirSync(path.join(project, "android", "app"), { recursive: true });
+  fs.writeFileSync(path.join(project, "android", "gradlew"), "");
+  fs.writeFileSync(path.join(project, "android", "app", "build.gradle"), "android {}");
+  fs.writeFileSync(
+    path.join(project, "capacitor.config.json"),
+    JSON.stringify({
+      appId: "app.victorytrack.android",
+      appName: "Victory Track",
+      webDir: "dist",
+    }),
+  );
+
+  const analysis = inspectAndroidPreparation(project);
+  assert.equal(analysis.status, "preparable");
+  assert.equal(analysis.hasAndroid, true);
+  assert.equal(analysis.hasCapacitorCore, true);
+  assert.equal(analysis.hasCapacitorCli, false);
+  assert.equal(analysis.hasCapacitorAndroid, false);
+  assert.match(analysis.warnings.join(" "), /ajouter automatiquement/);
+  assert.ok(analysis.changes.some((change) => /Ajouter Capacitor/.test(change)));
+  assert.ok(analysis.changes.some((change) => /Synchroniser le dossier android\/ existant/.test(change)));
+});
