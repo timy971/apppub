@@ -115,5 +115,27 @@ export function evaluatePlayCompliance(
       "Cette règle concerne l'accès à la production. Elle ne bloque pas la piste de test interne utilisée aujourd'hui par AppPublisher.",
   });
 
+
+  if (cfg.googlePlayAccountKind === "personal-new") {
+    checks.push({
+      id: "play-production-access",
+      label: "Accès production accordé par Google Play",
+      severity:
+        cfg.googlePlayProductionAccess === "granted"
+          ? "ok"
+          : cfg.googlePlayProductionAccess === "requested"
+            ? "warn"
+            : "info",
+      detail:
+        cfg.googlePlayProductionAccess === "granted"
+          ? "Vous avez confirmé que Google Play a accordé l'accès à la production."
+          : cfg.googlePlayProductionAccess === "requested"
+            ? "La demande d'accès production a été envoyée et reste en attente de décision."
+            : "Après le test fermé requis, demandez l'accès à la production dans Play Console puis confirmez ici lorsqu'il est accordé.",
+      explanation:
+        "Pour les nouveaux comptes personnels, le test ouvert et la production dépendent de l'accès production accordé par Google.",
+    });
+  }
+
   return checks;
 }
