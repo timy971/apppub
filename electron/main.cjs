@@ -512,10 +512,6 @@ function resolveWithinAllowed(inputPath) {
   return projectAccess.resolveExisting(inputPath);
 }
 
-// Les artefacts promus doivent rester accessibles après suppression du
-// workspace et après redémarrage d'AppPublisher.
-registerAllowedRoot(publicationArtifactManager.rootPath);
-
 function publicationMaintenanceBindings() {
   const stored = durableStore.get("projects");
   if (!stored.ok || !stored.found || !Array.isArray(stored.value)) {
@@ -962,15 +958,40 @@ app
     diagWrite({ level: "info", message: "app whenReady" });
 
     safeStep("restore-known-roots", () => {
+      // Important : charger le registre AVANT d'ajouter des racines internes.
+      // Sinon approveExisting() persiste un registre encore vide et peut
+      // écraser les projets précédemment autorisés.
       const restored = projectAccess.load();
+
+      // Les artefacts promus doivent rester accessibles après suppression
+      // du workspace et après redémarrage d'AppPublisher.
+      const artifactRoot = registerAllowedRoot(publicationArtifactManager.rootPath);
+
+      // Un projet Git géré vit dans le répertoire privé d'AppPublisher et a
+      // déjà été explicitement importé par l'utilisateur. S'il est toujours
+      // présent dans le stockage métier et validé par GitProjectManager,
+      // restaurer son autorisation sans redemander un sélecteur de dossier.
+      const bindings = publicationMaintenanceBindings();
+      const restoredManagedProjects = [];
+      for (const projectPath of bindings.projectPaths) {
+        const approved = registerAllowedRoot(projectPath);
+        if (approved) restoredManagedProjects.push(approved);
+      }
+
       const keystores = keystoreAccess.load();
       const keystoreOutputFolders = keystoreOutputAccess.load();
+
+      // Charger la confiance après restauration des racines, sinon un projet
+      // géré momentanément absent du registre serait oublié à tort.
       const trusted = trustStore.load(projectAccess);
       diagWrite({
         level: "info",
         message: "known-roots restored",
         ctx: {
-          count: restored.length,
+          count: projectAccess.list().length,
+          loadedCount: restored.length,
+          artifactRoot: Boolean(artifactRoot),
+          restoredManagedProjects: restoredManagedProjects.length,
           keystores: keystores.length,
           keystoreOutputFolders: keystoreOutputFolders.length,
           trustedProjects: trusted.length,
