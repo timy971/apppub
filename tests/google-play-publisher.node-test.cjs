@@ -579,7 +579,7 @@ test("reads the four canonical Google Play tracks", async () => {
     jwtFactory: () => ({ getAccessToken: async () => ({ token: "token" }) }),
   });
 
-  const result = await publisher.trackStatus(serviceAccount(), "app.cranioscan.android");
+  const result = await publisher.trackStatus(credentials, "app.cranioscan.android");
   assert.equal(result.ok, true);
   assert.deepEqual(result.tracks.map((track) => track.track), [
     "internal",
@@ -615,7 +615,7 @@ test("promotes an existing version without uploading the AAB again", async () =>
   });
 
   const result = await publisher.promoteVersion({
-    credentials: serviceAccount(),
+    credentials: credentials,
     packageName: "app.cranioscan.android",
     versionCode: 42,
     track: "alpha",
