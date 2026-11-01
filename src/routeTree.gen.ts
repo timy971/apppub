@@ -112,8 +112,6 @@ export interface FileRoutesByFullPath {
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/pre-distribution': typeof PreDistributionRoute
-  '/pre-distribution': typeof PreDistributionRoute
-  '/pre-distribution': typeof PreDistributionRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/signing': typeof SigningRoute
@@ -130,6 +128,7 @@ export interface FileRoutesByTo {
   '/logs': typeof LogsRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
+  '/pre-distribution': typeof PreDistributionRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/signing': typeof SigningRoute
@@ -147,6 +146,7 @@ export interface FileRoutesById {
   '/logs': typeof LogsRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
+  '/pre-distribution': typeof PreDistributionRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/signing': typeof SigningRoute
