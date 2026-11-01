@@ -201,4 +201,5 @@ export const STORAGE_KEYS = {
   projects: "projects",
   history: "history",
   journal: "journal",
+  usabilityTest: "usability-test",
 } as const;
