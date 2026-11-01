@@ -23,6 +23,7 @@ import { PublishCopilotStrip } from "./copilot-strip";
 import { PublishExplainer } from "./publish-explainer";
 import { PublishHandoffCard } from "./handoff-card";
 import { GooglePlayCard } from "./google-play-card";
+import { GooglePlayTracksCard } from "./google-play-tracks-card";
 import { PostPublishCard } from "./post-publish-card";
 import { ReleaseOverviewCard } from "./release-overview";
 import { ChecklistCard } from "./checklist";
@@ -287,6 +288,10 @@ export function PublishCenter({ project }: { project: Project }) {
           onChanged={() => setRefreshKey((n) => n + 1)}
         />
       )}
+      <GooglePlayTracksCard
+        project={project}
+        onChanged={() => setRefreshKey((n) => n + 1)}
+      />
       {preparedRelease && !lastStoreRelease && <PublishHandoffCard release={preparedRelease} />}
       <GooglePlayCard
         project={project}
