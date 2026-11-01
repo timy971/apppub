@@ -1351,7 +1351,10 @@ ipcMain.handle("projects:detect", (_e, projectPath) => {
   try {
     androidPreparation = inspectAndroidPreparation(safe);
   } catch {}
-  diag("main", "projects:detect android readiness", {
+  diagWrite({
+    level: "info",
+    message: "projects:detect android readiness",
+    ctx: {
     hasAndroid: detected.hasAndroid,
     androidReadiness: detected.androidReadiness,
     androidReadinessReason: detected.androidReadinessReason,
@@ -1361,7 +1364,8 @@ ipcMain.handle("projects:detect", (_e, projectPath) => {
     hasCapacitorAndroid: androidPreparation?.hasCapacitorAndroid,
     hasGradleWrapper: androidPreparation?.hasGradleWrapper,
     blockers: androidPreparation?.blockers ?? [],
-    warnings: androidPreparation?.warnings ?? [],
+      warnings: androidPreparation?.warnings ?? [],
+    },
   });
   return detected;
 });
