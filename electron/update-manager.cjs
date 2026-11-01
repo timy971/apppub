@@ -21,7 +21,9 @@ class MacUpdateManager {
     this.clearInterval = options.clearIntervalFn ?? clearInterval;
     this.startupDelayMs = options.startupDelayMs ?? STARTUP_DELAY_MS;
     this.intervalMs = options.intervalMs ?? SIX_HOURS_MS;
-    this.resourcesPath = options.resourcesPath ?? process.resourcesPath;
+    this.resourcesPath = options.resourcesPath ?? process.resourcesPath ?? process.cwd();
+    this.updateConfigAvailable =
+      options.updateConfigAvailable ?? (() => fs.existsSync(this.updateConfigPath()));
     this.started = false;
     this.checking = false;
     this.manualCheck = false;
@@ -38,7 +40,7 @@ class MacUpdateManager {
     return (
       this.platform === "darwin" &&
       this.app.isPackaged === true &&
-      fs.existsSync(this.updateConfigPath())
+      this.updateConfigAvailable()
     );
   }
 
@@ -47,7 +49,7 @@ class MacUpdateManager {
       if (
         this.platform === "darwin" &&
         this.app.isPackaged === true &&
-        !fs.existsSync(this.updateConfigPath())
+        !this.updateConfigAvailable()
       ) {
         this.write("info", "Mises à jour automatiques désactivées sur ce build local");
       }
