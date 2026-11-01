@@ -556,3 +556,79 @@ test("reports an AAB upload interruption without blaming the user's Internet acc
       /sans recréer la connexion Google/.test(error.message),
   );
 });
+
+
+test("reads the four canonical Google Play tracks", async () => {
+  const calls = [];
+  const publisher = new GooglePlayPublisher({
+    fetchImpl: async (url, options = {}) => {
+      calls.push({ url: String(url), options });
+      if (String(url).endsWith("/edits")) return response(200, { id: "edit-tracks" });
+      if (String(url).endsWith("/tracks")) {
+        return response(200, {
+          tracks: [
+            { track: "internal", releases: [{ versionCodes: ["7"], status: "completed" }] },
+            { track: "alpha", releases: [{ versionCodes: ["7"], status: "completed" }] },
+            { track: "production", releases: [{ versionCodes: ["5"], status: "completed" }] },
+          ],
+        });
+      }
+      if (options.method === "DELETE") return response(204);
+      return response(404, {});
+    },
+    jwtFactory: () => ({ getAccessToken: async () => ({ token: "token" }) }),
+  });
+
+  const result = await publisher.trackStatus(serviceAccount(), "app.cranioscan.android");
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.tracks.map((track) => track.track), [
+    "internal",
+    "alpha",
+    "beta",
+    "production",
+  ]);
+  assert.deepEqual(result.tracks.find((track) => track.track === "internal").versionCodes, [7]);
+  assert.deepEqual(result.tracks.find((track) => track.track === "beta").versionCodes, []);
+});
+
+test("promotes an existing version without uploading the AAB again", async () => {
+  const calls = [];
+  const publisher = new GooglePlayPublisher({
+    fetchImpl: async (url, options = {}) => {
+      calls.push({ url: String(url), options });
+      const value = String(url);
+      if (value.endsWith("/edits")) return response(200, { id: "edit-promote" });
+      if (value.endsWith("/tracks") && options.method === "GET") {
+        return response(200, {
+          tracks: [{ track: "internal", releases: [{ versionCodes: ["42"], status: "completed" }] }],
+        });
+      }
+      if (value.includes("/tracks/alpha") && options.method === "PUT") {
+        return response(200, { track: "alpha" });
+      }
+      if (value.endsWith(":validate")) return response(200, { id: "edit-promote" });
+      if (value.includes(":commit?")) return response(200, { id: "edit-promote" });
+      if (options.method === "DELETE") return response(204);
+      return response(404, {});
+    },
+    jwtFactory: () => ({ getAccessToken: async () => ({ token: "token" }) }),
+  });
+
+  const result = await publisher.promoteVersion({
+    credentials: serviceAccount(),
+    packageName: "app.cranioscan.android",
+    versionCode: 42,
+    track: "alpha",
+    notes: "Promotion de test",
+    language: "fr-FR",
+    releaseName: "CranioScan 1.0.1 (42)",
+  });
+
+  assert.equal(result.track, "alpha");
+  assert.equal(result.versionCode, 42);
+  assert.equal(result.promoted, true);
+  assert.equal(calls.some((call) => call.url.includes("/bundles?uploadType=media")), false);
+  const trackCall = calls.find((call) => call.url.includes("/tracks/alpha"));
+  const body = JSON.parse(trackCall.options.body);
+  assert.deepEqual(body.releases[0].versionCodes, ["42"]);
+});
