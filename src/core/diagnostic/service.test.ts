@@ -115,7 +115,6 @@ describe("DiagnosticService — Lot 12", () => {
     expect(checks.find((check) => check.id === "version-json")?.status).toBe("warning");
     expect(checks.find((check) => check.id === "version-script")?.status).toBe("warning");
   });
-});
 
 
   it("ignores a stale blocked snapshot when the live Android analysis is preparable", async () => {
@@ -163,3 +162,5 @@ describe("DiagnosticService — Lot 12", () => {
       detail: "capacitor.config.json ne contient pas d’appId littéral.",
     });
   });
+
+});
