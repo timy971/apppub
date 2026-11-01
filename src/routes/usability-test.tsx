@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { AppStore } from "@/core/store/app-store";
+import { AppStore, useSettings } from "@/core/store/app-store";
 import {
   UsabilityTestService,
   useUsabilityTestSession,
@@ -19,11 +19,15 @@ export const Route = createFileRoute("/usability-test")({
 
 function UsabilityTestPage() {
   const session = useUsabilityTestSession();
+  const settings = useSettings();
   const [alias, setAlias] = useState("");
   const navigate = useNavigate();
 
   function start() {
-    UsabilityTestService.start(alias);
+    UsabilityTestService.start(alias, {
+      mode: settings.mode,
+      onboardingCompleted: settings.onboardingCompleted,
+    });
     AppStore.updateSettings({
       mode: "discovery",
       onboardingCompleted: false,
@@ -37,6 +41,11 @@ function UsabilityTestPage() {
   function finish() {
     const completed = UsabilityTestService.finish();
     if (!completed) return;
+    AppStore.updateSettings({
+      mode: completed.previousMode ?? settings.mode,
+      onboardingCompleted:
+        completed.previousOnboardingCompleted ?? settings.onboardingCompleted,
+    });
     toast.success(
       completed.googlePlaySuccess
         ? "Test terminé — publication détectée"
