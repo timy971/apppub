@@ -26,7 +26,7 @@ test("le parcours novice couvre les six étapes jusqu'au test interne", () => {
   const result = read("src/components/build-center/result-card.tsx");
   const publish = read("src/components/publish-center/google-play-card.tsx");
   assert.match(result, /Continuer vers la publication/);
-  assert.match(publish, /Test interne/);
+  assert.match(publish, /Envoi initial : test interne/);
   assert.match(publish, /Envoyer aux testeurs internes/);
 });
 
