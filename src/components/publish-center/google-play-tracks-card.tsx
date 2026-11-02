@@ -13,7 +13,11 @@ import { ProjectsService } from "@/core/projects/service";
 import { resolvePublicationApplicationId } from "@/core/publication/intent";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import type { Project } from "@/core/types";
-import { applyGooglePlayStatus } from "@/core/google-play/status-sync";
+import {
+  applyGooglePlayStatus,
+  invalidateGooglePlayVerification,
+} from "@/core/google-play/status-sync";
+import type { GooglePlayFailure } from "./google-play-card";
 
 const LABELS: Record<GooglePlayTrack, string> = {
   internal: "Test interne",
@@ -27,14 +31,17 @@ const ORDER: GooglePlayTrack[] = ["internal", "alpha", "beta", "production"];
 export function GooglePlayTracksCard({
   project,
   onChanged,
+  onFailure,
 }: {
   project: Project;
   onChanged: () => void;
+  onFailure: (failure: GooglePlayFailure | null) => void;
 }) {
   const settings = useSettings();
   const [tracks, setTracks] = useState<GooglePlayTrackState[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [promoting, setPromoting] = useState<GooglePlayTrack | null>(null);
+  const [readFailure, setReadFailure] = useState<GooglePlayFailure | null>(null);
 
   const android = project.publishing?.android ?? {};
   const packageName = resolvePublicationApplicationId(project) ?? "";
@@ -61,22 +68,51 @@ export function GooglePlayTracksCard({
 
   const versionCode = sourceRelease?.storeRelease?.versionCode ?? sourceRelease?.build;
 
-  async function refresh() {
+  async function refresh(options: { silent?: boolean } = {}) {
     if (!connectionArgs) return;
     setLoading(true);
     try {
       const result = await bridge().googlePlay.trackStatus(connectionArgs);
       if (!result.ok) {
-        toast.error("État Google Play indisponible", {
-          description: result.errorHint ?? result.errorCode,
-        });
+        const failure: GooglePlayFailure = {
+          errorCode: result.errorCode,
+          errorHint: result.errorHint,
+          phase: result.phase,
+          causeCode: result.causeCode,
+        };
+        setTracks(null);
+        setReadFailure(failure);
+        onFailure(failure);
+        if (
+          connectionId &&
+          (result.errorCode === "credentials-missing" ||
+            result.errorCode === "credentials-rejected")
+        ) {
+          invalidateGooglePlayVerification(connectionId);
+          AppStore.refreshProjects();
+          return;
+        }
+        if (!options.silent) {
+          toast.error("État Google Play indisponible", {
+            description: result.errorHint ?? result.errorCode,
+          });
+        }
         return;
       }
+      setReadFailure(null);
+      onFailure(null);
       setTracks(result.tracks);
-      applyGooglePlayStatus(project, result.tracks);
-      AppStore.refreshProjects();
+      const updatedProject = applyGooglePlayStatus(project, result.tracks);
+      if (updatedProject && updatedProject !== project) AppStore.refreshProjects();
     } catch {
-      toast.error("Impossible de lire les pistes Google Play");
+      const failure: GooglePlayFailure = {
+        errorCode: "network-error",
+        errorHint: "Impossible de lire les pistes Google Play.",
+      };
+      setTracks(null);
+      setReadFailure(failure);
+      onFailure(failure);
+      if (!options.silent) toast.error("Impossible de lire les pistes Google Play");
     } finally {
       setLoading(false);
     }
@@ -84,7 +120,7 @@ export function GooglePlayTracksCard({
 
   useEffect(() => {
     if (!connectionArgs) return;
-    void refresh();
+    void refresh({ silent: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionId, packageName, project.id]);
 
@@ -209,7 +245,11 @@ export function GooglePlayTracksCard({
                   ? `Dernier nº interne : ${state.versionCodes[0]}`
                   : loading
                     ? "Lecture…"
-                    : "Aucune version détectée"}
+                    : readFailure
+                      ? "Impossible à vérifier pour le moment"
+                      : tracks === null
+                        ? "En attente de vérification"
+                        : "Aucune version détectée"}
               </div>
             </div>
           );

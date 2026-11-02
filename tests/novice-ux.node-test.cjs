@@ -427,11 +427,12 @@ test("un compte Google Play déjà connecté peut être réutilisé sans nouvell
 
 test("un rejet d'authentification Google invalide immédiatement le badge vérifié", () => {
   const card = read("src/components/publish-center/google-play-card.tsx");
+  const sync = read("src/core/google-play/status-sync.ts");
 
   assert.match(card, /credentials-missing"[\s\S]*credentials-rejected/);
-  assert.match(card, /invalidateVerifiedConnection/);
-  assert.match(card, /googlePlayLastCheckedAt: undefined/);
-  assert.match(card, /AppStore\.getProjects\(\)/);
+  assert.match(card, /invalidateGooglePlayVerification/);
+  assert.match(sync, /googlePlayLastCheckedAt: undefined/);
+  assert.match(sync, /ProjectsService\.list\(\)/);
   assert.match(card, /Reconnecter Google/);
   assert.match(card, /reconnectWithGoogle/);
   assert.match(card, /Autorisation Google renouvelée/);
@@ -448,4 +449,20 @@ test("la page Google Play ne repasse plus au squelette pour une simple métadonn
   assert.match(center, /project\.currentBuild/);
   assert.match(sync, /materiallyChanged/);
   assert.match(sync, /if \(!materiallyChanged\) return project/);
+});
+
+
+test("un échec de lecture des pistes Google Play affiche un seul état de récupération cohérent", () => {
+  const center = read("src/components/publish-center/publish-center.tsx");
+  const tracks = read("src/components/publish-center/google-play-tracks-card.tsx");
+  const card = read("src/components/publish-center/google-play-card.tsx");
+
+  assert.match(center, /googlePlayFailure/);
+  assert.match(center, /onFailure=\{setGooglePlayFailure\}/);
+  assert.match(center, /externalFailure=\{googlePlayFailure\}/);
+  assert.match(tracks, /silent: true/);
+  assert.match(tracks, /Impossible à vérifier pour le moment/);
+  assert.match(tracks, /onFailure\(failure\)/);
+  assert.match(card, /activeFailure = externalFailure \?\? lastFailure/);
+  assert.match(card, /failure=\{activeFailure\}/);
 });

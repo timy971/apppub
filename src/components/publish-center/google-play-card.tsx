@@ -30,6 +30,7 @@ import { ProjectsService } from "@/core/projects/service";
 import { resolvePublicationApplicationId } from "@/core/publication/intent";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import { JourneyProgress } from "@/core/navigation/journey-progress";
+import { invalidateGooglePlayVerification } from "@/core/google-play/status-sync";
 import type { Project, PublishRecord } from "@/core/types";
 import { GooglePlaySetupGuide } from "./google-play-setup-guide";
 import { GooglePlayJourney } from "./google-play-journey";
@@ -39,6 +40,7 @@ interface Props {
   project: Project;
   release?: PublishRecord;
   onChanged: () => void;
+  externalFailure?: GooglePlayFailure | null;
 }
 
 type BusyAction = "oauth" | "reuse" | "import" | "test" | "publish" | "disconnect" | null;
@@ -49,17 +51,18 @@ type ReusableGooglePlayConnection = {
   authMode: "oauth" | "service-account";
   sourceProjectName: string;
 };
-type GooglePlayFailure = {
+export type GooglePlayFailure = {
   errorCode: string;
   errorHint?: string;
   phase?: string;
   causeCode?: string;
 };
 
-export function GooglePlayCard({ project, release, onChanged }: Props) {
+export function GooglePlayCard({ project, release, onChanged, externalFailure }: Props) {
   const settings = useSettings();
   const [busy, setBusy] = useState<BusyAction>(null);
   const [lastFailure, setLastFailure] = useState<GooglePlayFailure | null>(null);
+  const activeFailure = externalFailure ?? lastFailure;
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const [reusableConnections, setReusableConnections] = useState<ReusableGooglePlayConnection[]>([]);
   const android = project.publishing?.android ?? {};
@@ -589,23 +592,13 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     }
   }
 
-  function invalidateVerifiedConnection() {
-    if (!connectionId) return;
-    for (const candidate of AppStore.getProjects()) {
-      if (candidate.publishing?.android?.googlePlayConnectionId !== connectionId) continue;
-      ProjectsService.update(
-        candidate.id,
-        patchAndroidConfig(candidate, {
-          googlePlayLastCheckedAt: undefined,
-        }),
-      );
-    }
-    AppStore.refreshProjects();
-  }
-
   function reportGooglePlayError(result: GooglePlayFailure) {
-    if (result.errorCode === "credentials-missing" || result.errorCode === "credentials-rejected") {
-      invalidateVerifiedConnection();
+    if (
+      connectionId &&
+      (result.errorCode === "credentials-missing" || result.errorCode === "credentials-rejected")
+    ) {
+      invalidateGooglePlayVerification(connectionId);
+      AppStore.refreshProjects();
     }
     setLastFailure(result);
     showGooglePlayError(result);
@@ -789,17 +782,17 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           </div>
         </div>
       )}
-      {lastFailure && (
+      {activeFailure && (
         <GooglePlayRecovery
-          failure={lastFailure}
+          failure={activeFailure}
           suggestedBuild={suggestedNextGooglePlayBuild}
           onRetry={
-            lastFailure.errorCode === "credentials-missing" ||
-            lastFailure.errorCode === "credentials-rejected"
+            activeFailure.errorCode === "credentials-missing" ||
+            activeFailure.errorCode === "credentials-rejected"
               ? reconnectWithGoogle
-              : lastFailure.errorCode === "commit-outcome-unknown" ||
+              : activeFailure.errorCode === "commit-outcome-unknown" ||
                   ["pre-publish-check", "upload-bundle", "update-track", "validate-edit", "commit-edit"].includes(
-                    lastFailure.phase ?? "",
+                    activeFailure.phase ?? "",
                   )
                 ? publish
                 : testConnection
