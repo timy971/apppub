@@ -158,7 +158,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
 
   function updatePlayCompliance(
     patch: Parameters<typeof patchAndroidConfig>[1],
-    touched: Parameters<typeof ProjectsService.update>[2]["touched"],
+    touched: string[],
   ) {
     ProjectsService.update(project.id, patchAndroidConfig(project, patch), { touched });
     AppStore.refreshProjects();
