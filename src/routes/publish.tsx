@@ -7,7 +7,7 @@ import { ActiveApplicationContext } from "@/components/active-application-contex
 
 /**
  * /publish — Publish Center.
- * Prépare une release puis permet son envoi explicite sur Google Play internal.
+ * Prépare une release puis permet son envoi explicite vers la piste Google Play choisie.
  */
 export const Route = createFileRoute("/publish")({
   component: PublishPage,
@@ -27,7 +27,7 @@ function PublishPage() {
         help={{
           title: "À propos de la publication",
           content:
-            "AppPublisher commence par publier auprès de vos testeurs internes. Cette étape sûre permet de vérifier l'application avant de la proposer au public.",
+            "Choisissez la destination de cette version : test interne, test fermé, test ouvert ou production. AppPublisher conserve les garde-fous nécessaires avant l'envoi.",
         }}
       />
       {project ? (
@@ -35,8 +35,8 @@ function PublishPage() {
           <ActiveApplicationContext project={project} />
           <StepPurpose
             automatic="vérifier le fichier, la version, les notes et la connexion Google Play."
-            yourAction="relire le résumé puis confirmer l'envoi aux testeurs internes."
-            result="la nouvelle version apparaît dans Google Play Console, piste Internal."
+            yourAction="relire le résumé, choisir la destination Google Play puis confirmer l'envoi."
+            result="la nouvelle version apparaît dans Google Play Console sur la piste choisie."
           />
           <PublishCenter project={project} />
         </>
