@@ -803,50 +803,50 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           )}
         </div>
       </div>
-      {connected && (
-        <div className="mt-5 rounded-xl border bg-muted/20 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <label className="text-sm font-medium" htmlFor="google-play-target-track">
-                Où voulez-vous envoyer cette version ?
-              </label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {TRACK_DESCRIPTIONS[selectedTrack]}
-              </p>
-            </div>
-            <Select
-              value={selectedTrack}
-              onValueChange={(value) => selectTrack(value as GooglePlayTrack)}
-              disabled={busy !== null}
-            >
-              <SelectTrigger id="google-play-target-track" className="w-full sm:w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="internal">Test interne</SelectItem>
-                <SelectItem value="alpha">Test fermé</SelectItem>
-                <SelectItem value="beta" disabled={openTestingBlocked}>
-                  Test ouvert{openTestingBlocked ? " — indisponible" : ""}
-                </SelectItem>
-                <SelectItem value="production" disabled={!productionReady}>
-                  Production{!productionReady ? " — prérequis manquants" : ""}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+      <div className="mt-5 rounded-xl border bg-muted/20 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <label className="text-sm font-medium" htmlFor="google-play-target-track">
+              Où voulez-vous envoyer cette version ?
+            </label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {TRACK_DESCRIPTIONS[selectedTrack]}
+            </p>
           </div>
-          {selectedTrackBlockedReason && (
-            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
-              {selectedTrackBlockedReason}
-            </p>
-          )}
-          {selectedTrack === "production" && productionReady && (
-            <p className="mt-3 text-xs font-medium text-amber-700 dark:text-amber-300">
-              Cette destination peut rendre la version accessible à de vrais utilisateurs. Une
-              confirmation native supplémentaire sera demandée avant l'envoi.
-            </p>
-          )}
+          <Select
+            value={selectedTrack}
+            onValueChange={(value) => selectTrack(value as GooglePlayTrack)}
+            disabled={busy !== null}
+          >
+            <SelectTrigger id="google-play-target-track" className="w-full sm:w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="internal">Test interne</SelectItem>
+              <SelectItem value="alpha">Test fermé</SelectItem>
+              <SelectItem value="beta">Test ouvert</SelectItem>
+              <SelectItem value="production">Production</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      )}
+        {!connected && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Vous pouvez choisir la destination maintenant. La connexion Google Play sera vérifiée
+            avant l’envoi.
+          </p>
+        )}
+        {selectedTrackBlockedReason && (
+          <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+            {selectedTrackBlockedReason}
+          </p>
+        )}
+        {selectedTrack === "production" && productionReady && (
+          <p className="mt-3 text-xs font-medium text-amber-700 dark:text-amber-300">
+            Cette destination peut rendre la version accessible à de vrais utilisateurs. Une
+            confirmation native supplémentaire sera demandée avant l'envoi.
+          </p>
+        )}
+      </div>
 
       <GooglePlayJourney
         connected={connected}
