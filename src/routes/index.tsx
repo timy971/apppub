@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppStore, useSettings, useActiveProject, useProjects } from "@/core/store/app-store";
 import { HistoryService } from "@/core/history/service";
 import { BackupService } from "@/core/backup/service";
@@ -33,6 +33,7 @@ function Dashboard() {
   const navigate = useNavigate();
   const { plan, loading: copilotLoading } = useCopilotPlan();
   const [hydrated, setHydrated] = useState(false);
+  const playSyncAttempted = useRef(new Set<string>());
 
   useEffect(() => setHydrated(true), []);
 
@@ -44,8 +45,12 @@ function Dashboard() {
 
   useEffect(() => {
     if (!hydrated || !settings.onboardingCompleted) return;
-    const due = projects.filter((project) => googlePlayStatusSyncDue(project));
+    const due = projects.filter(
+      (project) =>
+        googlePlayStatusSyncDue(project) && !playSyncAttempted.current.has(project.id),
+    );
     if (!due.length) return;
+    due.forEach((project) => playSyncAttempted.current.add(project.id));
     let cancelled = false;
     void Promise.allSettled(due.map((project) => syncGooglePlayStatus(project))).then(() => {
       if (!cancelled) AppStore.refreshProjects();
