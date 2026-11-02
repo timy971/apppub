@@ -28,6 +28,7 @@ import { ErrorCard } from "@/components/error-card";
 import { translateError } from "@/core/errors/translator";
 import { toast } from "sonner";
 import { StepPurpose } from "@/components/step-purpose";
+import { ActiveApplicationContext } from "@/components/active-application-context";
 
 export const Route = createFileRoute("/version")({
   component: VersionAssistant,
@@ -360,6 +361,8 @@ function VersionAssistant() {
           ),
         }}
       />
+
+      {project && <ActiveApplicationContext project={project} />}
 
       <StepPurpose
         automatic="calculer les nouveaux numéros et sauvegarder l'application avant toute modification."

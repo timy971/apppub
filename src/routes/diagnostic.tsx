@@ -15,6 +15,7 @@ import { ProjectsService } from "@/core/projects/service";
 import { StepPurpose } from "@/components/step-purpose";
 import { JourneyContinuation } from "@/components/journey-continuation";
 import { HelpRequestButton } from "@/components/help-request-button";
+import { ActiveApplicationContext } from "@/components/active-application-context";
 
 export const Route = createFileRoute("/diagnostic")({
   component: DiagnosticPage,
@@ -87,6 +88,8 @@ function DiagnosticPage() {
           </Button>
         }
       />
+
+      {project && <ActiveApplicationContext project={project} />}
 
       <StepPurpose
         automatic="contrôler votre ordinateur et la configuration de l'application."

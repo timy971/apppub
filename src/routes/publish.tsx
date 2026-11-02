@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { useActiveProject } from "@/core/store/app-store";
 import { PublishCenter, NoProjectPublish } from "@/components/publish-center/publish-center";
 import { StepPurpose } from "@/components/step-purpose";
+import { ActiveApplicationContext } from "@/components/active-application-context";
 
 /**
  * /publish — Publish Center.
@@ -31,6 +32,7 @@ function PublishPage() {
       />
       {project ? (
         <>
+          <ActiveApplicationContext project={project} />
           <StepPurpose
             automatic="vérifier le fichier, la version, les notes et la connexion Google Play."
             yourAction="relire le résumé puis confirmer l'envoi aux testeurs internes."

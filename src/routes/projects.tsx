@@ -478,7 +478,10 @@ function ProjectsPage() {
           setLifecycleFilter={setLifecycleFilter}
           favoritesOnly={favoritesOnly}
           setFavoritesOnly={setFavoritesOnly}
-          onOpen={(p) => navigate({ to: "/projects/$id", params: { id: p.id } })}
+          onOpen={(p) => {
+            AppStore.setActiveProject(p.id);
+            navigate({ to: "/projects/$id", params: { id: p.id } });
+          }}
           onDelete={setToDelete}
         />
       )}
@@ -637,6 +640,7 @@ function ProjectCard({
   }
   function openIdentity(e: React.MouseEvent) {
     e.stopPropagation();
+    AppStore.setActiveProject(project.id);
     navigate({
       to: "/projects/$id",
       params: { id: project.id },
@@ -750,7 +754,11 @@ function ProjectCard({
               aria-label="Ouvrir le projet"
               onClick={(e) => e.stopPropagation()}
             >
-              <Link to="/projects/$id" params={{ id: project.id }}>
+              <Link
+                to="/projects/$id"
+                params={{ id: project.id }}
+                onClick={() => AppStore.setActiveProject(project.id)}
+              >
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </Link>
             </Button>

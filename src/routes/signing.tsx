@@ -62,6 +62,7 @@ import { ExpertDetails, ExpertRow } from "@/components/expert-details";
 import { useActiveProject, AppStore } from "@/core/store/app-store";
 import { ProjectsService } from "@/core/projects/service";
 import { patchAndroidConfig } from "@/core/projects/android-config";
+import { ActiveApplicationContext } from "@/components/active-application-context";
 
 export const Route = createFileRoute("/signing")({
   component: SigningPage,
@@ -190,6 +191,8 @@ function SigningPage() {
           </div>
         }
       />
+
+      {activeProject && <ActiveApplicationContext project={activeProject} />}
 
       <StepPurpose
         automatic="créer ou vérifier l'identité numérique de votre application et protéger ses mots de passe."

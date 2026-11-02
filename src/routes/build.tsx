@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useActiveProject } from "@/core/store/app-store";
 import { BuildCenter } from "@/components/build-center/build-center";
 import { StepPurpose } from "@/components/step-purpose";
+import { ActiveApplicationContext } from "@/components/active-application-context";
 
 export const Route = createFileRoute("/build")({
   component: BuildPage,
@@ -41,6 +42,8 @@ function BuildPage() {
             "Google Play attend un fichier Android signé (format AAB). AppPublisher le crée, le vérifie et vous indique où il se trouve.",
         }}
       />
+      {project && <ActiveApplicationContext project={project} />}
+
       <StepPurpose
         automatic="vérifier les outils nécessaires, préparer Android, construire puis contrôler le fichier."
         yourAction="lancer la création et laisser AppPublisher travailler."
