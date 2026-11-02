@@ -29,10 +29,12 @@ function latestReleaseStatus(production: GooglePlayTrackState | undefined): {
       : "unknown";
   return {
     status,
-    live:
-      Boolean(latest?.versionCodes.length) &&
-      typeof latest?.status === "string" &&
-      LIVE_STATUSES.has(latest.status),
+    live: releases.some(
+      (release) =>
+        release.versionCodes.length > 0 &&
+        typeof release.status === "string" &&
+        LIVE_STATUSES.has(release.status),
+    ),
   };
 }
 
