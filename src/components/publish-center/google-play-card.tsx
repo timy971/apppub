@@ -18,12 +18,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { bridge } from "@/core/bridge";
+import type { GooglePlayTrack } from "@/core/bridge/types";
 import { HistoryService } from "@/core/history/service";
 import { patchAndroidConfig } from "@/core/projects/android-config";
 import { ProjectsService } from "@/core/projects/service";
@@ -56,6 +64,27 @@ export type GooglePlayFailure = {
   errorHint?: string;
   phase?: string;
   causeCode?: string;
+};
+
+const TRACK_LABELS: Record<GooglePlayTrack, string> = {
+  internal: "Test interne",
+  alpha: "Test fermé",
+  beta: "Test ouvert",
+  production: "Production",
+};
+
+const TRACK_ACTIONS: Record<GooglePlayTrack, string> = {
+  internal: "Envoyer en test interne",
+  alpha: "Envoyer en test fermé",
+  beta: "Envoyer en test ouvert",
+  production: "Publier en production",
+};
+
+const TRACK_DESCRIPTIONS: Record<GooglePlayTrack, string> = {
+  internal: "Pour vérifier rapidement la version avec un petit groupe de testeurs.",
+  alpha: "Pour une bêta privée avec des testeurs que vous choisissez.",
+  beta: "Pour une bêta publique que des utilisateurs peuvent rejoindre.",
+  production: "Pour rendre cette version disponible aux utilisateurs selon votre diffusion Google Play.",
 };
 
 export function GooglePlayCard({ project, release, onChanged, externalFailure }: Props) {
@@ -97,9 +126,32 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
     successfulGooglePlayReleases.some(
       (record) =>
         record.version === project.currentVersion &&
-        record.build === project.currentBuild &&
-        record.storeRelease?.track === "internal",
+        record.build === project.currentBuild,
     );
+
+  const selectedTrack: GooglePlayTrack = android.defaultTrack ?? "internal";
+  const productionReady =
+    android.googlePlayDeveloperVerification === "verified" &&
+    android.googlePlayPackageRegistration === "registered" &&
+    (android.googlePlayAccountKind !== "personal-new" ||
+      (android.googlePlayClosedTestingStatus === "completed" &&
+        android.googlePlayProductionAccess === "granted"));
+  const openTestingBlocked =
+    android.googlePlayAccountKind === "personal-new" &&
+    android.googlePlayProductionAccess !== "granted";
+  const selectedTrackBlockedReason =
+    selectedTrack === "production" && !productionReady
+      ? "La production reste bloquée tant que les prérequis Google Play ne sont pas validés."
+      : selectedTrack === "beta" && openTestingBlocked
+        ? "Google n'autorise pas encore le test ouvert pour ce compte. Obtenez d'abord l'accès à la production."
+        : undefined;
+
+  function selectTrack(track: GooglePlayTrack) {
+    ProjectsService.update(project.id, patchAndroidConfig(project, { defaultTrack: track }), {
+      touched: ["android.defaultTrack"],
+    });
+    AppStore.refreshProjects();
+  }
 
   const connectionArgs = connectionId
     ? { projectPath: project.localPath, packageName, connectionId }
@@ -170,7 +222,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           googlePlayCloudProjectId: undefined,
           googlePlayLastCheckedAt: new Date().toISOString(),
           googlePlaySetupStatus: "ready",
-          defaultTrack: "internal",
+          defaultTrack: android.defaultTrack ?? "internal",
         }),
       );
       AppStore.refreshProjects();
@@ -215,7 +267,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           googlePlayCloudProjectId: undefined,
           googlePlayLastCheckedAt: result.verified ? new Date().toISOString() : undefined,
           googlePlaySetupStatus: result.initializationRequired ? "required" : "ready",
-          defaultTrack: "internal",
+          defaultTrack: android.defaultTrack ?? "internal",
         }),
       );
       AppStore.refreshProjects();
@@ -263,7 +315,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           googlePlayCloudProjectId: undefined,
           googlePlayLastCheckedAt: result.verified ? new Date().toISOString() : undefined,
           googlePlaySetupStatus: result.initializationRequired ? "required" : "ready",
-          defaultTrack: "internal",
+          defaultTrack: android.defaultTrack ?? "internal",
         }),
       );
       AppStore.refreshProjects();
@@ -309,7 +361,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           googlePlayCloudProjectId: result.cloudProjectId,
           googlePlayLastCheckedAt: undefined,
           googlePlaySetupStatus: undefined,
-          defaultTrack: "internal",
+          defaultTrack: android.defaultTrack ?? "internal",
         }),
       );
       AppStore.refreshProjects();
@@ -359,7 +411,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           googlePlayLastKnownBuild: confirmsFirstManualRelease
             ? project.currentBuild
             : android.googlePlayLastKnownBuild,
-          defaultTrack: "internal",
+          defaultTrack: android.defaultTrack ?? "internal",
         }),
       );
       AppStore.refreshProjects();
@@ -444,7 +496,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
             googlePlayAccountEmail: access.accountEmail,
             googlePlayAuthMode: access.authMode,
             googlePlaySetupStatus: "ready",
-            defaultTrack: "internal",
+            defaultTrack: android.defaultTrack ?? "internal",
           }),
         );
         AppStore.refreshProjects();
@@ -471,9 +523,10 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
       return;
     }
     try {
-      const result = await bridge().googlePlay.publishInternal({
+      const result = await bridge().googlePlay.publishTrack({
         ...connectionArgs,
         aabPath: release.artifactPath,
+        track: selectedTrack,
         notes: release.notes,
       });
       if (!result.ok) {
@@ -531,7 +584,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           user: settings.userName || "vous",
           durationMs: Math.round(performance.now() - started),
           outcome: "success",
-          message: `Publiée sur Google Play · piste internal · versionCode ${result.versionCode}`,
+          message: `Publiée sur Google Play · ${TRACK_LABELS[result.track]} · versionCode ${result.versionCode}`,
           kind: "publish",
           artifactPath: release.artifactPath,
           artifactSizeBytes: release.artifactSizeBytes,
@@ -543,7 +596,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           notes: release.notes,
           storeRelease: {
             provider: "google-play",
-            track: "internal",
+            track: result.track,
             packageName: result.packageName,
             versionCode: result.versionCode,
             releaseStatus: result.releaseStatus,
@@ -559,7 +612,10 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
       AppStore.refreshProjects();
       ProjectsService.update(
         project.id,
-        patchAndroidConfig(project, { googlePlayLastKnownBuild: result.versionCode }),
+        patchAndroidConfig(project, {
+          googlePlayLastKnownBuild: result.versionCode,
+          defaultTrack: result.track,
+        }),
       );
       AppStore.refreshProjects();
       toast.success(
@@ -569,7 +625,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
             ? "Publication reprise et terminée"
             : "Publication envoyée à Google Play",
         {
-          description: `${packageName} · piste internal · versionCode ${result.versionCode}`,
+          description: `${packageName} · ${TRACK_LABELS[result.track]} · versionCode ${result.versionCode}`,
           duration: 10_000,
         },
       );
@@ -604,7 +660,9 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
     showGooglePlayError(result);
   }
 
-  const unavailableReason = !packageName
+  const unavailableReason = selectedTrackBlockedReason
+    ? selectedTrackBlockedReason
+    : !packageName
     ? "Renseignez d'abord l'identifiant Android de l'application."
     : connected && buildTooLow
       ? `Le numéro interne ${project.currentBuild} est inférieur au dernier numéro connu (${highestKnownGooglePlayBuild}). Utilisez au moins ${suggestedNextGooglePlayBuild}.`
@@ -628,7 +686,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-semibold">Publication Google Play</h2>
-              <Badge variant="outline">Envoi initial : test interne</Badge>
+              <Badge variant="outline">Destination : {TRACK_LABELS[selectedTrack]}</Badge>
               {verified && (
                 <Badge className="bg-success/15 text-success hover:bg-success/15">
                   Connexion vérifiée
@@ -660,7 +718,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
             {alreadyPublished && (
               <div className="mt-3 flex items-center gap-2 text-sm text-success">
                 <CheckCircle2 className="h-4 w-4" />
-                Cette version a été envoyée aux testeurs internes.
+                Cette version a déjà été envoyée sur Google Play.
               </div>
             )}
           </div>
@@ -718,7 +776,8 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
                   initializationRequired ||
                   !release?.notes ||
                   alreadyPublished ||
-                  buildTooLow
+                  buildTooLow ||
+                  !!selectedTrackBlockedReason
                 }
               >
                 {busy === "publish" ? (
@@ -726,7 +785,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-                Envoyer aux testeurs internes
+                {TRACK_ACTIONS[selectedTrack]}
               </Button>
               <Button
                 variant="ghost"
@@ -744,6 +803,51 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           )}
         </div>
       </div>
+      {connected && (
+        <div className="mt-5 rounded-xl border bg-muted/20 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <label className="text-sm font-medium" htmlFor="google-play-target-track">
+                Où voulez-vous envoyer cette version ?
+              </label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {TRACK_DESCRIPTIONS[selectedTrack]}
+              </p>
+            </div>
+            <Select
+              value={selectedTrack}
+              onValueChange={(value) => selectTrack(value as GooglePlayTrack)}
+              disabled={busy !== null}
+            >
+              <SelectTrigger id="google-play-target-track" className="w-full sm:w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="internal">Test interne</SelectItem>
+                <SelectItem value="alpha">Test fermé</SelectItem>
+                <SelectItem value="beta" disabled={openTestingBlocked}>
+                  Test ouvert{openTestingBlocked ? " — indisponible" : ""}
+                </SelectItem>
+                <SelectItem value="production" disabled={!productionReady}>
+                  Production{!productionReady ? " — prérequis manquants" : ""}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedTrackBlockedReason && (
+            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+              {selectedTrackBlockedReason}
+            </p>
+          )}
+          {selectedTrack === "production" && productionReady && (
+            <p className="mt-3 text-xs font-medium text-amber-700 dark:text-amber-300">
+              Cette destination peut rendre la version accessible à de vrais utilisateurs. Une
+              confirmation native supplémentaire sera demandée avant l'envoi.
+            </p>
+          )}
+        </div>
+      )}
+
       <GooglePlayJourney
         connected={connected}
         applicationReady={verified}
@@ -751,6 +855,7 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
         sent={alreadyPublished}
         initializationRequired={initializationRequired}
         hasPreviousRelease={hasPreviousGooglePlayRelease}
+        targetTrack={selectedTrack}
       />
       {buildTooLow && (
         <div
