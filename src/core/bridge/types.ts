@@ -572,6 +572,13 @@ export interface SystemBridge {
         notes: string;
       },
     ): Promise<GooglePlayResult<GooglePlayPublishResult & { promoted?: boolean }>>;
+    publishTrack(
+      args: GooglePlayConnectionArgs & {
+        aabPath: string;
+        track: GooglePlayTrack;
+        notes: string;
+      },
+    ): Promise<GooglePlayResult<GooglePlayPublishResult>>;
     publishInternal(
       args: GooglePlayConnectionArgs & {
         aabPath: string;
