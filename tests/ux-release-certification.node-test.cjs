@@ -6,7 +6,7 @@ const path = require("node:path");
 const ROOT = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), "utf8");
 
-test("le parcours novice couvre les six étapes jusqu'au test interne", () => {
+test("le parcours novice couvre les six étapes jusqu'au choix de destination Google Play", () => {
   const sidebar = read("src/components/app-sidebar.tsx");
   const orderedLabels = [
     "1. Votre application",
@@ -26,8 +26,12 @@ test("le parcours novice couvre les six étapes jusqu'au test interne", () => {
   const result = read("src/components/build-center/result-card.tsx");
   const publish = read("src/components/publish-center/google-play-card.tsx");
   assert.match(result, /Continuer vers la publication/);
-  assert.match(publish, /Envoi initial : test interne/);
-  assert.match(publish, /Envoyer aux testeurs internes/);
+  assert.match(publish, /Où voulez-vous envoyer cette version/);
+  assert.match(publish, /Test interne/);
+  assert.match(publish, /Test fermé/);
+  assert.match(publish, /Test ouvert/);
+  assert.match(publish, /Production/);
+  assert.match(publish, /googlePlay\.publishTrack/);
 });
 
 test("la deuxième publication impose un numéro interne supérieur", () => {
