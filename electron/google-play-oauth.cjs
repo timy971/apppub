@@ -43,6 +43,14 @@ function loadGooglePlayOAuthConfig(options = {}) {
   return null;
 }
 
+function oauthConfigFromStoredCredentials(credentials) {
+  if (!credentials || credentials.type !== "authorized_user") return null;
+  return cleanOAuthConfig({
+    client_id: credentials.client_id,
+    client_secret: credentials.client_secret,
+  });
+}
+
 function base64Url(buffer) {
   return buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
@@ -208,5 +216,6 @@ module.exports = {
   CALLBACK_PATH,
   GooglePlayOAuth,
   cleanOAuthConfig,
+  oauthConfigFromStoredCredentials,
   loadGooglePlayOAuthConfig,
 };
