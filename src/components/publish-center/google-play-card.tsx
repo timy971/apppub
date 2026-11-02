@@ -1364,6 +1364,15 @@ function googlePlayRecoveryFor(
           "Suivez l’assistant de première publication ci-dessous, puis revenez vérifier l’accès.",
         action: "console",
       };
+    case "app-draft":
+      return {
+        title: "L’application est encore en brouillon dans Google Play",
+        explanation:
+          "Google accepte le fichier, mais refuse de créer une release active tant que l’application elle-même est encore au statut brouillon dans Play Console.",
+        solution:
+          "Ouvrez Play Console et terminez les éléments de configuration encore signalés comme requis pour cette application. Une fois l’application sortie de l’état brouillon, revenez dans AppPublisher et cliquez sur Réessayer. Ne recréez pas l’AAB.",
+        action: "console",
+      };
     case "permission-denied":
       return {
         title: "Le compte est connecté, mais il n’a pas les droits nécessaires",
