@@ -354,7 +354,7 @@ test("le Lot 15 expose un cycle Google Play multi-pistes sans faux statut produc
   for (const label of ["Test interne", "Test fermé", "Test ouvert", "Production"]) {
     assert.match(tracks, new RegExp(label));
   }
-  assert.match(tracks, /Une revue ou une mise en attente de publication peut encore s'appliquer/);
+  assert.match(tracks, /Aucune promotion supplémentaire n'est nécessaire pour cette version/);
   assert.match(tracks, /Promouvoir vers le test fermé/);
   assert.match(tracks, /Promouvoir vers le test ouvert/);
   assert.match(tracks, /Promouvoir vers la production/);
@@ -465,4 +465,43 @@ test("un échec de lecture des pistes Google Play affiche un seul état de récu
   assert.match(tracks, /onFailure\(failure\)/);
   assert.match(card, /activeFailure = externalFailure \?\? lastFailure/);
   assert.match(card, /failure=\{activeFailure\}/);
+});
+
+
+test("ouvrir une application la rend active et le parcours rappelle toujours son contexte", () => {
+  const cockpit = read("src/routes/projects_.$id.tsx");
+  const projects = read("src/routes/projects.tsx");
+  const dashboard = read("src/components/dashboard/projects-grid.tsx");
+  const context = read("src/components/active-application-context.tsx");
+
+  assert.match(cockpit, /AppStore\.setActiveProject\(project\.id\)/);
+  assert.doesNotMatch(cockpit, /Définir comme actif/);
+  assert.match(projects, /onOpen=\{\(p\) => \{[\s\S]*AppStore\.setActiveProject\(p\.id\)/);
+  assert.match(dashboard, /onClick=\{\(\) => AppStore\.setActiveProject\(project\.id\)\}/);
+  assert.match(context, /Application active :/);
+
+  for (const route of [
+    "src/routes/diagnostic.tsx",
+    "src/routes/version.tsx",
+    "src/routes/signing.tsx",
+    "src/routes/build.tsx",
+    "src/routes/publish.tsx",
+  ]) {
+    assert.match(read(route), /ActiveApplicationContext/);
+  }
+});
+
+test("une version déjà en production ne propose plus les pistes intermédiaires", () => {
+  const tracks = read("src/components/publish-center/google-play-tracks-card.tsx");
+
+  assert.match(
+    tracks,
+    /!onTrack\("production"\) && !onTrack\("alpha"\) && onTrack\("internal"\)/,
+  );
+  assert.match(
+    tracks,
+    /!onTrack\("production"\) && !onTrack\("beta"\) && onTrack\("alpha"\)/,
+  );
+  assert.match(tracks, /Version actuellement en production/);
+  assert.match(tracks, /Aucune promotion supplémentaire n'est nécessaire/);
 });
