@@ -30,7 +30,7 @@ export function StoreTargetsCard({ project, status }: { project: Project; status
           readiness={android}
           icon={<Smartphone className="h-4 w-4" />}
           title="Android"
-          integrationHint="Envoi initial sur test interne, puis promotion guidée vers test fermé, test ouvert et production."
+          integrationHint="Choisissez la destination de chaque nouvelle version : test interne, test fermé, test ouvert ou production. AppPublisher bloque les destinations non encore autorisées."
         />
       </div>
     </Card>
@@ -117,11 +117,11 @@ function labelTrack(track?: string): string {
     case "production":
       return "Production";
     case "beta":
-      return "Bêta";
+      return "Test ouvert";
     case "alpha":
-      return "Alpha";
+      return "Test fermé";
     case "internal":
-      return "Interne";
+      return "Test interne";
     default:
       return "—";
   }

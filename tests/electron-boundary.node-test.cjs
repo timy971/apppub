@@ -47,6 +47,7 @@ test("the renderer has no generic filesystem or secret-reading bridge", () => {
   assert.match(preload, /google-play:connectOAuth/);
   assert.match(preload, /google-play:oauthStatus/);
   assert.match(preload, /google-play:testConnection/);
+  assert.match(preload, /google-play:publishTrack/);
   assert.match(preload, /google-play:publishInternal/);
   assert.match(preload, /google-play:disconnect/);
   assert.equal(preload.includes("google-play:getCredentials"), false);
@@ -74,6 +75,7 @@ test("the main process does not register removed generic IPC handlers", () => {
   assert.match(main, /android-preparation:beginRollbackGuard/);
   assert.match(main, /android-preparation:rollbackCreatedArtifacts/);
   assert.match(main, /android-preparation:completeRollbackGuard/);
+  assert.match(main, /google-play:publishTrack/);
   assert.match(main, /google-play:publishInternal/);
   assert.match(main, /GOOGLE_PLAY_KEYCHAIN_SERVICE/);
   assert.match(main, /buttons: \[resume \? "Reprendre" : "Publier sur internal", "Annuler"\]/);
@@ -85,6 +87,11 @@ test("the main process does not register removed generic IPC handlers", () => {
     "the real AAB identity must be checked before native confirmation",
   );
   assert.equal(main.includes('ipcMain.handle("google-play:publishProduction"'), false);
+  assert.match(main, /\["internal", "alpha", "beta", "production"\]\.includes\(args\.track\)/);
+  assert.match(main, /production-not-ready/);
+  assert.match(main, /track-not-available/);
+  assert.match(main, /googlePlayPublisher\.publishTrack/);
+  assert.match(main, /track === "production"[\s\S]*Publier en production/);
 });
 
 test("startup maintenance and manifest recovery use dedicated business IPC only", () => {

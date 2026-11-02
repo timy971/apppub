@@ -59,7 +59,7 @@ export const publishRule: CopilotRule = {
         description: "La préparation est terminée, mais rien n'a encore été envoyé à Google Play.",
         action: {
           title: "Envoyer à Google Play",
-          description: "Vérifier la connexion puis confirmer l'envoi aux testeurs internes.",
+          description: "Vérifier la connexion, choisir la piste puis confirmer l'envoi à Google Play.",
           route: "/publish",
           priority: "high",
         },

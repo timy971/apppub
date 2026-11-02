@@ -3,6 +3,7 @@ import { Check, Circle, CircleAlert, FileArchive, Send, Store, UserRound } from 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { GooglePlayTrack } from "@/core/bridge/types";
 
 export type GooglePlayJourneyState = "setup" | "connected" | "ready" | "sent";
 
@@ -20,6 +21,7 @@ export function GooglePlayJourney({
   sent,
   initializationRequired,
   hasPreviousRelease,
+  targetTrack,
 }: {
   connected: boolean;
   applicationReady: boolean;
@@ -27,6 +29,7 @@ export function GooglePlayJourney({
   sent: boolean;
   initializationRequired: boolean;
   hasPreviousRelease: boolean;
+  targetTrack: GooglePlayTrack;
 }) {
   const state: GooglePlayJourneyState = sent
     ? "sent"
@@ -35,6 +38,12 @@ export function GooglePlayJourney({
       : connected
         ? "connected"
         : "setup";
+  const targetLabels: Record<GooglePlayTrack, string> = {
+    internal: "Test interne",
+    alpha: "Test fermé",
+    beta: "Test ouvert",
+    production: "Production",
+  };
   const steps = [
     {
       title: "Compte Google",
@@ -64,8 +73,8 @@ export function GooglePlayJourney({
       icon: FileArchive,
     },
     {
-      title: "Test interne",
-      detail: sent ? "Version envoyée" : "Envoi automatique par AppPublisher",
+      title: targetLabels[targetTrack],
+      detail: sent ? "Version envoyée" : "Destination choisie dans AppPublisher",
       done: sent,
       current: state === "ready",
       icon: Send,
@@ -139,7 +148,7 @@ export function GooglePlayJourney({
         <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         {initializationRequired
           ? "À faire vous-même : créer la fiche et déposer le premier fichier Android dans Play Console. AppPublisher vous guide juste en dessous."
-          : "AppPublisher vérifie le compte, le fichier et l’application avant d’envoyer uniquement vers les testeurs internes."}
+          : `AppPublisher vérifie le compte, le fichier et l’application avant l’envoi vers « ${targetLabels[targetTrack]} ».`}
       </div>
     </Card>
   );

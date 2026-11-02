@@ -186,6 +186,7 @@ export const electronBridge: SystemBridge = {
     latestVersionCode: (args) => ensure().googlePlay.latestVersionCode(args),
     disconnect: (args) => ensure().googlePlay.disconnect(args),
     promoteVersion: (args) => ensure().googlePlay.promoteVersion(args),
+    publishTrack: (args) => ensure().googlePlay.publishTrack(args),
     publishInternal: (args) => ensure().googlePlay.publishInternal(args),
   },
 
