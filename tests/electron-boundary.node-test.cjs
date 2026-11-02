@@ -154,3 +154,12 @@ test("Google Play réutilise une autorisation existante sans exposer ni supprime
   assert.match(main, /sharedConnectionKept: sharedBy\.length > 0/);
   assert.match(main, /if \(sharedBy\.length === 0\)/);
 });
+
+
+test("la reconnexion Google peut renouveler une autorisation existante sans client OAuth embarqué", () => {
+  assert.match(main, /oauthConfigFromStoredCredentials/);
+  assert.match(main, /google-play:connectOAuth fallback trousseau/);
+  assert.match(main, /const existingConnectionId = project\?\.publishing\?\.android\?\.googlePlayConnectionId/);
+  assert.match(main, /validGooglePlayConnectionId\(existingConnectionId\)[\s\S]*existingConnectionId[\s\S]*gplay_/);
+  assert.match(main, /setGooglePlayCredentials\(connectionId, credentials\)/);
+});
