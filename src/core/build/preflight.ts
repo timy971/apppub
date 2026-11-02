@@ -496,11 +496,12 @@ export const PreflightService = {
     checks.push({
       id: "adb",
       category: "environment",
-      status: adb ? "success" : "warning",
-      title: "adb (Android Debug Bridge)",
+      status: "success",
+      title: "Test sur téléphone (facultatif)",
       message: adb
-        ? "adb est accessible."
-        : "adb n'est pas dans le PATH. Non requis pour un .aab, utile pour tester sur téléphone.",
+        ? "ADB est disponible pour tester l'application sur un téléphone Android."
+        : "ADB n'est pas installé, sans impact sur la création ni la publication du fichier Android.",
+      technical: adb ? "adb détecté" : "adb absent du PATH",
     });
 
     // ---------- Capacitor ----------

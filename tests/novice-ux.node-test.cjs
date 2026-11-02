@@ -379,3 +379,14 @@ test("la finition pré-distribution retire les promesses inutiles et exige des p
   assert.match(settings, /session\.googlePlaySuccess === true/);
   assert.match(settings, /catch \{/);
 });
+
+
+test("l'absence d'ADB ne crée plus de faux avertissement avant un AAB", () => {
+  const preflight = read("src/core/build/preflight.ts");
+  const card = read("src/components/build-center/preflight-card.tsx");
+
+  assert.match(preflight, /id: "adb"[\s\S]*status: "success"/);
+  assert.match(preflight, /Test sur téléphone \(facultatif\)/);
+  assert.match(preflight, /sans impact sur la création ni la publication/);
+  assert.match(card, /mode === "discovery"[\s\S]*check\.status !== "success"/);
+});
