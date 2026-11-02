@@ -407,3 +407,18 @@ test("le statut Publié vient désormais de Google Play et non seulement de l'hi
   assert.match(tracks, /countryAvailability/);
   assert.match(grid, /Google Play ·/);
 });
+
+
+test("un compte Google Play déjà connecté peut être réutilisé sans nouvelle autorisation", () => {
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  const main = read("electron/main.cjs");
+
+  assert.match(card, /reusableConnections/);
+  assert.match(card, /Utiliser le compte déjà connecté/);
+  assert.match(card, /Utiliser un autre compte/);
+  assert.match(card, /AppPublisher a vérifié qu’il peut aussi/);
+  assert.match(card, /reuseExistingConnection/);
+  assert.match(main, /sourceProjectName/);
+  assert.match(main, /testConnection\(credentials, args\.packageName\)/);
+  assert.match(main, /Le compte restera disponible/);
+});
