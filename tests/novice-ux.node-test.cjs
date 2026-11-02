@@ -399,7 +399,8 @@ test("le statut Publié vient désormais de Google Play et non seulement de l'hi
   const grid = read("src/components/dashboard/projects-grid.tsx");
 
   assert.match(sync, /LIVE_STATUSES = new Set\(\["completed", "inProgress"\]\)/);
-  assert.match(sync, /lifecycle:[\s\S]*live[\s\S]*"published"/);
+  assert.match(sync, /const nextLifecycle =[\s\S]*live[\s\S]*"published"/);
+  assert.match(sync, /lifecycle: nextLifecycle/);
   assert.match(sync, /project\.lifecycle !== "archived"/);
   assert.match(sync, /googlePlayProductionCountries/);
   assert.match(dashboard, /syncGooglePlayStatus/);
