@@ -505,3 +505,24 @@ test("une version déjà en production ne propose plus les pistes intermédiaire
   assert.match(tracks, /Version actuellement en production/);
   assert.match(tracks, /Aucune promotion supplémentaire n'est nécessaire/);
 });
+
+
+test("une nouvelle version peut être envoyée directement vers la piste Google Play choisie", () => {
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  const journey = read("src/components/publish-center/google-play-journey.tsx");
+  const bridge = read("src/core/bridge/types.ts");
+  const main = read("electron/main.cjs");
+
+  assert.match(card, /Où voulez-vous envoyer cette version/);
+  assert.match(card, /TRACK_ACTIONS/);
+  assert.match(card, /googlePlay\.publishTrack/);
+  assert.match(card, /track: selectedTrack/);
+  assert.match(card, /defaultTrack: result\.track/);
+  assert.match(card, /Production.*prérequis manquants/s);
+  assert.match(card, /confirmation native supplémentaire/);
+  assert.match(journey, /targetTrack: GooglePlayTrack/);
+  assert.match(bridge, /publishTrack\(/);
+  assert.match(main, /google-play:publishTrack/);
+  assert.match(main, /production-not-ready/);
+  assert.match(main, /track-not-available/);
+});
