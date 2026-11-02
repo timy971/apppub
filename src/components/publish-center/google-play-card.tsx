@@ -41,7 +41,14 @@ interface Props {
   onChanged: () => void;
 }
 
-type BusyAction = "oauth" | "import" | "test" | "publish" | "disconnect" | null;
+type BusyAction = "oauth" | "reuse" | "import" | "test" | "publish" | "disconnect" | null;
+
+type ReusableGooglePlayConnection = {
+  connectionId: string;
+  accountEmail: string;
+  authMode: "oauth" | "service-account";
+  sourceProjectName: string;
+};
 type GooglePlayFailure = {
   errorCode: string;
   errorHint?: string;
@@ -54,6 +61,7 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
   const [busy, setBusy] = useState<BusyAction>(null);
   const [lastFailure, setLastFailure] = useState<GooglePlayFailure | null>(null);
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
+  const [reusableConnections, setReusableConnections] = useState<ReusableGooglePlayConnection[]>([]);
   const android = project.publishing?.android ?? {};
   const packageName = resolvePublicationApplicationId(project) ?? "";
   const connectionId = android.googlePlayConnectionId;
@@ -108,6 +116,75 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (connected || !packageName) {
+      setReusableConnections([]);
+      return;
+    }
+    let active = true;
+    void bridge()
+      .googlePlay.reusableConnections({
+        projectPath: project.localPath,
+        packageName,
+      })
+      .then((connections) => {
+        if (active) setReusableConnections(connections);
+      })
+      .catch(() => {
+        if (active) setReusableConnections([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [connected, packageName, project.localPath]);
+
+  async function reuseExistingConnection(candidate: ReusableGooglePlayConnection) {
+    if (!packageName) return;
+    setBusy("reuse");
+    setLastFailure(null);
+    try {
+      const result = await bridge().googlePlay.reuseConnection({
+        projectPath: project.localPath,
+        packageName,
+        connectionId: candidate.connectionId,
+      });
+      if (!result.ok) {
+        reportGooglePlayError(result);
+        setReusableConnections((current) =>
+          current.filter((connection) => connection.connectionId !== candidate.connectionId),
+        );
+        return;
+      }
+      ProjectsService.update(
+        project.id,
+        patchAndroidConfig(project, {
+          googlePlayConnectionId: result.connectionId,
+          googlePlayAccountEmail: result.accountEmail,
+          googlePlayAuthMode: result.authMode,
+          googlePlayServiceAccountEmail:
+            result.authMode === "service-account" ? result.accountEmail : undefined,
+          googlePlayCloudProjectId: undefined,
+          googlePlayLastCheckedAt: new Date().toISOString(),
+          googlePlaySetupStatus: "ready",
+          defaultTrack: "internal",
+        }),
+      );
+      AppStore.refreshProjects();
+      setReusableConnections([]);
+      toast.success("Compte Google Play réutilisé", {
+        description: `${result.accountEmail} a accès à ${packageName}. Aucune nouvelle autorisation n'a été créée.`,
+      });
+      onChanged();
+    } catch {
+      reportGooglePlayError({
+        errorCode: "network-error",
+        errorHint: "AppPublisher n’a pas pu vérifier le compte Google Play déjà enregistré.",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function connectWithGoogle() {
     if (!packageName) {
@@ -520,6 +597,13 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
                 ? "Google demande une première création dans Play Console avant d’autoriser AppPublisher à publier."
                 : "L'application doit déjà exister dans Play Console. AppPublisher ne peut ni créer la fiche, ni compléter les déclarations réglementaires à votre place."}
             </p>
+            {!connected && reusableConnections.length > 0 && (
+              <p className="mt-2 text-xs text-success">
+                Compte déjà autorisé via « {reusableConnections[0].sourceProjectName} » :{" "}
+                {reusableConnections[0].accountEmail}. AppPublisher a vérifié qu’il peut aussi
+                accéder à cette application.
+              </p>
+            )}
             {alreadyPublished && (
               <div className="mt-3 flex items-center gap-2 text-sm text-success">
                 <CheckCircle2 className="h-4 w-4" />
@@ -531,14 +615,37 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
 
         <div className="flex shrink-0 flex-wrap gap-2">
           {!connected ? (
-            <Button onClick={connectWithGoogle} disabled={busy !== null || !packageName}>
-              {busy === "oauth" || oauthAvailable === null ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <UserRound className="h-4 w-4" />
-              )}
-              Se connecter avec Google
-            </Button>
+            reusableConnections.length > 0 ? (
+              <>
+                <Button
+                  onClick={() => reuseExistingConnection(reusableConnections[0])}
+                  disabled={busy !== null || !packageName}
+                >
+                  {busy === "reuse" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserRound className="h-4 w-4" />
+                  )}
+                  Utiliser le compte déjà connecté
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={connectWithGoogle}
+                  disabled={busy !== null || !packageName}
+                >
+                  Utiliser un autre compte
+                </Button>
+              </>
+            ) : (
+              <Button onClick={connectWithGoogle} disabled={busy !== null || !packageName}>
+                {busy === "oauth" || oauthAvailable === null ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <UserRound className="h-4 w-4" />
+                )}
+                Se connecter avec Google
+              </Button>
+            )
           ) : (
             <>
               {!initializationRequired && (

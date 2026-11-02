@@ -140,3 +140,17 @@ test("les clés de stockage renderer restent synchronisées avec l'allowlist Ele
     `clés renderer absentes de l'allowlist Electron : ${missing.join(", ")}`,
   );
 });
+
+
+test("Google Play réutilise une autorisation existante sans exposer ni supprimer un secret partagé", () => {
+  assert.match(preload, /google-play:reusableConnections/);
+  assert.match(preload, /google-play:reuseConnection/);
+  assert.doesNotMatch(preload, /getGooglePlayCredentials|refresh_token|private_key/);
+
+  assert.match(main, /google-play:reusableConnections/);
+  assert.match(main, /google-play:reuseConnection/);
+  assert.match(main, /googlePlayPublisher\.testConnection\(credentials, args\.packageName\)/);
+  assert.match(main, /connection-not-reusable/);
+  assert.match(main, /sharedConnectionKept: sharedBy\.length > 0/);
+  assert.match(main, /if \(sharedBy\.length === 0\)/);
+});

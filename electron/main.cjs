@@ -3052,6 +3052,106 @@ ipcMain.handle("secrets:remove", async (_e, profileId) => {
 
 ipcMain.handle("google-play:oauthStatus", () => ({ available: googlePlayOAuth.available() }));
 
+function storedGooglePlayProjects() {
+  const stored = durableStore.get("projects");
+  return stored.ok && stored.found && Array.isArray(stored.value) ? stored.value : [];
+}
+
+ipcMain.handle("google-play:reusableConnections", async (_event, args) => {
+  if (!args || typeof args !== "object") return [];
+  const target = storedProjectForGooglePlay(args.projectPath, args.packageName, null, false);
+  if (!target) return [];
+
+  const seen = new Set();
+  const candidates = storedGooglePlayProjects().filter((project) => {
+    const android = project?.publishing?.android ?? {};
+    const connectionId = android.googlePlayConnectionId;
+    if (
+      project?.id === target.id ||
+      !validGooglePlayConnectionId(connectionId) ||
+      seen.has(connectionId)
+    ) {
+      return false;
+    }
+    seen.add(connectionId);
+    return true;
+  });
+
+  const reusable = [];
+  for (const source of candidates) {
+    const android = source.publishing?.android ?? {};
+    const credentials = await getGooglePlayCredentials(android.googlePlayConnectionId);
+    if (!credentials) continue;
+    try {
+      const access = await googlePlayPublisher.testConnection(credentials, args.packageName);
+      reusable.push({
+        connectionId: android.googlePlayConnectionId,
+        accountEmail: access.accountEmail,
+        authMode: access.authMode,
+        sourceProjectName: typeof source.name === "string" ? source.name : "une autre application",
+      });
+    } catch {
+      // Une connexion n'est suggérée que si son accès au package cible est prouvé.
+    }
+  }
+  return reusable;
+});
+
+ipcMain.handle("google-play:reuseConnection", async (_event, args) => {
+  if (
+    !args ||
+    typeof args !== "object" ||
+    !validGooglePlayConnectionId(args.connectionId)
+  ) {
+    return { ok: false, errorCode: "invalid-args" };
+  }
+  const target = storedProjectForGooglePlay(args.projectPath, args.packageName, null, false);
+  if (!target) return { ok: false, errorCode: "project-mismatch" };
+
+  const source = storedGooglePlayProjects().find(
+    (project) =>
+      project?.id !== target.id &&
+      project?.publishing?.android?.googlePlayConnectionId === args.connectionId,
+  );
+  if (!source) {
+    return {
+      ok: false,
+      errorCode: "connection-not-reusable",
+      errorHint: "Ce compte Google Play n'est plus associé à une autre application AppPublisher.",
+    };
+  }
+
+  const credentials = await getGooglePlayCredentials(args.connectionId);
+  if (!credentials) {
+    return {
+      ok: false,
+      errorCode: "credentials-missing",
+      errorHint: "L'autorisation Google Play est absente du trousseau macOS.",
+    };
+  }
+  try {
+    const access = await googlePlayPublisher.testConnection(credentials, args.packageName);
+    diagSigning("info", "google-play:reuseConnection", {
+      targetProjectId: target.id,
+      sourceProjectId: source.id,
+      packageName: args.packageName,
+      connectionId: args.connectionId,
+      accountEmail: access.accountEmail,
+      authMode: access.authMode,
+    });
+    return {
+      ok: true,
+      connectionId: args.connectionId,
+      accountEmail: access.accountEmail,
+      authMode: access.authMode,
+      verified: true,
+      initializationRequired: false,
+    };
+  } catch (error) {
+    return publicGooglePlayError(error);
+  }
+});
+
 ipcMain.handle("google-play:connectOAuth", async (_event, args) => {
   const support = secretsSupported();
   if (!support.available) {
@@ -3280,35 +3380,48 @@ ipcMain.handle("google-play:disconnect", async (_event, args) => {
     true,
   );
   if (!project) return false;
+  const sharedBy = storedGooglePlayProjects().filter(
+    (candidate) =>
+      candidate?.id !== project.id &&
+      candidate?.publishing?.android?.googlePlayConnectionId === args.connectionId,
+  );
   const confirmation = await dialog.showMessageBox(mainWindow ?? undefined, {
     type: "warning",
     title: "Déconnecter Google Play ?",
-    message: `Retirer l'accès Google Play de « ${project.name} » ?`,
-    detail:
-      "L'autorisation sera supprimée du trousseau. Aucun projet ni aucune release Google Play ne sera supprimé.",
+    message: `Retirer Google Play de « ${project.name} » ?`,
+    detail: sharedBy.length
+      ? `Le compte restera disponible pour ${sharedBy.length} autre application(s) : ${sharedBy
+          .map((candidate) => candidate.name)
+          .filter(Boolean)
+          .join(", ")}.\n\nAucune release Google Play ne sera supprimée.`
+      : "Cette autorisation n'est utilisée par aucune autre application AppPublisher : elle sera supprimée du trousseau. Aucune release Google Play ne sera supprimée.",
     buttons: ["Déconnecter", "Annuler"],
     defaultId: 1,
     cancelId: 1,
     noLink: true,
   });
   if (confirmation.response !== 0) return false;
-  for (const account of [
-    googlePlayAccountFor(args.connectionId),
-    legacyGooglePlayAccountFor(args.connectionId),
-  ]) {
-    await runSecurity([
-      "delete-generic-password",
-      "-a",
-      account,
-      "-s",
-      GOOGLE_PLAY_KEYCHAIN_SERVICE,
-    ]);
+  if (sharedBy.length === 0) {
+    for (const account of [
+      googlePlayAccountFor(args.connectionId),
+      legacyGooglePlayAccountFor(args.connectionId),
+    ]) {
+      await runSecurity([
+        "delete-generic-password",
+        "-a",
+        account,
+        "-s",
+        GOOGLE_PLAY_KEYCHAIN_SERVICE,
+      ]);
+    }
   }
   googlePlayResumeStore.clear(project.id);
   diagSigning("info", "google-play:disconnect", {
     projectId: project.id,
     packageName: args.packageName,
     connectionId: args.connectionId,
+    sharedConnectionKept: sharedBy.length > 0,
+    otherProjects: sharedBy.length,
   });
   return true;
 });

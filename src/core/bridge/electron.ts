@@ -177,6 +177,8 @@ export const electronBridge: SystemBridge = {
 
   googlePlay: {
     oauthStatus: () => ensure().googlePlay.oauthStatus(),
+    reusableConnections: (args) => ensure().googlePlay.reusableConnections(args),
+    reuseConnection: (args) => ensure().googlePlay.reuseConnection(args),
     connectOAuth: (args) => ensure().googlePlay.connectOAuth(args),
     importServiceAccount: (args) => ensure().googlePlay.importServiceAccount(args),
     testConnection: (args) => ensure().googlePlay.testConnection(args),
