@@ -518,8 +518,15 @@ test("une nouvelle version peut être envoyée directement vers la piste Google 
   assert.match(card, /googlePlay\.publishTrack/);
   assert.match(card, /track: selectedTrack/);
   assert.match(card, /defaultTrack: result\.track/);
-  assert.match(card, /Production.*prérequis manquants/s);
+  assert.match(card, /Éligibilité Google Play — Production/);
+  assert.match(card, /Prérequis à compléter/);
+  assert.match(card, /Type de compte développeur/);
+  assert.match(card, /Compte développeur vérifié/);
+  assert.match(card, /Package Android enregistré/);
+  assert.match(card, /Test fermé obligatoire terminé/);
+  assert.match(card, /Accès production accordé par Google/);
   assert.match(card, /confirmation native supplémentaire/);
+  assert.match(main, /accountKindKnown/);
   assert.match(journey, /targetTrack: GooglePlayTrack/);
   assert.match(bridge, /publishTrack\(/);
   assert.match(main, /google-play:publishTrack/);
