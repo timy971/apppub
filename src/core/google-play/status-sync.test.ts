@@ -101,6 +101,24 @@ describe("Google Play status sync", () => {
     },
   );
 
+  it("keeps the project published when an older production release is still served", () => {
+    applyGooglePlayStatus(project(), [
+      {
+        track: "production",
+        versionCodes: [5, 4],
+        releases: [
+          { status: "draft", versionCodes: [5] },
+          { status: "completed", versionCodes: [4] },
+        ],
+      },
+    ]);
+
+    expect(mocks.update).toHaveBeenCalledWith(
+      "cranioscan",
+      expect.objectContaining({ lifecycle: "published" }),
+    );
+  });
+
   it("never overwrites the archived lifecycle automatically", () => {
     applyGooglePlayStatus(project("archived"), [
       {
