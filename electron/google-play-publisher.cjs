@@ -374,6 +374,27 @@ class GooglePlayPublisher {
     return Array.isArray(payload?.tracks) ? payload.tracks : [];
   }
 
+  async getCountryAvailability(packageName, editId, track, token) {
+    const payload = await this.request(
+      `${API_ROOT}/applications/${encode(packageName)}/edits/${encode(editId)}/countryAvailability/${encode(track)}`,
+      token,
+      { method: "GET", phase: "country-availability" },
+    );
+    return {
+      countries: Array.isArray(payload?.countries)
+        ? payload.countries
+            .map((country) =>
+              typeof country?.countryCode === "string"
+                ? country.countryCode.trim().toUpperCase()
+                : "",
+            )
+            .filter((country) => /^[A-Z]{2}$/.test(country))
+        : [],
+      restOfWorld: payload?.restOfWorld === true,
+      syncWithProduction: payload?.syncWithProduction === true,
+    };
+  }
+
   async versionOnTrack(packageName, versionCode, trackName, token) {
     const track = normalizeTrack(trackName);
     const editId = await this.insertEdit(packageName, token);
@@ -400,6 +421,12 @@ class GooglePlayPublisher {
     const editId = await this.insertEdit(packageName, token);
     try {
       const tracks = await this.listTracks(packageName, editId, token);
+      const productionAvailability = await this.getCountryAvailability(
+        packageName,
+        editId,
+        "production",
+        token,
+      ).catch(() => null);
       const byName = new Map(tracks.map((track) => [track.track, track]));
       return {
         ok: true,
@@ -414,6 +441,10 @@ class GooglePlayPublisher {
           return {
             track: name,
             versionCodes: [...new Set(versionCodes)].sort((a, b) => b - a),
+            countryAvailability:
+              name === "production" && productionAvailability
+                ? productionAvailability
+                : undefined,
             releases: releases.map((release) => ({
               name: typeof release?.name === "string" ? release.name : undefined,
               status: typeof release?.status === "string" ? release.status : undefined,

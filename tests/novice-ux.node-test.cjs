@@ -390,3 +390,20 @@ test("l'absence d'ADB ne crée plus de faux avertissement avant un AAB", () => {
   assert.match(preflight, /sans impact sur la création ni la publication/);
   assert.match(card, /mode === "discovery"[\s\S]*check\.status !== "success"/);
 });
+
+
+test("le statut Publié vient désormais de Google Play et non seulement de l'historique local", () => {
+  const sync = read("src/core/google-play/status-sync.ts");
+  const dashboard = read("src/routes/index.tsx");
+  const tracks = read("src/components/publish-center/google-play-tracks-card.tsx");
+  const grid = read("src/components/dashboard/projects-grid.tsx");
+
+  assert.match(sync, /LIVE_STATUSES = new Set\(\["completed", "inProgress"\]\)/);
+  assert.match(sync, /lifecycle:[\s\S]*live[\s\S]*"published"/);
+  assert.match(sync, /project\.lifecycle !== "archived"/);
+  assert.match(sync, /googlePlayProductionCountries/);
+  assert.match(dashboard, /syncGooglePlayStatus/);
+  assert.match(tracks, /Publié sur Google Play/);
+  assert.match(tracks, /countryAvailability/);
+  assert.match(grid, /Google Play ·/);
+});

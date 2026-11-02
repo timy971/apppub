@@ -307,6 +307,11 @@ export type GooglePlayTrack = "internal" | "alpha" | "beta" | "production";
 export interface GooglePlayTrackState {
   track: GooglePlayTrack;
   versionCodes: number[];
+  countryAvailability?: {
+    countries: string[];
+    restOfWorld: boolean;
+    syncWithProduction: boolean;
+  };
   releases: Array<{
     name?: string;
     status?: string;

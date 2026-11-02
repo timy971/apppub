@@ -108,6 +108,15 @@ function ProjectCard({ summary, isActive }: { summary: ProjectSummary; isActive:
             Actif
           </span>
         )}
+        {project.lifecycle === "published" &&
+          project.publishing?.android?.googlePlayStatusSyncedAt && (
+            <span className="text-[11px] text-muted-foreground">
+              Google Play ·{" "}
+              {project.publishing.android.googlePlayProductionRestOfWorld
+                ? "diffusion étendue"
+                : `${project.publishing.android.googlePlayProductionCountries?.length ?? 0} pays/régions`}
+            </span>
+          )}
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 border-t pt-3 text-xs">

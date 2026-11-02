@@ -13,6 +13,7 @@ import { ProjectsService } from "@/core/projects/service";
 import { resolvePublicationApplicationId } from "@/core/publication/intent";
 import { AppStore, useSettings } from "@/core/store/app-store";
 import type { Project } from "@/core/types";
+import { applyGooglePlayStatus } from "@/core/google-play/status-sync";
 
 const LABELS: Record<GooglePlayTrack, string> = {
   internal: "Test interne",
@@ -72,6 +73,8 @@ export function GooglePlayTracksCard({
         return;
       }
       setTracks(result.tracks);
+      applyGooglePlayStatus(project, result.tracks);
+      AppStore.refreshProjects();
     } catch {
       toast.error("Impossible de lire les pistes Google Play");
     } finally {
@@ -213,6 +216,8 @@ export function GooglePlayTracksCard({
         })}
       </div>
 
+      <ProductionAvailability tracks={tracks} />
+
       <div className="mt-5 space-y-3">
         {!onTrack("alpha") && onTrack("internal") && (
           <PromotionRow
@@ -292,6 +297,47 @@ function PromotionRow({
         {busy ? "Promotion…" : action}
         {!busy && <ArrowRight className="h-4 w-4" />}
       </Button>
+    </div>
+  );
+}
+
+
+function ProductionAvailability({ tracks }: { tracks: GooglePlayTrackState[] | null }) {
+  const production = tracks?.find((track) => track.track === "production");
+  const availability = production?.countryAvailability;
+  const live = production?.releases.some(
+    (release) =>
+      (release.status === "completed" || release.status === "inProgress") &&
+      release.versionCodes.length > 0,
+  );
+  if (!live || !availability) return null;
+
+  const countries = availability.countries;
+  let labels = countries;
+  try {
+    const names = new Intl.DisplayNames(["fr"], { type: "region" });
+    labels = countries.map((code) => names.of(code) ?? code);
+  } catch {
+    // Les codes pays restent compréhensibles si Intl.DisplayNames est indisponible.
+  }
+
+  const scope = availability.restOfWorld
+    ? countries.length
+      ? `${countries.length} pays/régions ciblés + reste du monde`
+      : "Reste du monde"
+    : countries.length
+      ? `${countries.length} pays/régions`
+      : "Disponibilité pays non renseignée";
+
+  return (
+    <div className="mt-4 rounded-xl border bg-muted/20 p-4">
+      <div className="font-medium">Publié sur Google Play · {scope}</div>
+      {labels.length > 0 && !availability.restOfWorld && (
+        <p className="mt-1 text-sm text-muted-foreground">{labels.join(" · ")}</p>
+      )}
+      <p className="mt-1 text-xs text-muted-foreground">
+        Information lue directement depuis la disponibilité de la piste production Google Play.
+      </p>
     </div>
   );
 }
