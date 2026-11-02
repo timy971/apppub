@@ -94,10 +94,10 @@ function labelTrack(track: string): string {
     case "production":
       return "Production";
     case "beta":
-      return "Bêta";
+      return "Test ouvert";
     case "alpha":
-      return "Alpha";
+      return "Test fermé";
     default:
-      return "Interne";
+      return "Test interne";
   }
 }
