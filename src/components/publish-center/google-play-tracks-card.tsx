@@ -131,7 +131,10 @@ export function GooglePlayTracksCard({
   const onTrack = (track: GooglePlayTrack) =>
     currentTrackState(track)?.versionCodes.includes(versionCode) ?? false;
 
+  const accountKindKnown =
+    !!android.googlePlayAccountKind && android.googlePlayAccountKind !== "unknown";
   const productionReady =
+    accountKindKnown &&
     android.googlePlayDeveloperVerification === "verified" &&
     android.googlePlayPackageRegistration === "registered" &&
     (android.googlePlayAccountKind !== "personal-new" ||
