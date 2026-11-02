@@ -130,7 +130,10 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
     );
 
   const selectedTrack: GooglePlayTrack = android.defaultTrack ?? "internal";
+  const accountKindKnown =
+    !!android.googlePlayAccountKind && android.googlePlayAccountKind !== "unknown";
   const productionReady =
+    accountKindKnown &&
     android.googlePlayDeveloperVerification === "verified" &&
     android.googlePlayPackageRegistration === "registered" &&
     (android.googlePlayAccountKind !== "personal-new" ||
@@ -151,6 +154,23 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
       touched: ["android.defaultTrack"],
     });
     AppStore.refreshProjects();
+  }
+
+  function updatePlayCompliance(
+    patch: Parameters<typeof patchAndroidConfig>[1],
+    touched: Parameters<typeof ProjectsService.update>[2]["touched"],
+  ) {
+    ProjectsService.update(project.id, patchAndroidConfig(project, patch), { touched });
+    AppStore.refreshProjects();
+  }
+
+  async function openPlayConsole() {
+    try {
+      const opened = await bridge().shell.openExternal("https://play.google.com/console/");
+      if (!opened) toast.error("Impossible d’ouvrir Google Play Console");
+    } catch {
+      toast.error("Impossible d’ouvrir Google Play Console");
+    }
   }
 
   const connectionArgs = connectionId
@@ -847,6 +867,238 @@ export function GooglePlayCard({ project, release, onChanged, externalFailure }:
           </p>
         )}
       </div>
+
+      {selectedTrack === "production" && (
+        <div className="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-medium">Éligibilité Google Play — Production</h3>
+                <Badge
+                  variant="outline"
+                  className={
+                    productionReady
+                      ? "border-success/40 bg-success/10 text-success"
+                      : "border-amber-400/40 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+                  }
+                >
+                  {productionReady ? "Prêt pour la production" : "Prérequis à compléter"}
+                </Badge>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                AppPublisher bloque seulement l’envoi tant qu’un prérequis obligatoire manque.
+                Confirmez ici les états affichés dans votre Play Console.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void openPlayConsole()}>
+              Ouvrir Play Console
+            </Button>
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            <div className="grid gap-2 rounded-lg border bg-background p-3 sm:grid-cols-[1fr_260px] sm:items-center">
+              <div>
+                <div className="flex items-center gap-2">
+                  {accountKindKnown ? (
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  )}
+                  <p className="text-sm font-medium">Type de compte développeur</p>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Nécessaire pour savoir si le test fermé obligatoire s’applique.
+                </p>
+              </div>
+              <Select
+                value={android.googlePlayAccountKind ?? "unknown"}
+                onValueChange={(value) =>
+                  updatePlayCompliance(
+                    {
+                      googlePlayAccountKind:
+                        value as NonNullable<typeof android.googlePlayAccountKind>,
+                    },
+                    ["android.googlePlayAccountKind"],
+                  )
+                }
+              >
+                <SelectTrigger aria-label="Type de compte développeur Google Play">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unknown">À confirmer</SelectItem>
+                  <SelectItem value="organization">Organisation</SelectItem>
+                  <SelectItem value="personal-established">
+                    Personnel créé avant le 13/11/2023
+                  </SelectItem>
+                  <SelectItem value="personal-new">
+                    Personnel créé après le 13/11/2023
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2 rounded-lg border bg-background p-3 sm:grid-cols-[1fr_260px] sm:items-center">
+              <div>
+                <div className="flex items-center gap-2">
+                  {android.googlePlayDeveloperVerification === "verified" ? (
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  )}
+                  <p className="text-sm font-medium">Compte développeur vérifié</p>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Vérification d’identité / organisation terminée dans Play Console.
+                </p>
+              </div>
+              <Select
+                value={android.googlePlayDeveloperVerification ?? "unknown"}
+                onValueChange={(value) =>
+                  updatePlayCompliance(
+                    {
+                      googlePlayDeveloperVerification:
+                        value as NonNullable<typeof android.googlePlayDeveloperVerification>,
+                    },
+                    ["android.googlePlayDeveloperVerification"],
+                  )
+                }
+              >
+                <SelectTrigger aria-label="Vérification développeur Google Play">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unknown">À confirmer</SelectItem>
+                  <SelectItem value="pending">En cours</SelectItem>
+                  <SelectItem value="verified">Vérifiée</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2 rounded-lg border bg-background p-3 sm:grid-cols-[1fr_260px] sm:items-center">
+              <div>
+                <div className="flex items-center gap-2">
+                  {android.googlePlayPackageRegistration === "registered" ? (
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  )}
+                  <p className="text-sm font-medium">Package Android enregistré</p>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Le package de cette application est enregistré dans Play Console.
+                </p>
+              </div>
+              <Select
+                value={android.googlePlayPackageRegistration ?? "unknown"}
+                onValueChange={(value) =>
+                  updatePlayCompliance(
+                    {
+                      googlePlayPackageRegistration:
+                        value as NonNullable<typeof android.googlePlayPackageRegistration>,
+                    },
+                    ["android.googlePlayPackageRegistration"],
+                  )
+                }
+              >
+                <SelectTrigger aria-label="Enregistrement du package Google Play">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unknown">À confirmer</SelectItem>
+                  <SelectItem value="pending">En cours</SelectItem>
+                  <SelectItem value="registered">Enregistré</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {android.googlePlayAccountKind === "personal-new" && (
+              <>
+                <div className="grid gap-2 rounded-lg border bg-background p-3 sm:grid-cols-[1fr_260px] sm:items-center">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      {android.googlePlayClosedTestingStatus === "completed" ? (
+                        <CheckCircle2 className="h-4 w-4 text-success" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      )}
+                      <p className="text-sm font-medium">Test fermé obligatoire terminé</p>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Au moins 12 testeurs inscrits en continu pendant 14 jours.
+                    </p>
+                  </div>
+                  <Select
+                    value={android.googlePlayClosedTestingStatus ?? "unknown"}
+                    onValueChange={(value) =>
+                      updatePlayCompliance(
+                        {
+                          googlePlayClosedTestingStatus:
+                            value as NonNullable<typeof android.googlePlayClosedTestingStatus>,
+                        },
+                        ["android.googlePlayClosedTestingStatus"],
+                      )
+                    }
+                  >
+                    <SelectTrigger aria-label="État du test fermé Google Play">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unknown">À confirmer</SelectItem>
+                      <SelectItem value="pending">En cours — 12 testeurs / 14 jours</SelectItem>
+                      <SelectItem value="completed">Terminé — 12 testeurs / 14 jours</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2 rounded-lg border bg-background p-3 sm:grid-cols-[1fr_260px] sm:items-center">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      {android.googlePlayProductionAccess === "granted" ? (
+                        <CheckCircle2 className="h-4 w-4 text-success" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      )}
+                      <p className="text-sm font-medium">Accès production accordé par Google</p>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Après le test fermé, la demande d’accès production doit être acceptée.
+                    </p>
+                  </div>
+                  <Select
+                    value={android.googlePlayProductionAccess ?? "unknown"}
+                    onValueChange={(value) =>
+                      updatePlayCompliance(
+                        {
+                          googlePlayProductionAccess:
+                            value as NonNullable<typeof android.googlePlayProductionAccess>,
+                        },
+                        ["android.googlePlayProductionAccess"],
+                      )
+                    }
+                  >
+                    <SelectTrigger aria-label="Accès production Google Play">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unknown">À confirmer</SelectItem>
+                      <SelectItem value="requested">Demande envoyée</SelectItem>
+                      <SelectItem value="granted">Accès accordé</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+          </div>
+
+          {!productionReady && (
+            <p className="mt-4 text-xs font-medium text-amber-700 dark:text-amber-300">
+              Action suivante : complétez le premier élément non validé ci-dessus. Dès que tous les
+              prérequis obligatoires sont validés, AppPublisher autorisera l’envoi en production.
+            </p>
+          )}
+        </div>
+      )}
 
       <GooglePlayJourney
         connected={connected}
