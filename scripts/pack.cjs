@@ -102,6 +102,12 @@ for (const rel of ["electron/main.cjs", "electron/preload.cjs", "app.config.cjs"
 }
 ok("Fichiers Electron présents.");
 
+if (target === "mac" && !fs.existsSync(path.join(buildDir, "google-play-oauth.json"))) {
+  warn(
+    "Client OAuth Google absent du packaging local. Une reconnexion reste possible depuis une autorisation OAuth déjà stockée dans le trousseau, mais une toute première connexion Google nécessitera build/google-play-oauth.json.",
+  );
+}
+
 /* ---------- 2. Outils embarqués + sync version ---------- */
 info("Préparation de bundletool…");
 run(process.execPath, [path.join(root, "scripts", "ensure-bundletool.cjs")]);

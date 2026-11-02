@@ -79,7 +79,11 @@ const {
   validateGooglePlayCredentials,
   validateServiceAccountCredentials,
 } = require("./google-play-publisher.cjs");
-const { GooglePlayOAuth, loadGooglePlayOAuthConfig } = require("./google-play-oauth.cjs");
+const {
+  GooglePlayOAuth,
+  loadGooglePlayOAuthConfig,
+  oauthConfigFromStoredCredentials,
+} = require("./google-play-oauth.cjs");
 const { MacUpdateManager } = require("./update-manager.cjs");
 const { autoUpdater } = require("electron-updater");
 
@@ -3161,9 +3165,26 @@ ipcMain.handle("google-play:connectOAuth", async (_event, args) => {
   const project = storedProjectForGooglePlay(args.projectPath, args.packageName, null, false);
   if (!project) return { ok: false, errorCode: "project-mismatch" };
   try {
-    const credentials = await googlePlayOAuth.authorize((url) => shell.openExternal(url));
+    const existingConnectionId = project?.publishing?.android?.googlePlayConnectionId;
+    let oauth = googlePlayOAuth;
+    if (!oauth.available() && validGooglePlayConnectionId(existingConnectionId)) {
+      const storedCredentials = await getGooglePlayCredentials(existingConnectionId);
+      const fallbackConfig = oauthConfigFromStoredCredentials(storedCredentials);
+      if (fallbackConfig) {
+        oauth = new GooglePlayOAuth(fallbackConfig);
+        diagSigning("info", "google-play:connectOAuth fallback trousseau", {
+          projectId: project.id,
+          packageName: args.packageName,
+          connectionId: existingConnectionId,
+        });
+      }
+    }
+
+    const credentials = await oauth.authorize((url) => shell.openExternal(url));
     const connection = await googlePlayPublisher.prepareConnection(credentials, args.packageName);
-    const connectionId = `gplay_${crypto.randomBytes(16).toString("hex")}`;
+    const connectionId = validGooglePlayConnectionId(existingConnectionId)
+      ? existingConnectionId
+      : `gplay_${crypto.randomBytes(16).toString("hex")}`;
     if (!(await setGooglePlayCredentials(connectionId, credentials))) {
       return {
         ok: false,

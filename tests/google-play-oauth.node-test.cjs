@@ -6,6 +6,7 @@ const {
   GooglePlayOAuth,
   cleanOAuthConfig,
   loadGooglePlayOAuthConfig,
+  oauthConfigFromStoredCredentials,
 } = require("../electron/google-play-oauth.cjs");
 
 test("accepts only a Google installed-app OAuth client", () => {
@@ -118,4 +119,30 @@ test("keeps a packaged OAuth config available after normalization", () => {
   });
 
   assert.equal(new GooglePlayOAuth(configured).available(), true);
+});
+
+
+test("rebuilds OAuth config from a stored authorized_user credential", () => {
+  const config = oauthConfigFromStoredCredentials({
+    type: "authorized_user",
+    client_id: "desktop-client.apps.googleusercontent.com",
+    client_secret: "desktop-secret",
+    refresh_token: "refresh-token",
+    account_email: "user@example.com",
+  });
+  assert.deepEqual(config, {
+    clientId: "desktop-client.apps.googleusercontent.com",
+    clientSecret: "desktop-secret",
+  });
+});
+
+test("does not derive OAuth config from a service account", () => {
+  assert.equal(
+    oauthConfigFromStoredCredentials({
+      type: "service_account",
+      client_email: "service@example.iam.gserviceaccount.com",
+      private_key: "secret",
+    }),
+    null,
+  );
 });
