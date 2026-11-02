@@ -16,7 +16,6 @@ import {
   FolderOpen,
   Star,
   StarOff,
-  CheckCircle2,
   History as HistoryIcon,
   Save,
   Smartphone,
@@ -153,6 +152,11 @@ function ProjectCockpit() {
     [project],
   );
 
+  useEffect(() => {
+    if (!project || settings.activeProjectId === project.id) return;
+    AppStore.setActiveProject(project.id);
+  }, [project, settings.activeProjectId]);
+
   if (!project || !status) {
     return (
       <div>
@@ -243,19 +247,6 @@ function ProjectCockpit() {
             <FolderOpen className="h-4 w-4" />
             Ouvrir le dossier
           </Button>
-          {!isActive && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                AppStore.setActiveProject(project.id);
-                toast.success("Projet actif défini");
-              }}
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Définir comme actif
-            </Button>
-          )}
         </div>
       </div>
 
