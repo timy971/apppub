@@ -435,3 +435,16 @@ test("un rejet d'authentification Google invalide immédiatement le badge vérif
   assert.match(card, /reconnectWithGoogle/);
   assert.match(card, /Autorisation Google renouvelée/);
 });
+
+
+test("la page Google Play ne repasse plus au squelette pour une simple métadonnée", () => {
+  const center = read("src/components/publish-center/publish-center.tsx");
+  const sync = read("src/core/google-play/status-sync.ts");
+
+  assert.doesNotMatch(center, /\}, \[project, refreshKey\]\);/);
+  assert.match(center, /project\.id/);
+  assert.match(center, /project\.currentVersion/);
+  assert.match(center, /project\.currentBuild/);
+  assert.match(sync, /materiallyChanged/);
+  assert.match(sync, /if \(!materiallyChanged\) return project/);
+});
