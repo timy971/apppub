@@ -86,6 +86,18 @@ export function applyGooglePlayStatus(
   });
 }
 
+export function invalidateGooglePlayVerification(connectionId: string): void {
+  for (const candidate of ProjectsService.list()) {
+    if (candidate.publishing?.android?.googlePlayConnectionId !== connectionId) continue;
+    ProjectsService.update(
+      candidate.id,
+      patchAndroidConfig(candidate, {
+        googlePlayLastCheckedAt: undefined,
+      }),
+    );
+  }
+}
+
 export function googlePlayStatusSyncDue(project: Project, now = Date.now()): boolean {
   const android = project.publishing?.android;
   if (!android?.googlePlayConnectionId || !resolvePublicationApplicationId(project)) return false;
