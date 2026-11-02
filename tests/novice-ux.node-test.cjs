@@ -399,7 +399,8 @@ test("le statut Publié vient désormais de Google Play et non seulement de l'hi
   const grid = read("src/components/dashboard/projects-grid.tsx");
 
   assert.match(sync, /LIVE_STATUSES = new Set\(\["completed", "inProgress"\]\)/);
-  assert.match(sync, /lifecycle:[\s\S]*live[\s\S]*"published"/);
+  assert.match(sync, /const nextLifecycle =[\s\S]*live[\s\S]*"published"/);
+  assert.match(sync, /lifecycle: nextLifecycle/);
   assert.match(sync, /project\.lifecycle !== "archived"/);
   assert.match(sync, /googlePlayProductionCountries/);
   assert.match(dashboard, /syncGooglePlayStatus/);
@@ -434,4 +435,17 @@ test("un rejet d'authentification Google invalide immédiatement le badge vérif
   assert.match(card, /Reconnecter Google/);
   assert.match(card, /reconnectWithGoogle/);
   assert.match(card, /Autorisation Google renouvelée/);
+});
+
+
+test("la page Google Play ne repasse plus au squelette pour une simple métadonnée", () => {
+  const center = read("src/components/publish-center/publish-center.tsx");
+  const sync = read("src/core/google-play/status-sync.ts");
+
+  assert.doesNotMatch(center, /\}, \[project, refreshKey\]\);/);
+  assert.match(center, /project\.id/);
+  assert.match(center, /project\.currentVersion/);
+  assert.match(center, /project\.currentBuild/);
+  assert.match(sync, /materiallyChanged/);
+  assert.match(sync, /if \(!materiallyChanged\) return project/);
 });

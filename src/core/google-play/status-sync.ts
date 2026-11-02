@@ -49,24 +49,40 @@ export function applyGooglePlayStatus(
   const availability = production?.countryAvailability;
   const currentAndroid = project.publishing?.android ?? {};
 
+  const nextCountries = availability?.countries ?? [];
+  const nextVersionCodes = production?.versionCodes ?? [];
+  const nextLifecycle =
+    live && project.lifecycle !== "archived" ? "published" : project.lifecycle;
+  const nextLastKnownBuild =
+    highestKnownBuild && highestKnownBuild > (currentAndroid.googlePlayLastKnownBuild ?? 0)
+      ? highestKnownBuild
+      : currentAndroid.googlePlayLastKnownBuild;
+
+  const materiallyChanged =
+    currentAndroid.googlePlayProductionStatus !== status ||
+    JSON.stringify(currentAndroid.googlePlayProductionVersionCodes ?? []) !==
+      JSON.stringify(nextVersionCodes) ||
+    JSON.stringify(currentAndroid.googlePlayProductionCountries ?? []) !==
+      JSON.stringify(nextCountries) ||
+    (currentAndroid.googlePlayProductionRestOfWorld ?? false) !==
+      (availability?.restOfWorld ?? false) ||
+    currentAndroid.googlePlayLastKnownBuild !== nextLastKnownBuild ||
+    project.lifecycle !== nextLifecycle;
+
+  if (!materiallyChanged) return project;
+
   const patch = patchAndroidConfig(project, {
     googlePlayProductionStatus: status,
-    googlePlayProductionVersionCodes: production?.versionCodes ?? [],
-    googlePlayProductionCountries: availability?.countries ?? [],
+    googlePlayProductionVersionCodes: nextVersionCodes,
+    googlePlayProductionCountries: nextCountries,
     googlePlayProductionRestOfWorld: availability?.restOfWorld ?? false,
     googlePlayStatusSyncedAt: new Date().toISOString(),
-    googlePlayLastKnownBuild:
-      highestKnownBuild && highestKnownBuild > (currentAndroid.googlePlayLastKnownBuild ?? 0)
-        ? highestKnownBuild
-        : currentAndroid.googlePlayLastKnownBuild,
+    googlePlayLastKnownBuild: nextLastKnownBuild,
   });
 
   return ProjectsService.update(project.id, {
     ...patch,
-    lifecycle:
-      live && project.lifecycle !== "archived"
-        ? "published"
-        : project.lifecycle,
+    lifecycle: nextLifecycle,
   });
 }
 

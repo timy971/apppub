@@ -133,4 +133,35 @@ describe("Google Play status sync", () => {
       expect.objectContaining({ lifecycle: "archived" }),
     );
   });
+
+  it("does not rewrite the project when the Google Play status is materially unchanged", () => {
+    const p = project("published");
+    p.publishing = {
+      android: {
+        applicationId: "app.cranioscan.android",
+        googlePlayConnectionId: "gplay_cranioscan",
+        googlePlayProductionStatus: "completed",
+        googlePlayProductionVersionCodes: [4],
+        googlePlayProductionCountries: ["HK", "NA"],
+        googlePlayProductionRestOfWorld: false,
+        googlePlayLastKnownBuild: 4,
+      },
+    };
+
+    const result = applyGooglePlayStatus(p, [
+      {
+        track: "production",
+        versionCodes: [4],
+        countryAvailability: {
+          countries: ["HK", "NA"],
+          restOfWorld: false,
+          syncWithProduction: false,
+        },
+        releases: [{ status: "completed", versionCodes: [4] }],
+      },
+    ]);
+
+    expect(result).toBe(p);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
 });
