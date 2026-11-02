@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useSettings, useActiveProject, useProjects } from "@/core/store/app-store";
+import { AppStore, useSettings, useActiveProject, useProjects } from "@/core/store/app-store";
 import { HistoryService } from "@/core/history/service";
 import { BackupService } from "@/core/backup/service";
 import { ProjectStatusService } from "@/core/projects/status";
@@ -17,6 +17,10 @@ import {
 } from "@/components/dashboard/activity-timeline";
 import { GlobalHealthCard, type GlobalHealth } from "@/components/dashboard/global-health-card";
 import { StatsStrip, type DashboardStats } from "@/components/dashboard/stats-strip";
+import {
+  googlePlayStatusSyncDue,
+  syncGooglePlayStatus,
+} from "@/core/google-play/status-sync";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -37,6 +41,19 @@ function Dashboard() {
       navigate({ to: "/setup" });
     }
   }, [hydrated, settings.onboardingCompleted, navigate]);
+
+  useEffect(() => {
+    if (!hydrated || !settings.onboardingCompleted) return;
+    const due = projects.filter((project) => googlePlayStatusSyncDue(project));
+    if (!due.length) return;
+    let cancelled = false;
+    void Promise.allSettled(due.map((project) => syncGooglePlayStatus(project))).then(() => {
+      if (!cancelled) AppStore.refreshProjects();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, projects, settings.onboardingCompleted]);
 
   useEffect(() => {
     if (!hydrated || !settings.onboardingCompleted || !activeProject) return;
