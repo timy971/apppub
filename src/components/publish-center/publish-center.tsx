@@ -85,7 +85,15 @@ export function PublishCenter({ project }: { project: Project }) {
     return () => {
       cancelled = true;
     };
-  }, [project, refreshKey]);
+  }, [
+    project.id,
+    project.localPath,
+    project.currentVersion,
+    project.currentBuild,
+    project.publishing?.android?.applicationId,
+    project.publishing?.android?.signingProfileId,
+    refreshKey,
+  ]);
 
   const status: ProjectStatus = useMemo(() => ProjectStatusService.evaluate(project), [project]);
   const history: PublishRecord[] = HistoryService.list();
