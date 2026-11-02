@@ -501,6 +501,27 @@ export interface SystemBridge {
 
   googlePlay: {
     oauthStatus(): Promise<{ available: boolean }>;
+    reusableConnections(args: { projectPath: string; packageName: string }): Promise<
+      Array<{
+        connectionId: string;
+        accountEmail: string;
+        authMode: "oauth" | "service-account";
+        sourceProjectName: string;
+      }>
+    >;
+    reuseConnection(args: {
+      projectPath: string;
+      packageName: string;
+      connectionId: string;
+    }): Promise<
+      GooglePlayResult<{
+        connectionId: string;
+        accountEmail: string;
+        authMode: "oauth" | "service-account";
+        verified: true;
+        initializationRequired: false;
+      }>
+    >;
     connectOAuth(args: { projectPath: string; packageName: string }): Promise<
       GooglePlayResult<{
         connectionId: string;
