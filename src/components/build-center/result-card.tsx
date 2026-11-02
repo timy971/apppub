@@ -303,7 +303,7 @@ export function ResultCard({ project, snap, elapsedMs, stats, onCorrected }: Pro
           {verdict !== "blocked" && (
             <p className="mt-3 text-xs text-muted-foreground">
               Étape suivante : ajoutez les notes de version, préparez la publication, puis envoyez
-              le fichier Android aux testeurs internes sur Google Play.
+              le fichier Android vers la destination Google Play de votre choix.
             </p>
           )}
         </div>
