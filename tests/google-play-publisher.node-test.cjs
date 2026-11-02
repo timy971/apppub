@@ -573,6 +573,13 @@ test("reads the four canonical Google Play tracks", async () => {
           ],
         });
       }
+      if (String(url).endsWith("/countryAvailability/production")) {
+        return response(200, {
+          countries: [{ countryCode: "HK" }, { countryCode: "NA" }],
+          restOfWorld: false,
+          syncWithProduction: false,
+        });
+      }
       if (options.method === "DELETE") return response(204);
       return response(404, {});
     },
@@ -589,6 +596,14 @@ test("reads the four canonical Google Play tracks", async () => {
   ]);
   assert.deepEqual(result.tracks.find((track) => track.track === "internal").versionCodes, [7]);
   assert.deepEqual(result.tracks.find((track) => track.track === "beta").versionCodes, []);
+  assert.deepEqual(
+    result.tracks.find((track) => track.track === "production").countryAvailability,
+    {
+      countries: ["HK", "NA"],
+      restOfWorld: false,
+      syncWithProduction: false,
+    },
+  );
 });
 
 test("promotes an existing version without uploading the AAB again", async () => {
@@ -631,4 +646,33 @@ test("promotes an existing version without uploading the AAB again", async () =>
   const trackCall = calls.find((call) => call.url.includes("/tracks/alpha"));
   const body = JSON.parse(trackCall.options.body);
   assert.deepEqual(body.releases[0].versionCodes, ["42"]);
+});
+
+
+test("track status remains usable when country availability is unavailable", async () => {
+  const publisher = new GooglePlayPublisher({
+    fetchImpl: async (url, options = {}) => {
+      const value = String(url);
+      if (value.endsWith("/edits")) return response(200, { id: "edit-no-country" });
+      if (value.endsWith("/tracks")) {
+        return response(200, {
+          tracks: [
+            { track: "production", releases: [{ versionCodes: ["8"], status: "completed" }] },
+          ],
+        });
+      }
+      if (value.endsWith("/countryAvailability/production")) {
+        return response(403, { error: { message: "not allowed" } });
+      }
+      if (options.method === "DELETE") return response(204);
+      return response(404, {});
+    },
+    jwtFactory: () => ({ getAccessToken: async () => ({ token: "token" }) }),
+  });
+
+  const result = await publisher.trackStatus(credentials, "app.cranioscan.android");
+  assert.equal(result.ok, true);
+  const production = result.tracks.find((track) => track.track === "production");
+  assert.deepEqual(production.versionCodes, [8]);
+  assert.equal(production.countryAvailability, undefined);
 });
