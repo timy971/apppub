@@ -133,8 +133,6 @@ describe("Google Play status sync", () => {
       expect.objectContaining({ lifecycle: "archived" }),
     );
   });
-});
-
 
   it("does not rewrite the project when the Google Play status is materially unchanged", () => {
     const p = project("published");
@@ -166,3 +164,4 @@ describe("Google Play status sync", () => {
     expect(result).toBe(p);
     expect(mocks.update).not.toHaveBeenCalled();
   });
+});
