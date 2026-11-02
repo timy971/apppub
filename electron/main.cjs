@@ -3048,7 +3048,7 @@ ipcMain.handle("secrets:remove", async (_e, profileId) => {
 });
 
 /* ==========================================================================
- *  IPC : publication Google Play (piste interne uniquement)
+ *  IPC : publication Google Play (pistes internal, alpha, beta, production)
  *
  *  Les identifiants restent dans le processus principal et le trousseau.
  *  L'interface ne reçoit que l'adresse publique du compte connecté.
