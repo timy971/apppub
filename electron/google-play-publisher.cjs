@@ -177,6 +177,11 @@ function classifyHttpError(status, payload) {
     /wrong upload (?:key|certificate)/i.test(message)
   ) {
     code = "upload-key-mismatch";
+  } else if (
+    /only releases with status draft may be created on draft app/i.test(message) ||
+    /draft app/i.test(message) && /status draft/i.test(message)
+  ) {
+    code = "app-draft";
   } else if (reason === "CHANGES_ALREADY_IN_REVIEW") {
     code = "changes-in-review";
   } else if (status === 401) code = "credentials-rejected";
