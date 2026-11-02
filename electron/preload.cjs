@@ -221,6 +221,7 @@ contextBridge.exposeInMainWorld("appPublisher", {
     latestVersionCode: (args) => inv("google-play:latestVersionCode", args),
     disconnect: (args) => inv("google-play:disconnect", args),
     promoteVersion: (args) => inv("google-play:promoteVersion", args),
+    publishTrack: (args) => inv("google-play:publishTrack", args),
     publishInternal: (args) => inv("google-play:publishInternal", args),
   },
 
