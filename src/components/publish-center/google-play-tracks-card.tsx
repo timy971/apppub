@@ -259,7 +259,7 @@ export function GooglePlayTracksCard({
       <ProductionAvailability tracks={tracks} />
 
       <div className="mt-5 space-y-3">
-        {!onTrack("alpha") && onTrack("internal") && (
+        {!onTrack("production") && !onTrack("alpha") && onTrack("internal") && (
           <PromotionRow
             title="Étape suivante : test fermé"
             detail="Réutilise la version déjà envoyée sur Google Play, sans téléverser de nouveau fichier."
@@ -269,7 +269,7 @@ export function GooglePlayTracksCard({
           />
         )}
 
-        {!onTrack("beta") && onTrack("alpha") && (
+        {!onTrack("production") && !onTrack("beta") && onTrack("alpha") && (
           <PromotionRow
             title="Étape suivante : test ouvert"
             detail={
@@ -301,9 +301,10 @@ export function GooglePlayTracksCard({
 
         {onTrack("production") && (
           <div className="rounded-xl border border-success/30 bg-success/5 p-4">
-            <div className="font-medium text-success">Version envoyée sur la piste production</div>
+            <div className="font-medium text-success">Version actuellement en production</div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Google Play indique que le nº interne {versionCode} est présent sur la piste production. Une revue ou une mise en attente de publication peut encore s'appliquer dans Play Console.
+              Google Play indique que le nº interne {versionCode} est présent sur la piste production.
+              Aucune promotion supplémentaire n'est nécessaire pour cette version.
             </p>
           </div>
         )}
