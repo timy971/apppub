@@ -37,10 +37,11 @@ test("Lot 12.7 — scénario réel VictoryTrack reste publiable sans diagnostic 
   assert.match(androidRules, /isDisposableAndroidRebuild/);
 
   // 6. L'envoi Google Play réel doit rester enregistré avec une preuve store.
-  assert.match(play, /googlePlay\.publishInternal/);
+  assert.match(play, /googlePlay\.publishTrack/);
+  assert.match(play, /track: selectedTrack/);
   assert.match(play, /storeRelease:/);
   assert.match(play, /provider: "google-play"/);
-  assert.match(play, /track: "internal"/);
+  assert.match(play, /track: result\.track/);
 
   // 7. Après succès, l'utilisateur reçoit une fin de parcours explicite.
   assert.match(post, /envoyée à Google Play/);
