@@ -990,8 +990,8 @@ function AndroidSection({ project, update }: { project: Project; update: UpdateF
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="internal">Test interne</SelectItem>
-                <SelectItem value="alpha">Alpha fermée</SelectItem>
-                <SelectItem value="beta">Bêta ouverte</SelectItem>
+                <SelectItem value="alpha">Test fermé</SelectItem>
+                <SelectItem value="beta">Test ouvert</SelectItem>
                 <SelectItem value="production">Production</SelectItem>
               </SelectContent>
             </Select>
