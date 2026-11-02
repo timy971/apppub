@@ -101,8 +101,8 @@ export function GooglePlayTracksCard({
       setReadFailure(null);
       onFailure(null);
       setTracks(result.tracks);
-      applyGooglePlayStatus(project, result.tracks);
-      AppStore.refreshProjects();
+      const updatedProject = applyGooglePlayStatus(project, result.tracks);
+      if (updatedProject && updatedProject !== project) AppStore.refreshProjects();
     } catch {
       const failure: GooglePlayFailure = {
         errorCode: "network-error",
