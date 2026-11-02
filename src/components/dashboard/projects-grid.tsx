@@ -9,6 +9,7 @@ import { ProjectStatusBadge } from "@/components/project-status-badge";
 import { ProjectLifecycleBadge } from "@/components/project-lifecycle-badge";
 import { formatRelative } from "@/components/project-cockpit/shared";
 import { cn } from "@/lib/utils";
+import { AppStore } from "@/core/store/app-store";
 
 export interface ProjectSummary {
   project: Project;
@@ -77,6 +78,7 @@ function ProjectCard({ summary, isActive }: { summary: ProjectSummary; isActive:
     <Link
       to="/projects/$id"
       params={{ id: project.id }}
+      onClick={() => AppStore.setActiveProject(project.id)}
       className={cn(
         "group block rounded-xl border bg-card p-5 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated",
         isActive && "ring-2 ring-primary/40",
