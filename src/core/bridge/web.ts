@@ -435,6 +435,16 @@ export const webBridge: SystemBridge = {
     async oauthStatus() {
       return { available: false };
     },
+    async reusableConnections() {
+      return [];
+    },
+    async reuseConnection() {
+      return {
+        ok: false,
+        errorCode: "desktop-required",
+        errorHint: "La réutilisation d'un compte Google Play nécessite l'application de bureau.",
+      };
+    },
     async connectOAuth() {
       return {
         ok: false,
