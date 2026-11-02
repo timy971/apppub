@@ -84,8 +84,9 @@ export function GooglePlayTracksCard({
         setReadFailure(failure);
         onFailure(failure);
         if (
-          result.errorCode === "credentials-missing" ||
-          result.errorCode === "credentials-rejected"
+          connectionId &&
+          (result.errorCode === "credentials-missing" ||
+            result.errorCode === "credentials-rejected")
         ) {
           invalidateGooglePlayVerification(connectionId);
           AppStore.refreshProjects();
