@@ -490,6 +490,13 @@ export const webBridge: SystemBridge = {
         errorHint: "La promotion Google Play nécessite l'application de bureau macOS.",
       };
     },
+    async publishTrack() {
+      return {
+        ok: false,
+        errorCode: "desktop-required",
+        errorHint: "La publication Google Play nécessite l'application de bureau macOS.",
+      };
+    },
     async publishInternal() {
       return {
         ok: false,
