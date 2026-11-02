@@ -212,6 +212,8 @@ contextBridge.exposeInMainWorld("appPublisher", {
 
   googlePlay: {
     oauthStatus: () => inv("google-play:oauthStatus"),
+    reusableConnections: (args) => inv("google-play:reusableConnections", args),
+    reuseConnection: (args) => inv("google-play:reuseConnection", args),
     connectOAuth: (args) => inv("google-play:connectOAuth", args),
     importServiceAccount: (args) => inv("google-play:importServiceAccount", args),
     testConnection: (args) => inv("google-play:testConnection", args),
