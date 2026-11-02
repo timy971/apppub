@@ -3666,7 +3666,10 @@ ipcMain.handle("google-play:publishTrack", async (_event, args) => {
     };
   }
   if (track === "production") {
+    const accountKindKnown =
+      Boolean(android.googlePlayAccountKind) && android.googlePlayAccountKind !== "unknown";
     const productionReady =
+      accountKindKnown &&
       android.googlePlayDeveloperVerification === "verified" &&
       android.googlePlayPackageRegistration === "registered" &&
       (android.googlePlayAccountKind !== "personal-new" ||
