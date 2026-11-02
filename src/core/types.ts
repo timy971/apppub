@@ -53,6 +53,16 @@ export interface AndroidPublishingConfig {
   googlePlayPackageRegistration?: "unknown" | "pending" | "registered";
   /** Lot 15 — accès aux fonctionnalités production/ouvert pour les nouveaux comptes personnels. */
   googlePlayProductionAccess?: "unknown" | "requested" | "granted";
+  /** État réel observé de la release production la plus récente. */
+  googlePlayProductionStatus?: "draft" | "inProgress" | "halted" | "completed" | "unknown";
+  /** Numéros internes actuellement visibles sur la piste production. */
+  googlePlayProductionVersionCodes?: number[];
+  /** Codes pays/régions CLDR exposés par Google Play pour la piste production. */
+  googlePlayProductionCountries?: string[];
+  /** Google Play indique que le reste du monde est également ciblé. */
+  googlePlayProductionRestOfWorld?: boolean;
+  /** Dernière synchronisation du statut réel Google Play. */
+  googlePlayStatusSyncedAt?: string;
 }
 
 /** Phase 3 : configuration iOS — structure posée, publication future. */
