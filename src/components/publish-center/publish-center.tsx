@@ -22,7 +22,7 @@ import { PublishHeader } from "./header";
 import { PublishCopilotStrip } from "./copilot-strip";
 import { PublishExplainer } from "./publish-explainer";
 import { PublishHandoffCard } from "./handoff-card";
-import { GooglePlayCard } from "./google-play-card";
+import { GooglePlayCard, type GooglePlayFailure } from "./google-play-card";
 import { GooglePlayTracksCard } from "./google-play-tracks-card";
 import { PostPublishCard } from "./post-publish-card";
 import { ReleaseOverviewCard } from "./release-overview";
@@ -59,6 +59,7 @@ export function PublishCenter({ project }: { project: Project }) {
   const [preparing, setPreparing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [googlePlayFailure, setGooglePlayFailure] = useState<GooglePlayFailure | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -301,12 +302,14 @@ export function PublishCenter({ project }: { project: Project }) {
       <GooglePlayTracksCard
         project={project}
         onChanged={() => setRefreshKey((n) => n + 1)}
+        onFailure={setGooglePlayFailure}
       />
       {preparedRelease && !lastStoreRelease && <PublishHandoffCard release={preparedRelease} />}
       <GooglePlayCard
         project={project}
         release={preparedRelease}
         onChanged={() => setRefreshKey((n) => n + 1)}
+        externalFailure={googlePlayFailure}
       />
 
       <AssistantOrAbove>
