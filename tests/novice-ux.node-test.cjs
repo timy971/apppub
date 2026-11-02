@@ -422,3 +422,16 @@ test("un compte Google Play déjà connecté peut être réutilisé sans nouvell
   assert.match(main, /testConnection\(credentials, args\.packageName\)/);
   assert.match(main, /Le compte restera disponible/);
 });
+
+
+test("un rejet d'authentification Google invalide immédiatement le badge vérifié", () => {
+  const card = read("src/components/publish-center/google-play-card.tsx");
+
+  assert.match(card, /credentials-missing"[\s\S]*credentials-rejected/);
+  assert.match(card, /invalidateVerifiedConnection/);
+  assert.match(card, /googlePlayLastCheckedAt: undefined/);
+  assert.match(card, /AppStore\.getProjects\(\)/);
+  assert.match(card, /Reconnecter Google/);
+  assert.match(card, /reconnectWithGoogle/);
+  assert.match(card, /Autorisation Google renouvelée/);
+});

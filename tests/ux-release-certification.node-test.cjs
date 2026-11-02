@@ -129,3 +129,11 @@ test("l'Error Boundary racine journalise l'exception React dans le diagnostic", 
   assert.match(root, /error\.message/);
   assert.match(root, /error\.stack/);
 });
+
+
+test("un refus d'authentification ne peut plus coexister avec Connexion vérifiée", () => {
+  const card = read("src/components/publish-center/google-play-card.tsx");
+  assert.match(card, /if \(result\.errorCode === "credentials-missing" \|\| result\.errorCode === "credentials-rejected"\)/);
+  assert.match(card, /googlePlayLastCheckedAt: undefined/);
+  assert.match(card, /Reconnecter Google/);
+});

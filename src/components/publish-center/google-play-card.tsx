@@ -237,6 +237,49 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     }
   }
 
+  async function reconnectWithGoogle() {
+    if (!packageName) return;
+    setBusy("oauth");
+    setLastFailure(null);
+    try {
+      const result = await bridge().googlePlay.connectOAuth({
+        projectPath: project.localPath,
+        packageName,
+      });
+      if (!result.ok) {
+        if (result.errorCode !== "cancelled") reportGooglePlayError(result);
+        return;
+      }
+      ProjectsService.update(
+        project.id,
+        patchAndroidConfig(project, {
+          googlePlayConnectionId: result.connectionId,
+          googlePlayAccountEmail: result.accountEmail,
+          googlePlayAuthMode: "oauth",
+          googlePlayServiceAccountEmail: undefined,
+          googlePlayCloudProjectId: undefined,
+          googlePlayLastCheckedAt: result.verified ? new Date().toISOString() : undefined,
+          googlePlaySetupStatus: result.initializationRequired ? "required" : "ready",
+          defaultTrack: "internal",
+        }),
+      );
+      AppStore.refreshProjects();
+      toast.success("Autorisation Google renouvelée", {
+        description: result.initializationRequired
+          ? "Le compte est reconnecté. Finalisez maintenant l'initialisation dans Play Console."
+          : `${result.accountEmail} peut de nouveau accéder à ${packageName}.`,
+      });
+      onChanged();
+    } catch {
+      reportGooglePlayError({
+        errorCode: "network-error",
+        errorHint: "La reconnexion avec Google a échoué. Réessayez lorsque la connexion est stable.",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function importAccount() {
     if (!packageName) {
       toast.error("Identifiant Android manquant");
@@ -546,7 +589,24 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
     }
   }
 
+  function invalidateVerifiedConnection() {
+    if (!connectionId) return;
+    for (const candidate of AppStore.getProjects()) {
+      if (candidate.publishing?.android?.googlePlayConnectionId !== connectionId) continue;
+      ProjectsService.update(
+        candidate.id,
+        patchAndroidConfig(candidate, {
+          googlePlayLastCheckedAt: undefined,
+        }),
+      );
+    }
+    AppStore.refreshProjects();
+  }
+
   function reportGooglePlayError(result: GooglePlayFailure) {
+    if (result.errorCode === "credentials-missing" || result.errorCode === "credentials-rejected") {
+      invalidateVerifiedConnection();
+    }
     setLastFailure(result);
     showGooglePlayError(result);
   }
@@ -734,12 +794,15 @@ export function GooglePlayCard({ project, release, onChanged }: Props) {
           failure={lastFailure}
           suggestedBuild={suggestedNextGooglePlayBuild}
           onRetry={
-            lastFailure.errorCode === "commit-outcome-unknown" ||
-            ["pre-publish-check", "upload-bundle", "update-track", "validate-edit", "commit-edit"].includes(
-              lastFailure.phase ?? "",
-            )
-              ? publish
-              : testConnection
+            lastFailure.errorCode === "credentials-missing" ||
+            lastFailure.errorCode === "credentials-rejected"
+              ? reconnectWithGoogle
+              : lastFailure.errorCode === "commit-outcome-unknown" ||
+                  ["pre-publish-check", "upload-bundle", "update-track", "validate-edit", "commit-edit"].includes(
+                    lastFailure.phase ?? "",
+                  )
+                ? publish
+                : testConnection
           }
         />
       )}
@@ -911,7 +974,10 @@ function GooglePlayRecovery({
             )}
             {recovery.action === "retry" && (
               <Button size="sm" onClick={onRetry}>
-                Réessayer
+                {failure.errorCode === "credentials-missing" ||
+                failure.errorCode === "credentials-rejected"
+                  ? "Reconnecter Google"
+                  : "Réessayer"}
               </Button>
             )}
             <HelpRequestButton
@@ -1005,7 +1071,8 @@ function googlePlayRecoveryFor(
         explanation:
           failure.errorHint ?? "AppPublisher ne peut plus utiliser le compte enregistré.",
         solution:
-          "Déconnectez Google Play, reconnectez le bon compte, puis vérifiez de nouveau l’accès.",
+          "Reconnectez le compte Google. AppPublisher remplacera l’autorisation expirée sans modifier votre application ni vos publications.",
+        action: "retry",
       };
     case "network-timeout":
     case "network-error": {
