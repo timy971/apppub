@@ -533,3 +533,25 @@ test("une nouvelle version peut être envoyée directement vers la piste Google 
   assert.match(main, /production-not-ready/);
   assert.match(main, /track-not-available/);
 });
+
+
+test("le code Git peut être vérifié et mis à jour depuis le bandeau de l'application active", () => {
+  const context = read("src/components/active-application-context.tsx");
+  assert.match(context, /Mettre à jour le code/);
+  assert.match(context, /Sauvegarder et mettre à jour/);
+  assert.match(context, /Mise à jour disponible/);
+  assert.match(context, /Code à jour/);
+  assert.match(context, /ProjectsService\.gitStatus/);
+  assert.match(context, /ProjectsService\.syncGit/);
+});
+
+test("une application déjà publiée propose un parcours direct de mise à jour", () => {
+  const card = read("src/components/publish-center/published-update-card.tsx");
+  const center = read("src/components/publish-center/publish-center.tsx");
+  assert.match(card, /Mettre à jour l’application publiée/);
+  assert.match(card, /Préparer le build/);
+  assert.match(card, /Créer le nouvel AAB/);
+  assert.match(card, /Publier la mise à jour/);
+  assert.match(card, /googlePlayProductionVersionCodes/);
+  assert.match(center, /PublishedUpdateCard/);
+});
