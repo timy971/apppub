@@ -31,6 +31,7 @@ import { ReleaseNotesCard } from "./release-notes";
 import { StoreTargetsCard } from "./store-targets";
 import { ValidationSummaryCard } from "./validation-summary";
 import { ReleaseHistoryCard } from "./release-history";
+import { PublishedUpdateCard } from "./published-update-card";
 import { CopilotService } from "@/core/copilot/service";
 import {
   buildChecklist,
@@ -271,6 +272,10 @@ export function PublishCenter({ project }: { project: Project }) {
   return (
     <div className="space-y-4">
       <PublishExplainer />
+      <PublishedUpdateCard
+        project={project}
+        artifactReady={artifact.status === "valid" && !!artifact.path}
+      />
       <PublishCopilotStrip
         plan={copilotPlan}
         project={project}
