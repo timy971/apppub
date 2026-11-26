@@ -21,6 +21,7 @@ import { StepsTimeline } from "./steps-timeline";
 import { SidePanel } from "./side-panel";
 import { LogConsole } from "./log-console";
 import { ResultCard } from "./result-card";
+import { BuildArtifactsCard } from "./build-artifacts-card";
 import { BuildErrorPanel } from "./error-panel";
 import { LiveStatus } from "./live-status";
 import { BuildTips } from "./build-tips";
@@ -228,6 +229,8 @@ export function BuildCenter({ project }: Props) {
         canInitializeAndroid={androidInitializationAvailable}
         onInitializeAndroid={() => setAndroidCreateOpen(true)}
       />
+
+      <BuildArtifactsCard project={project} revision={`${snap.id}:${snap.status}`} />
 
       <div
         className={
