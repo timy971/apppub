@@ -44,6 +44,7 @@ interface Props {
 export function BuildCenter({ project }: Props) {
   const settings = useSettings();
   const [runner, setRunner] = useState<OperationRunner | null>(null);
+  const [artifactRevision, setArtifactRevision] = useState(0);
   const snap = useOperationSnapshot(runner);
   const [now, setNow] = useState<number>(() => performance.now());
   const recordedRef = useRef<string | null>(null);
@@ -131,6 +132,7 @@ export function BuildCenter({ project }: Props) {
         aabReportPath: artifact?.aabReportPath,
         publicationManifestPath: artifact?.publicationManifestPath,
       });
+      setArtifactRevision((value) => value + 1);
       notify(
         "Fichier Android créé",
         `${project.name} · ${artifact?.aabPath ? artifact.aabPath.split(/[\\/]/).pop() : "fichier prêt"}`,
@@ -230,7 +232,7 @@ export function BuildCenter({ project }: Props) {
         onInitializeAndroid={() => setAndroidCreateOpen(true)}
       />
 
-      <BuildArtifactsCard project={project} revision={`${snap.id}:${snap.status}`} />
+      <BuildArtifactsCard project={project} revision={`${snap.id}:${snap.status}:${artifactRevision}`} />
 
       <div
         className={
